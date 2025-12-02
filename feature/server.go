@@ -17,14 +17,14 @@ import (
 	"github.com/shyandsy/aurora/bizerr"
 	"github.com/shyandsy/aurora/config"
 	"github.com/shyandsy/aurora/contracts"
-	"github.com/shyandsy/aurora/route"
 )
 
 type serverFeature struct {
+	App      contracts.App
 	Config   *config.ServerConfig `inject:""`
 	Engine   *gin.Engine
 	server   *http.Server
-	routes   []route.Route
+	routes   []contracts.Route
 	stopChan chan os.Signal
 	running  bool
 	mu       sync.Mutex
@@ -43,6 +43,7 @@ func (f *serverFeature) Name() string {
 }
 
 func (f *serverFeature) Setup(app contracts.App) error {
+	f.App = app
 	if err := app.Resolve(f); err != nil {
 		return fmt.Errorf("failed to resolve ServerFeature dependencies: %w", err)
 	}
@@ -60,7 +61,7 @@ func (f *serverFeature) Setup(app contracts.App) error {
 	return nil
 }
 
-func (f *serverFeature) RegisterRoutes(routes []route.Route) {
+func (f *serverFeature) RegisterRoutes(routes []contracts.Route) {
 	f.routes = append(f.routes, routes...)
 }
 
@@ -251,9 +252,16 @@ func (f *serverFeature) setupRoutes() {
 	}
 }
 
-func (f *serverFeature) createHandler(handler route.CustomizedHandlerFunc) gin.HandlerFunc {
+func (f *serverFeature) createHandler(handler contracts.CustomizedHandlerFunc) gin.HandlerFunc {
 	return func(c *gin.Context) {
-		data, bizErr := handler(c)
+
+		// 创建 ReqContext
+		reqCtx := &contracts.RequestContext{
+			Context: c,
+			App:     f.App,
+		}
+
+		data, bizErr := handler(reqCtx)
 		if bizErr != nil {
 			f.handleError(c, bizErr)
 			return

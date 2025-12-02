@@ -6,7 +6,6 @@ import (
 
 	"github.com/shyandsy/aurora/config"
 	"github.com/shyandsy/aurora/contracts"
-	"github.com/shyandsy/aurora/route"
 
 	"github.com/shyandsy/di"
 )
@@ -54,7 +53,7 @@ func (a *app) AddFeature(f contracts.Features) {
 	a.features = append(a.features, f)
 }
 
-func (a *app) RegisterRoutes(routes []route.Route) {
+func (a *app) RegisterRoutes(routes []contracts.Route) {
 	a.serverFeature.RegisterRoutes(routes)
 }
 
