@@ -1,10 +1,8 @@
 package contracts
 
-import "github.com/shyandsy/aurora/route"
-
 type ServerFeature interface {
 	Features
-	RegisterRoutes(routes []route.Route)
+	RegisterRoutes(routes []Route)
 	Start() error
 	Wait()
 }

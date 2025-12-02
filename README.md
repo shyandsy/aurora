@@ -14,6 +14,7 @@ A lightweight, modular web framework for Go, built on top of Gin with dependency
 - 🛡️ **Error Handling**: Unified business error handling with validation error support
 - 🌐 **CORS Support**: Configurable CORS middleware
 - 🏥 **Health Checks**: Built-in `/health` and `/ready` endpoints
+- 📝 **Request Context**: Extended request context with App instance for easy dependency access
 
 ## Installation
 
@@ -32,9 +33,8 @@ import (
     "log"
     
     "github.com/shyandsy/aurora/bootstrap"
-    "github.com/shyandsy/aurora/route"
+    "github.com/shyandsy/aurora/contracts"
     "github.com/shyandsy/aurora/bizerr"
-    "github.com/gin-gonic/gin"
 )
 
 func main() {
@@ -42,12 +42,12 @@ func main() {
     app := bootstrap.InitDefaultApp()
     
     // Register routes
-    app.RegisterRoutes([]route.Route{
+    app.RegisterRoutes([]contracts.Route{
         {
             Method:  "GET",
             Path:    "/hello",
-            Handler: func(c *gin.Context) (interface{}, bizerr.BizError) {
-                return gin.H{"message": "Hello, Aurora!"}, nil
+            Handler: func(c *contracts.RequestContext) (interface{}, bizerr.BizError) {
+                return map[string]string{"message": "Hello, Aurora!"}, nil
             },
         },
     })
@@ -69,9 +69,8 @@ import (
     
     "github.com/shyandsy/aurora/app"
     "github.com/shyandsy/aurora/feature"
-    "github.com/shyandsy/aurora/route"
+    "github.com/shyandsy/aurora/contracts"
     "github.com/shyandsy/aurora/bizerr"
-    "github.com/gin-gonic/gin"
 )
 
 func main() {
@@ -85,7 +84,7 @@ func main() {
     a.AddFeature(feature.NewJWTFeature())
     
     // Register routes
-    a.RegisterRoutes([]route.Route{
+    a.RegisterRoutes([]contracts.Route{
         {
             Method:  "GET",
             Path:    "/api/users",
@@ -99,9 +98,15 @@ func main() {
     }
 }
 
-func getUserHandler(c *gin.Context) (interface{}, bizerr.BizError) {
+func getUserHandler(c *contracts.RequestContext) (interface{}, bizerr.BizError) {
+    // Access App instance directly from context
+    var userService UserService
+    if err := c.App.Find(&userService); err != nil {
+        return nil, bizerr.ErrInternalServerError(err)
+    }
+    
     // Your handler logic
-    return gin.H{"users": []string{"user1", "user2"}}, nil
+    return map[string][]string{"users": {"user1", "user2"}}, nil
 }
 ```
 
@@ -189,11 +194,24 @@ JWT_ISSUER=myapp
 The `contracts.App` interface provides:
 
 - `AddFeature(feature Features)`: Register a feature
-- `RegisterRoutes(routes []route.Route)`: Register API routes
+- `RegisterRoutes(routes []contracts.Route)`: Register API routes
 - `Run() error`: Start the application
 - `Shutdown() error`: Gracefully shutdown the application
 - `GetContainer() di.Container`: Get the DI container
-- Direct access to `di.Container` methods (Provide, Resolve, etc.)
+- Direct access to `di.Container` methods (Provide, Resolve, Find, etc.)
+
+#### Request Context
+
+Aurora provides `contracts.RequestContext` which extends `gin.Context` with the App instance:
+
+```go
+type RequestContext struct {
+    *gin.Context
+    App contracts.App
+}
+```
+
+This allows handlers to directly access the App instance and DI container without global variables or context lookups.
 
 #### Features
 
@@ -209,6 +227,7 @@ Features implement the `contracts.Features` interface:
    - Automatically registers `/health` and `/ready` endpoints
    - Supports graceful shutdown with configurable timeout
    - Handles SIGINT and SIGTERM signals
+   - Creates `RequestContext` for each request with App instance
 
 2. **GormFeature**: GORM database connection
    - Supports MySQL and SQLite
@@ -227,11 +246,16 @@ Features implement the `contracts.Features` interface:
 
 ### Route Handling
 
-Routes use `route.CustomizedHandlerFunc` signature:
+Routes use `contracts.CustomizedHandlerFunc` signature:
 
 ```go
-type CustomizedHandlerFunc func(*gin.Context) (interface{}, bizerr.BizError)
+type CustomizedHandlerFunc func(*RequestContext) (interface{}, bizerr.BizError)
 ```
+
+Handlers receive `*contracts.RequestContext` which:
+
+- Embeds `*gin.Context` - all Gin methods are available
+- Contains `App contracts.App` - direct access to DI container
 
 Handlers return:
 
@@ -241,14 +265,26 @@ Handlers return:
 **Example**:
 
 ```go
-func getUserHandler(c *gin.Context) (interface{}, bizerr.BizError) {
-    userID := c.Param("id")
+import (
+    "errors"
+    "github.com/shyandsy/aurora/contracts"
+    "github.com/shyandsy/aurora/bizerr"
+)
+
+func getUserHandler(c *contracts.RequestContext) (interface{}, bizerr.BizError) {
+    userID := c.Param("id")  // Gin method available
     if userID == "" {
         return nil, bizerr.ErrBadRequest(errors.New("user ID is required"))
     }
     
+    // Access DI container directly
+    var userService UserService
+    if err := c.App.Find(&userService); err != nil {
+        return nil, bizerr.ErrInternalServerError(err)
+    }
+    
     // Your business logic
-    user := getUserByID(userID)
+    user := userService.GetUser(userID)
     if user == nil {
         return nil, bizerr.ErrNotFound()
     }
@@ -329,6 +365,21 @@ app.ProvideAs(impl, (*MyInterface)(nil))
 // Resolve with interface
 var service MyInterface
 app.Find(&service)
+```
+
+**In Handlers**:
+
+```go
+func myHandler(c *contracts.RequestContext) (interface{}, bizerr.BizError) {
+    // Access DI container directly from RequestContext
+    var service MyService
+    if err := c.App.Find(&service); err != nil {
+        return nil, bizerr.ErrInternalServerError(err)
+    }
+    
+    // Use service
+    return service.DoSomething(), nil
+}
 ```
 
 Features can use struct tags for automatic injection:
