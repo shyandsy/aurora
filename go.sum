@@ -177,8 +177,8 @@ github.com/sethvargo/go-retry v0.2.4 h1:T+jHEQy/zKJf5s95UkguisicE0zuF9y7+/vgz08O
 github.com/sethvargo/go-retry v0.2.4/go.mod h1:1afjQuvh7s4gflMObvjLPaWgluLLyhA1wmVZ6KLpICw=
 github.com/shopspring/decimal v1.3.1 h1:2Usl1nmF/WZucqkFZhnfFYxxxu8LG21F6nPQBE5gKV8=
 github.com/shopspring/decimal v1.3.1/go.mod h1:DKyhrW/HYNuLGql+MJL6WCR6knT2jwCFRcu2hWCYk4o=
-github.com/shyandsy/di v0.0.0-20250615120703-c529c6516476 h1:CDa72SIOZLsrPsVOozuEwx48YB2z9Aawj4aMmJM9Pic=
-github.com/shyandsy/di v0.0.0-20250615120703-c529c6516476/go.mod h1:IM0z0pMJZuWu4QY6PrK2NgfH8LdXFIiS6BDAXMPYfLk=
+github.com/shyandsy/di v0.0.0-20251202143649-30157b62e71a h1:CtX+O28WFJD2uY6Xgqp5RoWMNR4xzIBV4P9EdaUcxPw=
+github.com/shyandsy/di v0.0.0-20251202143649-30157b62e71a/go.mod h1:IM0z0pMJZuWu4QY6PrK2NgfH8LdXFIiS6BDAXMPYfLk=
 github.com/sirupsen/logrus v1.9.3 h1:dueUQJ1C2q9oE3F7wvmSGAaVtTmUizReu6fjN8uqzbQ=
 github.com/sirupsen/logrus v1.9.3/go.mod h1:naHLuLoDiP4jHNo9R0sCBMtWGeIprob74mVsIT4qYEQ=
 github.com/stretchr/objx v0.1.0/go.mod h1:HFkY916IF+rwdDfMAkV7OtwuqBVzrE8GR6GFx+wExME=

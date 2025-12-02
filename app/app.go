@@ -6,8 +6,6 @@ import (
 
 	"github.com/shyandsy/aurora/config"
 	"github.com/shyandsy/aurora/contracts"
-	"github.com/shyandsy/aurora/feature"
-	"github.com/shyandsy/aurora/migration"
 	"github.com/shyandsy/aurora/route"
 
 	"github.com/shyandsy/di"
@@ -38,7 +36,6 @@ func NewApp() contracts.App {
 	}
 
 	app.registerBaseDependencies()
-	app.registerBuildinFeatures()
 
 	return app
 }
@@ -48,6 +45,9 @@ func (a *app) GetContainer() di.Container {
 }
 
 func (a *app) AddFeature(f contracts.Features) {
+	if server, ok := f.(contracts.ServerFeature); ok {
+		a.serverFeature = server
+	}
 	if err := f.Setup(a); err != nil {
 		log.Fatalf("Failed to setup feature %s: %v", f.Name(), err)
 	}
@@ -64,20 +64,8 @@ func (a *app) registerBaseDependencies() {
 	}
 }
 
-func (a *app) registerBuildinFeatures() {
-	a.serverFeature = feature.NewServerFeature()
-	a.AddFeature(a.serverFeature)
-	a.AddFeature(feature.NewGormFeature())
-	a.AddFeature(feature.NewRedisFeature())
-	a.AddFeature(feature.NewJWTFeature())
-}
-
 func (a *app) Run() error {
 	a.printStartupInfo()
-
-	if err := migration.RunMigrations(a.Container); err != nil {
-		return fmt.Errorf("database migration failed: %w", err)
-	}
 
 	if err := a.serverFeature.Start(); err != nil {
 		return fmt.Errorf("server start failed: %w", err)

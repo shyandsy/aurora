@@ -8,7 +8,7 @@ require (
 	github.com/go-redis/redis/v8 v8.11.5
 	github.com/golang-jwt/jwt/v5 v5.2.1
 	github.com/pressly/goose/v3 v3.19.1
-	github.com/shyandsy/di v0.0.0-20250615120703-c529c6516476
+	github.com/shyandsy/di v0.0.0-20251202143649-30157b62e71a
 	gorm.io/driver/mysql v1.6.0
 	gorm.io/driver/sqlite v1.6.0
 	gorm.io/gorm v1.30.0
