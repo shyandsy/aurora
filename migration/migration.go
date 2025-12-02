@@ -4,6 +4,7 @@ import (
 	"database/sql"
 	"errors"
 	"fmt"
+	"log"
 	"os"
 	"path/filepath"
 
@@ -14,7 +15,7 @@ import (
 
 func RunMigrations(container di.Container) error {
 	var sqlDB *sql.DB
-	if err := container.Resolve(sqlDB); err != nil {
+	if err := container.Find(&sqlDB); err != nil {
 		return errors.New("sql.DB not found")
 	}
 
@@ -25,9 +26,17 @@ func RunMigrations(container di.Container) error {
 	migrationsDir := getMigrationsFolder()
 	if err := goose.Up(sqlDB, migrationsDir); err != nil {
 		if errors.Is(err, goose.ErrNoMigrationFiles) {
+			log.Println("Database migrations no files found")
 			return nil
 		}
 		return fmt.Errorf("failed to run migrations: %v", err)
+	}
+
+	currentVersion, err := goose.GetDBVersion(sqlDB)
+	if err != nil {
+		log.Printf("Database migrations completed successfully (unable to get version: %v)", err)
+	} else {
+		log.Printf("Database migrations completed successfully, current version: %d", currentVersion)
 	}
 
 	return nil
