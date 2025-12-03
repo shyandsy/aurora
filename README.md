@@ -13,6 +13,7 @@ A lightweight, modular web framework for Go, built on top of Gin with dependency
 - ⚙️ **Configuration Management**: Environment-based configuration loading with validation
 - 🛡️ **Error Handling**: Unified business error handling with validation error support
 - 🌐 **CORS Support**: Configurable CORS middleware
+- 🔒 **Route Middlewares**: Support for route-specific Gin middlewares (e.g., JWT authentication, rate limiting)
 - 🏥 **Health Checks**: Built-in `/health` and `/ready` endpoints
 - 📝 **Request Context**: Extended request context with App instance for easy dependency access
 - 🌍 **Internationalization (i18n)**: Multi-language support using go-i18n with automatic language detection
@@ -384,6 +385,35 @@ Routes use `contracts.CustomizedHandlerFunc` signature:
 
 ```go
 type CustomizedHandlerFunc func(*RequestContext) (interface{}, bizerr.BizError)
+```
+
+The `contracts.Route` struct supports:
+
+- `Method`: HTTP method (GET, POST, PUT, DELETE, PATCH)
+- `Path`: Route path
+- `Handler`: CustomizedHandlerFunc for business logic
+- `Middlewares`: Optional slice of `gin.HandlerFunc` for route-specific middleware
+
+**Middleware Support**:
+
+You can attach Gin middlewares to specific routes. Middlewares are executed in the order they are defined, before the main handler:
+
+```go
+app.RegisterRoutes([]contracts.Route{
+    {
+        Method:  "GET",
+        Path:    "/public",
+        Handler: publicHandler,
+        // No middleware - public endpoint
+    },
+    {
+        Method:      "GET",
+        Path:        "/protected",
+        Handler:     protectedHandler,
+        Middlewares: []gin.HandlerFunc{jwtAuthMiddleware, rateLimitMiddleware},
+        // Middlewares execute in order: jwtAuthMiddleware → rateLimitMiddleware → protectedHandler
+    },
+})
 ```
 
 Handlers receive `*contracts.RequestContext` which:
