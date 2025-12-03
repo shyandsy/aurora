@@ -189,73 +189,84 @@ I18N_DEFAULT_LANG=en
 I18N_SUPPORTED_LANGS=en,zh-CN,ja
 
 # Application locale files directory (relative to working directory, optional)
-# Framework locale files are automatically loaded from api/aurora/locales/
+# Framework locale files are embedded in the binary and loaded automatically
 I18N_LOCALE_DIR=locales
-
-# Load embedded filesystem (optional, default: false)
-I18N_LOAD_EMBEDDED=false
 ```
+
+**Important Notes**:
+
+- **Framework locale files** are embedded in the Aurora binary using `go:embed` and are always loaded automatically. They are located at `api/aurora/feature/i18n/` in the source code.
+- **Application locale files** should be placed in the directory specified by `I18N_LOCALE_DIR` (relative to your application's working directory).
+- Application locale files can override framework messages with the same message ID.
 
 **Locale File Format**:
 
-Create language files in the `locales` directory. The framework supports multiple formats with the following priority:
+Create language files using **flat structure** (not nested). The framework supports multiple formats with the following priority:
 
 1. **YAML** (`.yaml` or `.yml`) - Recommended, most readable
 2. **TOML** (`.toml`)
 3. **JSON** (`.json`)
 
-Example YAML file (`locales/en.yaml`):
+**Framework locale file example** (`api/aurora/feature/i18n/en.yaml`):
 
 ```yaml
-welcome:
-  id: welcome
-  other: Welcome to Aurora Framework
+error.not_found:
+  id: error.not_found
+  other: Resource not found
 
-error:
-  not_found:
-    id: error.not_found
-    other: Resource not found
-  validation:
-    id: error.validation
-    other: Validation error: {{.Message}}
+error.internal_server:
+  id: error.internal_server
+  other: Internal server error
 
-user:
-  created:
-    id: user.created
-    other: User created successfully
+error.validation:
+  id: error.validation
+  other: "Validation error: {{.Message}}"
+
+error.bad_request:
+  id: error.bad_request
+  other: Bad request
+
+error.unauthorized:
+  id: error.unauthorized
+  other: Unauthorized
+
+error.forbidden:
+  id: error.forbidden
+  other: Forbidden
 ```
 
-Example application YAML file (`api/services/customer/locales/en.yaml`):
+**Application locale file example** (`locales/en.yaml`):
 
 ```yaml
 welcome:
   id: welcome
   other: Welcome to Customer Service
 
-user:
-  email_exists:
-    id: user.email_exists
-    other: Email already exists
-  invalid_email:
-    id: user.invalid_email
-    other: Invalid email format
+user.email_exists:
+  id: user.email_exists
+  other: Email already exists
 
-auth:
-  register_success:
-    id: auth.register_success
-    other: Registration successful
+user.invalid_email:
+  id: user.invalid_email
+  other: Invalid email format
+
+auth.register_success:
+  id: auth.register_success
+  other: Registration successful
 ```
+
+**Note**: Use flat structure with dot notation (e.g., `user.email_exists:`) instead of nested structure (e.g., `user: email_exists:`). This ensures compatibility with `go-i18n`'s message parsing.
 
 Example TOML file (`locales/en.toml`):
 
 ```toml
 [welcome]
 id = "welcome"
-other = "Welcome to Aurora Framework"
+other = "Welcome to Customer Service"
 
-[error.not_found]
-id = "error.not_found"
-other = "Resource not found"
+[user.email_exists]
+id = "user.email_exists"
+other = "Email already exists"
 
 [error.validation]
 id = "error.validation"
@@ -362,6 +373,8 @@ Features implement the `contracts.Features` interface:
    - Multi-language translation using go-i18n
    - Automatic language detection from HTTP headers and query parameters
    - Supports YAML (recommended), TOML, and JSON locale files
+   - Framework locale files are embedded in the binary using `go:embed` (always available)
+   - Application locale files loaded from configured directory (can override framework messages)
    - Provides `contracts.Translator` interface to DI container
    - Integrated with `RequestContext` for easy translation in handlers
 
