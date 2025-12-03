@@ -1,0 +1,23 @@
+error.not_found:
+  id: error.not_found
+  other: Resource not found
+
+error.internal_server:
+  id: error.internal_server
+  other: Internal server error
+
+error.validation:
+  id: error.validation
+  other: "Validation error: {{.Message}}"
+
+error.bad_request:
+  id: error.bad_request
+  other: Bad request
+
+error.unauthorized:
+  id: error.unauthorized
+  other: Unauthorized
+
+error.forbidden:
+  id: error.forbidden
+  other: Forbidden
