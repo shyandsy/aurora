@@ -237,28 +237,31 @@ func (f *serverFeature) setupRoutes() {
 	for _, r := range f.routes {
 		handler := f.createHandler(r.Handler)
 
+		// Combine middlewares with handler
+		handlers := append(r.Middlewares, handler)
+
 		switch r.Method {
 		case "GET":
-			f.Engine.GET(r.Path, handler)
+			f.Engine.GET(r.Path, handlers...)
 		case "POST":
-			f.Engine.POST(r.Path, handler)
+			f.Engine.POST(r.Path, handlers...)
 		case "PUT":
-			f.Engine.PUT(r.Path, handler)
+			f.Engine.PUT(r.Path, handlers...)
 		case "DELETE":
-			f.Engine.DELETE(r.Path, handler)
+			f.Engine.DELETE(r.Path, handlers...)
 		case "PATCH":
-			f.Engine.PATCH(r.Path, handler)
+			f.Engine.PATCH(r.Path, handlers...)
+		default:
+			// Skip unknown methods
 		}
 	}
 }
 
 func (f *serverFeature) createHandler(handler contracts.CustomizedHandlerFunc) gin.HandlerFunc {
 	return func(c *gin.Context) {
-		// 获取 Translator（如果已注册）
 		var translator contracts.Translator
-		f.App.Find(&translator) // 忽略错误，translator 是可选的
+		f.App.Find(&translator)
 
-		// 创建 ReqContext
 		reqCtx := &contracts.RequestContext{
 			Context:    c,
 			App:        f.App,
