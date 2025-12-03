@@ -6,7 +6,7 @@ import (
 	"time"
 )
 
-// TestResolveConfig_BasicTypes 测试基本类型字段赋值
+// TestResolveConfig_BasicTypes tests basic type field assignment
 func TestResolveConfig_BasicTypes(t *testing.T) {
 	type TestConfig struct {
 		StringField string  `env:"TEST_STRING"`
@@ -16,7 +16,6 @@ func TestResolveConfig_BasicTypes(t *testing.T) {
 		BoolField   bool    `env:"TEST_BOOL"`
 	}
 
-	// 设置环境变量
 	os.Setenv("TEST_STRING", "test_value")
 	os.Setenv("TEST_INT", "42")
 	os.Setenv("TEST_UINT", "100")
@@ -53,7 +52,7 @@ func TestResolveConfig_BasicTypes(t *testing.T) {
 	}
 }
 
-// TestResolveConfig_TypeConversion 测试类型转换
+// TestResolveConfig_TypeConversion tests type conversion
 func TestResolveConfig_TypeConversion(t *testing.T) {
 	type TestConfig struct {
 		Int8Field    int8    `env:"TEST_INT8"`
@@ -102,7 +101,7 @@ func TestResolveConfig_TypeConversion(t *testing.T) {
 	}
 }
 
-// TestResolveConfig_Duration 测试 time.Duration 类型
+// TestResolveConfig_Duration tests time.Duration type
 func TestResolveConfig_Duration(t *testing.T) {
 	type TestConfig struct {
 		DurationField time.Duration `env:"TEST_DURATION"`
@@ -123,7 +122,7 @@ func TestResolveConfig_Duration(t *testing.T) {
 	}
 }
 
-// TestResolveConfig_Slice 测试切片类型
+// TestResolveConfig_Slice tests slice type
 func TestResolveConfig_Slice(t *testing.T) {
 	type TestConfig struct {
 		StringSlice []string `env:"TEST_SLICE"`
@@ -149,7 +148,7 @@ func TestResolveConfig_Slice(t *testing.T) {
 	}
 }
 
-// TestResolveConfig_SliceWithSpaces 测试带空格的切片
+// TestResolveConfig_SliceWithSpaces tests slice with spaces
 func TestResolveConfig_SliceWithSpaces(t *testing.T) {
 	type TestConfig struct {
 		StringSlice []string `env:"TEST_SLICE"`
@@ -170,13 +169,12 @@ func TestResolveConfig_SliceWithSpaces(t *testing.T) {
 	}
 }
 
-// TestResolveConfig_RequiredFieldMissing 测试必需字段缺失时报错
+// TestResolveConfig_RequiredFieldMissing tests error when required field is missing
 func TestResolveConfig_RequiredFieldMissing(t *testing.T) {
 	type TestConfig struct {
 		RequiredField string `env:"TEST_REQUIRED"`
 	}
 
-	// 确保环境变量不存在
 	os.Unsetenv("TEST_REQUIRED")
 
 	cfg := &TestConfig{}
@@ -190,7 +188,7 @@ func TestResolveConfig_RequiredFieldMissing(t *testing.T) {
 	}
 }
 
-// TestResolveConfig_OmitEmpty 测试 omitempty 标签
+// TestResolveConfig_OmitEmpty tests omitempty tag
 func TestResolveConfig_OmitEmpty(t *testing.T) {
 	type TestConfig struct {
 		RequiredField string `env:"TEST_REQUIRED"`
@@ -199,7 +197,6 @@ func TestResolveConfig_OmitEmpty(t *testing.T) {
 	}
 
 	os.Setenv("TEST_REQUIRED", "required_value")
-	// 不设置 TEST_OPTIONAL 和 TEST_OPTIONAL_INT
 	defer os.Unsetenv("TEST_REQUIRED")
 
 	cfg := &TestConfig{}
@@ -219,20 +216,20 @@ func TestResolveConfig_OmitEmpty(t *testing.T) {
 	}
 }
 
-// TestResolveConfig_InvalidPointer 测试非指针参数
+// TestResolveConfig_InvalidPointer tests non-pointer parameter
 func TestResolveConfig_InvalidPointer(t *testing.T) {
 	type TestConfig struct {
 		Field string `env:"TEST_FIELD"`
 	}
 
-	cfg := TestConfig{} // 不是指针
+	cfg := TestConfig{}
 	err := ResolveConfig(cfg)
 	if err == nil {
 		t.Fatal("ResolveConfig should fail when parameter is not a pointer")
 	}
 }
 
-// TestResolveConfig_InvalidType 测试非结构体参数
+// TestResolveConfig_InvalidType tests non-struct parameter
 func TestResolveConfig_InvalidType(t *testing.T) {
 	var str string
 	err := ResolveConfig(&str)
@@ -241,7 +238,7 @@ func TestResolveConfig_InvalidType(t *testing.T) {
 	}
 }
 
-// TestResolveConfig_TypeConversionError 测试类型转换失败
+// TestResolveConfig_TypeConversionError tests type conversion failure
 func TestResolveConfig_TypeConversionError(t *testing.T) {
 	type TestConfig struct {
 		IntField int `env:"TEST_INT"`
@@ -257,7 +254,7 @@ func TestResolveConfig_TypeConversionError(t *testing.T) {
 	}
 }
 
-// TestResolveConfig_DurationConversionError 测试 Duration 转换失败
+// TestResolveConfig_DurationConversionError tests Duration conversion failure
 func TestResolveConfig_DurationConversionError(t *testing.T) {
 	type TestConfig struct {
 		DurationField time.Duration `env:"TEST_DURATION"`
@@ -273,7 +270,7 @@ func TestResolveConfig_DurationConversionError(t *testing.T) {
 	}
 }
 
-// TestResolveConfig_BoolConversion 测试布尔值转换
+// TestResolveConfig_BoolConversion tests boolean conversion
 func TestResolveConfig_BoolConversion(t *testing.T) {
 	type TestConfig struct {
 		BoolTrue  bool `env:"TEST_BOOL_TRUE"`
@@ -313,18 +310,18 @@ func TestResolveConfig_BoolConversion(t *testing.T) {
 	}
 }
 
-// TestResolveConfig_NoEnvTag 测试没有 env tag 的字段
+// TestResolveConfig_NoEnvTag tests field without env tag
 func TestResolveConfig_NoEnvTag(t *testing.T) {
 	type TestConfig struct {
 		WithTag    string `env:"TEST_WITH_TAG"`
-		WithoutTag string // 没有 env tag
+		WithoutTag string
 	}
 
 	os.Setenv("TEST_WITH_TAG", "value")
 	defer os.Unsetenv("TEST_WITH_TAG")
 
 	cfg := &TestConfig{}
-	cfg.WithoutTag = "original_value" // 设置初始值
+	cfg.WithoutTag = "original_value"
 
 	err := ResolveConfig(cfg)
 	if err != nil {
@@ -339,15 +336,15 @@ func TestResolveConfig_NoEnvTag(t *testing.T) {
 	}
 }
 
-// TestResolveConfig_EmptyString 测试空字符串处理
+// TestResolveConfig_EmptyString tests empty string handling
 func TestResolveConfig_EmptyString(t *testing.T) {
 	type TestConfig struct {
 		RequiredField string `env:"TEST_REQUIRED"`
 		OptionalField string `env:"TEST_OPTIONAL,omitempty"`
 	}
 
-	os.Setenv("TEST_REQUIRED", "") // 空字符串
-	os.Setenv("TEST_OPTIONAL", "") // 空字符串
+	os.Setenv("TEST_REQUIRED", "")
+	os.Setenv("TEST_OPTIONAL", "")
 	defer func() {
 		os.Unsetenv("TEST_REQUIRED")
 		os.Unsetenv("TEST_OPTIONAL")
@@ -359,7 +356,6 @@ func TestResolveConfig_EmptyString(t *testing.T) {
 		t.Fatal("ResolveConfig should fail when required field is empty string")
 	}
 
-	// 测试可选字段为空字符串的情况
 	os.Unsetenv("TEST_REQUIRED")
 	os.Unsetenv("TEST_OPTIONAL")
 	cfg2 := &TestConfig{}
@@ -369,13 +365,13 @@ func TestResolveConfig_EmptyString(t *testing.T) {
 	}
 }
 
-// TestResolveConfig_Overflow 测试数值溢出
+// TestResolveConfig_Overflow tests numeric overflow
 func TestResolveConfig_Overflow(t *testing.T) {
 	type TestConfig struct {
 		Int8Field int8 `env:"TEST_INT8"`
 	}
 
-	os.Setenv("TEST_INT8", "1000") // 超出 int8 范围
+	os.Setenv("TEST_INT8", "1000")
 	defer os.Unsetenv("TEST_INT8")
 
 	cfg := &TestConfig{}
@@ -385,7 +381,7 @@ func TestResolveConfig_Overflow(t *testing.T) {
 	}
 }
 
-// TestResolveConfig_UnsupportedSliceType 测试不支持的切片类型
+// TestResolveConfig_UnsupportedSliceType tests unsupported slice type
 func TestResolveConfig_UnsupportedSliceType(t *testing.T) {
 	type TestConfig struct {
 		IntSlice []int `env:"TEST_INT_SLICE"`
@@ -401,7 +397,7 @@ func TestResolveConfig_UnsupportedSliceType(t *testing.T) {
 	}
 }
 
-// TestResolveConfig_RealWorldExample 测试真实场景：DatabaseConfig
+// TestResolveConfig_RealWorldExample tests real-world scenario: DatabaseConfig
 func TestResolveConfig_RealWorldExample(t *testing.T) {
 	os.Setenv("DB_DRIVER", "mysql")
 	os.Setenv("DB_DSN", "user:pass@tcp(localhost:3306)/db")
@@ -434,7 +430,7 @@ func TestResolveConfig_RealWorldExample(t *testing.T) {
 	}
 }
 
-// TestResolveConfig_RealWorldExampleRedis 测试真实场景：RedisConfig
+// TestResolveConfig_RealWorldExampleRedis tests real-world scenario: RedisConfig
 func TestResolveConfig_RealWorldExampleRedis(t *testing.T) {
 	os.Setenv("REDIS_ADDR", "localhost:6379")
 	os.Setenv("REDIS_PASSWORD", "secret")

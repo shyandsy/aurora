@@ -187,7 +187,7 @@ func (f *i18nFeature) T(id string, data ...interface{}) string {
 	return f.TWithLang(f.currentLang, id, data...)
 }
 
-// TWithLang 使用指定语言翻译消息ID
+// TWithLang translates message ID using specified language
 func (f *i18nFeature) TWithLang(lang, id string, data ...interface{}) string {
 	localizer := i18n.NewLocalizer(f.bundle, lang)
 
