@@ -1,0 +1,23 @@
+error.not_found:
+  id: error.not_found
+  other: 资源未找到
+
+error.internal_server:
+  id: error.internal_server
+  other: 服务器内部错误
+
+error.validation:
+  id: error.validation
+  other: "验证错误：{{.Message}}"
+
+error.bad_request:
+  id: error.bad_request
+  other: 请求错误
+
+error.unauthorized:
+  id: error.unauthorized
+  other: 未授权
+
+error.forbidden:
+  id: error.forbidden
+  other: 禁止访问

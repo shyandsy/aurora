@@ -254,11 +254,15 @@ func (f *serverFeature) setupRoutes() {
 
 func (f *serverFeature) createHandler(handler contracts.CustomizedHandlerFunc) gin.HandlerFunc {
 	return func(c *gin.Context) {
+		// 获取 Translator（如果已注册）
+		var translator contracts.Translator
+		f.App.Find(&translator) // 忽略错误，translator 是可选的
 
 		// 创建 ReqContext
 		reqCtx := &contracts.RequestContext{
-			Context: c,
-			App:     f.App,
+			Context:    c,
+			App:        f.App,
+			Translator: translator,
 		}
 
 		data, bizErr := handler(reqCtx)

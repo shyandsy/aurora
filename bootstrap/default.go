@@ -23,6 +23,7 @@ func InitDefaultApp() contracts.App {
 	a.AddFeature(feature.NewGormFeature())
 	a.AddFeature(feature.NewRedisFeature())
 	a.AddFeature(feature.NewJWTFeature())
+	a.AddFeature(feature.NewI18NFeature())
 
 	if err := migration.RunMigrations(a); err != nil {
 		panic(fmt.Errorf("database migration failed: %w", err))

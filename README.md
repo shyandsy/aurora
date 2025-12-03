@@ -15,6 +15,7 @@ A lightweight, modular web framework for Go, built on top of Gin with dependency
 - 🌐 **CORS Support**: Configurable CORS middleware
 - 🏥 **Health Checks**: Built-in `/health` and `/ready` endpoints
 - 📝 **Request Context**: Extended request context with App instance for easy dependency access
+- 🌍 **Internationalization (i18n)**: Multi-language support using go-i18n with automatic language detection
 
 ## Installation
 
@@ -176,6 +177,91 @@ JWT_ISSUER=myapp
 
 **Note**: Refresh tokens expire after `JWT_EXPIRE_TIME * 24` (e.g., 15m * 24 = 6 hours).
 
+### I18N Configuration
+
+Configure internationalization settings:
+
+```bash
+# Default language (required)
+I18N_DEFAULT_LANG=en
+
+# Supported languages (comma-separated, required)
+I18N_SUPPORTED_LANGS=en,zh-CN,ja
+
+# Application locale files directory (relative to working directory, optional)
+# Framework locale files are automatically loaded from api/aurora/locales/
+I18N_LOCALE_DIR=locales
+
+# Load embedded filesystem (optional, default: false)
+I18N_LOAD_EMBEDDED=false
+```
+
+**Locale File Format**:
+
+Create language files in the `locales` directory. The framework supports multiple formats with the following priority:
+
+1. **YAML** (`.yaml` or `.yml`) - Recommended, most readable
+2. **TOML** (`.toml`)
+3. **JSON** (`.json`)
+
+Example YAML file (`locales/en.yaml`):
+
+```yaml
+welcome:
+  id: welcome
+  other: Welcome to Aurora Framework
+
+error:
+  not_found:
+    id: error.not_found
+    other: Resource not found
+  validation:
+    id: error.validation
+    other: Validation error: {{.Message}}
+
+user:
+  created:
+    id: user.created
+    other: User created successfully
+```
+
+Example application YAML file (`api/services/customer/locales/en.yaml`):
+
+```yaml
+welcome:
+  id: welcome
+  other: Welcome to Customer Service
+
+user:
+  email_exists:
+    id: user.email_exists
+    other: Email already exists
+  invalid_email:
+    id: user.invalid_email
+    other: Invalid email format
+
+auth:
+  register_success:
+    id: auth.register_success
+    other: Registration successful
+```
+
+Example TOML file (`locales/en.toml`):
+
+```toml
+[welcome]
+id = "welcome"
+other = "Welcome to Aurora Framework"
+
+[error.not_found]
+id = "error.not_found"
+other = "Resource not found"
+
+[error.validation]
+id = "error.validation"
+other = "Validation error: {{.Message}}"
+```
+
 ### CORS Configuration
 
 - `CORS_ALLOWED_ORIGINS`: Comma-separated list of allowed origins (optional)
@@ -202,16 +288,44 @@ The `contracts.App` interface provides:
 
 #### Request Context
 
-Aurora provides `contracts.RequestContext` which extends `gin.Context` with the App instance:
+Aurora provides `contracts.RequestContext` which extends `gin.Context` with the App instance and Translator:
 
 ```go
 type RequestContext struct {
     *gin.Context
-    App contracts.App
+    App        contracts.App
+    Translator contracts.Translator
 }
 ```
 
-This allows handlers to directly access the App instance and DI container without global variables or context lookups.
+This allows handlers to directly access the App instance, DI container, and translation service without global variables or context lookups.
+
+**Language Detection**:
+
+The `RequestContext` automatically detects the language from:
+
+1. Query parameter `lang` (e.g., `?lang=zh-CN`)
+2. `Accept-Language` HTTP header
+3. Default language from configuration
+
+**Translation in Handlers**:
+
+```go
+func myHandler(c *contracts.RequestContext) (interface{}, bizerr.BizError) {
+    // Use the built-in T method for translation
+    message := c.T("welcome")
+    
+    // Translation with variables
+    errorMsg := c.T("error.validation", map[string]interface{}{
+        "Message": "Email is required",
+    })
+    
+    return map[string]string{
+        "message": message,
+        "error": errorMsg,
+    }, nil
+}
+```
 
 #### Features
 
@@ -243,6 +357,13 @@ Features implement the `contracts.Features` interface:
    - Refresh token support
    - Token blacklist using Redis
    - Provides `feature.JWTService` interface to DI container
+
+5. **I18NFeature**: Internationalization support
+   - Multi-language translation using go-i18n
+   - Automatic language detection from HTTP headers and query parameters
+   - Supports YAML (recommended), TOML, and JSON locale files
+   - Provides `contracts.Translator` interface to DI container
+   - Integrated with `RequestContext` for easy translation in handlers
 
 ### Route Handling
 
