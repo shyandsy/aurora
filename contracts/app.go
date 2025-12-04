@@ -10,6 +10,9 @@ type App interface {
 	Run() error
 	Shutdown() error
 
+	Name() string
+	RunLevel() string
+
 	GetContainer() di.Container
 	di.Container
 }

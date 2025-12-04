@@ -20,7 +20,7 @@ const (
 
 type JWTService interface {
 	contracts.Features
-	GenerateToken(userID int64, email string) (*TokenResponse, error)
+	GenerateToken(userID int64, email string, features []string) (*TokenResponse, error)
 	ValidateToken(tokenString string) (*Claims, error)
 	RefreshToken(tokenString string) (*TokenResponse, error)
 	ExtractUserID(tokenString string) (int64, error)
@@ -36,8 +36,9 @@ type TokenResponse struct {
 
 type Claims struct {
 	jwt.RegisteredClaims
-	UserID int64  `json:"user_id"`
-	Email  string `json:"email"`
+	UserID   int64    `json:"user_id"`
+	Email    string   `json:"email"`
+	Features []string `json:"features"`
 }
 
 type jwtFeature struct {
@@ -74,12 +75,12 @@ func (f *jwtFeature) Close() error {
 	return nil
 }
 
-func (f *jwtFeature) GenerateToken(userID int64, email string) (*TokenResponse, error) {
-	accessToken, err := f.generateAccessToken(userID, email)
+func (f *jwtFeature) GenerateToken(userID int64, email string, features []string) (*TokenResponse, error) {
+	accessToken, err := f.generateAccessToken(userID, email, features)
 	if err != nil {
 		return nil, err
 	}
-	refreshToken, err := f.generateRefreshToken(userID, email)
+	refreshToken, err := f.generateRefreshToken(userID, email, features)
 	if err != nil {
 		return nil, err
 	}
@@ -93,7 +94,7 @@ func (f *jwtFeature) GenerateToken(userID int64, email string) (*TokenResponse, 
 	}, nil
 }
 
-func (f *jwtFeature) generateAccessToken(userID int64, email string) (string, error) {
+func (f *jwtFeature) generateAccessToken(userID int64, email string, features []string) (string, error) {
 	now := time.Now()
 	expiresAt := now.Add(f.Config.ExpireTime)
 
@@ -105,8 +106,9 @@ func (f *jwtFeature) generateAccessToken(userID int64, email string) (string, er
 			Issuer:    f.Config.Issuer,
 			Subject:   fmt.Sprintf("%d", userID),
 		},
-		UserID: userID,
-		Email:  email,
+		UserID:   userID,
+		Email:    email,
+		Features: features,
 	}
 
 	token := jwt.NewWithClaims(jwt.SigningMethodHS256, claims)
@@ -141,12 +143,12 @@ func (f *jwtFeature) RefreshToken(tokenString string) (*TokenResponse, error) {
 		return nil, errors.New("refresh token has expired")
 	}
 
-	accessToken, err := f.generateAccessToken(claims.UserID, claims.Email)
+	accessToken, err := f.generateAccessToken(claims.UserID, claims.Email, claims.Features)
 	if err != nil {
 		return nil, err
 	}
 
-	refreshToken, err := f.generateRefreshToken(claims.UserID, claims.Email)
+	refreshToken, err := f.generateRefreshToken(claims.UserID, claims.Email, claims.Features)
 	if err != nil {
 		return nil, err
 	}
@@ -168,7 +170,7 @@ func (f *jwtFeature) ExtractUserID(tokenString string) (int64, error) {
 	return claims.UserID, nil
 }
 
-func (f *jwtFeature) generateRefreshToken(userID int64, email string) (string, error) {
+func (f *jwtFeature) generateRefreshToken(userID int64, email string, features []string) (string, error) {
 	now := time.Now()
 	refreshExpire := f.Config.ExpireTime * 24
 
@@ -180,8 +182,9 @@ func (f *jwtFeature) generateRefreshToken(userID int64, email string) (string, e
 			Issuer:    f.Config.Issuer,
 			Subject:   fmt.Sprintf("%d", userID),
 		},
-		UserID: userID,
-		Email:  email,
+		UserID:   userID,
+		Email:    email,
+		Features: features,
 	}
 
 	token := jwt.NewWithClaims(jwt.SigningMethodHS256, claims)
