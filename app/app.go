@@ -39,6 +39,14 @@ func NewApp() contracts.App {
 	return app
 }
 
+func (a *app) Name() string {
+	return a.config.Server.Name
+}
+
+func (a *app) RunLevel() string {
+	return a.config.Server.RunLevel
+}
+
 func (a *app) GetContainer() di.Container {
 	return a.Container
 }
