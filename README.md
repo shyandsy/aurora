@@ -17,6 +17,7 @@ A lightweight, modular web framework for Go, built on top of Gin with dependency
 - 🏥 **Health Checks**: Built-in `/health` and `/ready` endpoints
 - 📝 **Request Context**: Extended request context with App instance for easy dependency access
 - 🌍 **Internationalization (i18n)**: Multi-language support using go-i18n with automatic language detection
+- 📊 **Structured Logging**: Built-in logger with log levels (Error, Info, Debug) and environment-based configuration
 
 ## Installation
 
@@ -283,6 +284,33 @@ other = "Validation error: {{.Message}}"
 
 **Note**: CORS is only enabled if at least one CORS configuration is provided.
 
+### Logger Configuration
+
+Aurora provides a built-in structured logger with three log levels:
+
+- `LOG_LEVEL`: Log level - `error`, `info`, or `debug` (optional, default: `error`)
+
+**Log Levels**:
+
+- `error`: Only error messages are logged (default, suitable for production)
+- `info`: Error and info messages are logged
+- `debug`: All messages (error, info, and debug) are logged
+
+**Example**:
+
+```bash
+# Production: only errors
+LOG_LEVEL=error
+
+# Development: errors and info
+LOG_LEVEL=info
+
+# Debugging: all messages
+LOG_LEVEL=debug
+```
+
+**Note**: If `LOG_LEVEL` is not set, the logger will use `error` level by default and print a message indicating the default log level being used.
+
 ## Architecture
 
 ### Core Components
@@ -378,6 +406,13 @@ Features implement the `contracts.Features` interface:
    - Application locale files loaded from configured directory (can override framework messages)
    - Provides `contracts.Translator` interface to DI container
    - Integrated with `RequestContext` for easy translation in handlers
+
+6. **Logger**: Structured logging support
+   - Three log levels: Error (always logged), Info, Debug
+   - Environment-based configuration via `LOG_LEVEL`
+   - Error logs go to stderr, Info/Debug logs go to stdout
+   - Includes timestamp and file location in log output
+   - Global logger functions available without initialization
 
 ### Route Handling
 
@@ -590,6 +625,60 @@ func (f *MyFeature) Setup(app contracts.App) error {
 func (f *MyFeature) Close() error {
     // Cleanup resources
     return nil
+}
+```
+
+## Logging
+
+Aurora provides a built-in structured logger that can be used throughout your application:
+
+```go
+import "github.com/shyandsy/aurora/logger"
+
+func myHandler(c *contracts.RequestContext) (interface{}, bizerr.BizError) {
+    // Log error (always logged regardless of log level)
+    logger.Error("Failed to process request: %+v", err)
+    
+    // Log info (logged when LOG_LEVEL is info or debug)
+    logger.Info("Processing request for user: %s", userID)
+    
+    // Log debug (only logged when LOG_LEVEL is debug)
+    logger.Debug("Request details: %+v", requestData)
+    
+    // Alternative format functions
+    logger.Errorf("Error: %s", err.Error())
+    logger.Infof("Info: %s", message)
+    logger.Debugf("Debug: %s", debugInfo)
+}
+```
+
+**Log Output Format**:
+
+```
+[ERROR] 2024/12/08 14:30:45 service.go:123: Failed to process request: database connection failed
+[INFO] 2024/12/08 14:30:45 handler.go:45: Processing request for user: 12345
+[DEBUG] 2024/12/08 14:30:45 handler.go:46: Request details: map[method:GET path:/api/users]
+```
+
+**Best Practices**:
+
+- Use `logger.Error()` for errors that need attention (always logged)
+- Use `logger.Info()` for important application events
+- Use `logger.Debug()` for detailed debugging information
+- Include context variables in log messages (e.g., `orderNo`, `customerID`, `error=%+v`)
+- Use `%+v` format for errors to include stack traces when available
+
+**Example with Context**:
+
+```go
+func cancelOrder(ctx *contracts.RequestContext, orderNo string, customerID int64) bizerr.BizError {
+    // Log error with context variables
+    logger.Error("CancelOrder: failed to get order, orderNo=%s, customerID=%d, error=%+v", 
+        orderNo, customerID, err)
+    
+    // Return generic error to client (don't expose database details)
+    msg := ctx.T("error.internal_server")
+    return bizerr.ErrInternalServerError(errors.New(msg))
 }
 ```
 
