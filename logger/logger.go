@@ -31,12 +31,29 @@ var (
 )
 
 func init() {
-	// Initialize log level from environment variable if set
+	// Initialize log level from LOG_LEVEL environment variable if set (highest priority)
 	if logLevelEnv := os.Getenv("LOG_LEVEL"); logLevelEnv != "" {
 		SetLogLevelFromString(logLevelEnv)
-	} else {
-		// Print default log level (directly output to ensure it's always printed)
-		infoLogger.Output(2, fmt.Sprintf("LOG_LEVEL not set, using default log level: %s", getLogLevelString(currentLogLevel)))
+		return
+	}
+
+	// Otherwise, determine log level based on RUN_LEVEL
+	runLevel := os.Getenv("RUN_LEVEL")
+	switch strings.ToLower(runLevel) {
+	case "local":
+		SetLogLevel(LogLevelDebug)
+	case "stage":
+		SetLogLevel(LogLevelInfo)
+	case "production":
+		SetLogLevel(LogLevelError)
+	default:
+		// Default to error for production safety if RUN_LEVEL is not set or invalid
+		SetLogLevel(LogLevelError)
+		if runLevel == "" {
+			infoLogger.Output(2, fmt.Sprintf("RUN_LEVEL not set, using default log level: %s", getLogLevelString(currentLogLevel)))
+		} else {
+			infoLogger.Output(2, fmt.Sprintf("Invalid RUN_LEVEL: %s, using default log level: %s", runLevel, getLogLevelString(currentLogLevel)))
+		}
 	}
 }
 
