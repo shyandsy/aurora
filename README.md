@@ -288,28 +288,41 @@ other = "Validation error: {{.Message}}"
 
 Aurora provides a built-in structured logger with three log levels:
 
-- `LOG_LEVEL`: Log level - `error`, `info`, or `debug` (optional, default: `error`)
+- `LOG_LEVEL`: Log level - `error`, `info`, or `debug` (optional, highest priority)
+- `RUN_LEVEL`: Automatically determines log level if `LOG_LEVEL` is not set
+
+**Log Level Priority**:
+
+1. **`LOG_LEVEL` environment variable** (if set, takes highest priority)
+2. **`RUN_LEVEL` environment variable** (if `LOG_LEVEL` is not set):
+   - `local` → `debug` (all messages logged)
+   - `stage` → `info` (error and info messages logged)
+   - `production` → `error` (only error messages logged)
+3. **Default**: `error` (if neither `LOG_LEVEL` nor `RUN_LEVEL` is set)
 
 **Log Levels**:
 
-- `error`: Only error messages are logged (default, suitable for production)
+- `error`: Only error messages are logged (suitable for production)
 - `info`: Error and info messages are logged
 - `debug`: All messages (error, info, and debug) are logged
 
-**Example**:
+**Examples**:
 
 ```bash
-# Production: only errors
-LOG_LEVEL=error
-
-# Development: errors and info
-LOG_LEVEL=info
-
-# Debugging: all messages
+# Option 1: Explicitly set LOG_LEVEL (highest priority)
 LOG_LEVEL=debug
+
+# Option 2: Let RUN_LEVEL determine log level automatically
+RUN_LEVEL=local      # → debug level
+RUN_LEVEL=stage      # → info level
+RUN_LEVEL=production # → error level
+
+# Option 3: Override RUN_LEVEL with explicit LOG_LEVEL
+RUN_LEVEL=production
+LOG_LEVEL=debug      # → debug level (LOG_LEVEL takes priority)
 ```
 
-**Note**: If `LOG_LEVEL` is not set, the logger will use `error` level by default and print a message indicating the default log level being used.
+**Note**: If neither `LOG_LEVEL` nor `RUN_LEVEL` is set, the logger will use `error` level by default and print a message indicating the default log level being used.
 
 ## Architecture
 
@@ -409,7 +422,8 @@ Features implement the `contracts.Features` interface:
 
 6. **Logger**: Structured logging support
    - Three log levels: Error (always logged), Info, Debug
-   - Environment-based configuration via `LOG_LEVEL`
+   - Environment-based configuration via `LOG_LEVEL` (explicit) or `RUN_LEVEL` (automatic)
+   - Automatic log level selection based on `RUN_LEVEL` if `LOG_LEVEL` is not set
    - Error logs go to stderr, Info/Debug logs go to stdout
    - Includes timestamp and file location in log output
    - Global logger functions available without initialization
