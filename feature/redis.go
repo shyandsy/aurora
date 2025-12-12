@@ -17,6 +17,14 @@ type RedisService interface {
 	Set(ctx context.Context, key string, value interface{}, expiration time.Duration) error
 	Delete(ctx context.Context, keys ...string) (int64, error)
 	Exists(ctx context.Context, key string) (bool, error)
+	// Hash operations
+	HSet(ctx context.Context, key, field string, value interface{}) error
+	HGet(ctx context.Context, key, field string) (string, error)
+	HDel(ctx context.Context, key string, fields ...string) (int64, error)
+	HGetAll(ctx context.Context, key string) (map[string]string, error)
+	HExists(ctx context.Context, key, field string) (bool, error)
+	HKeys(ctx context.Context, key string) ([]string, error)
+	Expire(ctx context.Context, key string, expiration time.Duration) error
 }
 
 type redisFeature struct {
@@ -101,4 +109,43 @@ func (r *redisService) Exists(ctx context.Context, key string) (bool, error) {
 		return false, err
 	}
 	return n > 0, nil
+}
+
+// HSet sets a field in a hash stored at key
+func (r *redisService) HSet(ctx context.Context, key, field string, value interface{}) error {
+	return r.client.HSet(ctx, key, field, value).Err()
+}
+
+// HGet gets a field value from a hash stored at key
+func (r *redisService) HGet(ctx context.Context, key, field string) (string, error) {
+	val, err := r.client.HGet(ctx, key, field).Result()
+	if err == redis.Nil {
+		return "", nil
+	}
+	return val, err
+}
+
+// HDel deletes one or more fields from a hash stored at key
+func (r *redisService) HDel(ctx context.Context, key string, fields ...string) (int64, error) {
+	return r.client.HDel(ctx, key, fields...).Result()
+}
+
+// HGetAll gets all fields and values from a hash stored at key
+func (r *redisService) HGetAll(ctx context.Context, key string) (map[string]string, error) {
+	return r.client.HGetAll(ctx, key).Result()
+}
+
+// HExists checks if a field exists in a hash stored at key
+func (r *redisService) HExists(ctx context.Context, key, field string) (bool, error) {
+	return r.client.HExists(ctx, key, field).Result()
+}
+
+// HKeys gets all field names from a hash stored at key
+func (r *redisService) HKeys(ctx context.Context, key string) ([]string, error) {
+	return r.client.HKeys(ctx, key).Result()
+}
+
+// Expire sets an expiration time on a key
+func (r *redisService) Expire(ctx context.Context, key string, expiration time.Duration) error {
+	return r.client.Expire(ctx, key, expiration).Err()
 }
