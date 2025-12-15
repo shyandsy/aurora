@@ -17,6 +17,8 @@ type RedisService interface {
 	Set(ctx context.Context, key string, value interface{}, expiration time.Duration) error
 	Delete(ctx context.Context, keys ...string) (int64, error)
 	Exists(ctx context.Context, key string) (bool, error)
+	Incr(ctx context.Context, key string) (int64, error)
+	SetNX(ctx context.Context, key string, value interface{}, expiration time.Duration) (bool, error)
 	// Hash operations
 	HSet(ctx context.Context, key, field string, value interface{}) error
 	HGet(ctx context.Context, key, field string) (string, error)
@@ -109,6 +111,14 @@ func (r *redisService) Exists(ctx context.Context, key string) (bool, error) {
 		return false, err
 	}
 	return n > 0, nil
+}
+
+func (r *redisService) Incr(ctx context.Context, key string) (int64, error) {
+	return r.client.Incr(ctx, key).Result()
+}
+
+func (r *redisService) SetNX(ctx context.Context, key string, value interface{}, expiration time.Duration) (bool, error) {
+	return r.client.SetNX(ctx, key, value, expiration).Result()
 }
 
 // HSet sets a field in a hash stored at key
