@@ -275,6 +275,22 @@ id = "error.validation"
 other = "Validation error: {{.Message}}"
 ```
 
+### Migration Configuration
+
+- `GOOSE_TABLE_PREFIX`: Optional prefix for goose version table name (optional)
+  - If set, goose version table will use this prefix (e.g., `admin_goose_db_version`)
+  - If not set or empty, goose default table name `goose_db_version` will be used
+
+**Example**:
+
+```bash
+# Use default table name "goose_db_version"
+# (no environment variable needed)
+
+# Use custom table name "admin_goose_db_version"
+GOOSE_TABLE_PREFIX=admin_
+```
+
 ### CORS Configuration
 
 - `CORS_ALLOWED_ORIGINS`: Comma-separated list of allowed origins (optional)
@@ -380,7 +396,7 @@ func myHandler(c *contracts.RequestContext) (interface{}, bizerr.BizError) {
 }
 ```
 
-#### Features
+#### Feature System
 
 Features implement the `contracts.Features` interface:
 
@@ -540,6 +556,22 @@ Migrations are automatically run on startup when using `bootstrap.InitDefaultApp
 
 Migration files should be placed in the `migrations/` directory relative to the working directory.
 
+**Migration Configuration**:
+
+- `GOOSE_TABLE_PREFIX`: Optional prefix for goose version table name (optional)
+  - If set, goose version table will use this prefix (e.g., `admin_goose_db_version`)
+  - If not set or empty, goose default table name `goose_db_version` will be used
+
+**Example**:
+
+```bash
+# Use default table name "goose_db_version"
+# (no environment variable needed)
+
+# Use custom table name "admin_goose_db_version"
+GOOSE_TABLE_PREFIX=admin_
+```
+
 **Migration File Format**:
 
 ```sql
@@ -668,7 +700,7 @@ func myHandler(c *contracts.RequestContext) (interface{}, bizerr.BizError) {
 
 **Log Output Format**:
 
-```
+```text
 [ERROR] 2024/12/08 14:30:45 service.go:123: Failed to process request: database connection failed
 [INFO] 2024/12/08 14:30:45 handler.go:45: Processing request for user: 12345
 [DEBUG] 2024/12/08 14:30:45 handler.go:46: Request details: map[method:GET path:/api/users]
