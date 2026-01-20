@@ -116,6 +116,7 @@ func (f *serverFeature) createServer() *http.Server {
 		Handler:      f.Engine,
 		ReadTimeout:  f.Config.ReadTimeout,
 		WriteTimeout: f.Config.WriteTimeout,
+		IdleTimeout:  f.Config.IdleTimeout,
 	}
 }
 
@@ -131,8 +132,7 @@ func (f *serverFeature) startServer() {
 	log.Printf("Starting server on %s", f.server.Addr)
 
 	if err := f.server.ListenAndServe(); err != nil && err != http.ErrServerClosed {
-		log.Printf("Server start failed: %v", err)
-		return
+		panic(fmt.Errorf("Server start failed: %w", err))
 	}
 }
 
@@ -157,7 +157,13 @@ func (f *serverFeature) shutdownServer() error {
 	defer cancel()
 
 	if err := server.Shutdown(ctx); err != nil {
-		log.Printf("Server shutdown error: %v", err)
+		// If shutdown times out, log error but continue to mark as not running
+		// This prevents the process from hanging indefinitely
+		if err == context.DeadlineExceeded {
+			log.Printf("Server shutdown timeout after %v, forcing close", f.Config.ShutdownTimeout)
+		} else {
+			log.Printf("Server shutdown error: %v", err)
+		}
 		f.mu.Lock()
 		f.running = false
 		f.mu.Unlock()
@@ -273,7 +279,11 @@ func (f *serverFeature) createHandler(handler contracts.CustomizedHandlerFunc) g
 			f.handleError(c, bizErr)
 			return
 		}
-		c.JSON(200, data)
+		// Check if response has already been written (e.g., by c.Data() or c.String())
+		// If already written, don't serialize the return value to avoid appending null
+		if !c.Writer.Written() {
+			c.JSON(200, data)
+		}
 	}
 }
 

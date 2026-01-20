@@ -27,6 +27,14 @@ type RedisService interface {
 	HExists(ctx context.Context, key, field string) (bool, error)
 	HKeys(ctx context.Context, key string) ([]string, error)
 	Expire(ctx context.Context, key string, expiration time.Duration) error
+	// Distributed lock operations
+	// WithLock executes a function with a distributed lock
+	// It automatically acquires the lock, executes the function, and releases the lock
+	// The lock is automatically refreshed (extended) while the function is executing
+	// If the lock cannot be acquired, the function is not executed and returns ErrLockNotAcquired
+	// If the context is cancelled, the lock is automatically released
+	// The lock will automatically expire after ttl duration if the process crashes
+	WithLock(ctx context.Context, key string, value string, ttl time.Duration, fn func() error) error
 }
 
 type redisFeature struct {
@@ -158,4 +166,87 @@ func (r *redisService) HKeys(ctx context.Context, key string) ([]string, error) 
 // Expire sets an expiration time on a key
 func (r *redisService) Expire(ctx context.Context, key string, expiration time.Duration) error {
 	return r.client.Expire(ctx, key, expiration).Err()
+}
+
+// ErrLockNotAcquired is returned when WithLock cannot acquire the lock
+var ErrLockNotAcquired = fmt.Errorf("lock not acquired")
+
+// WithLock executes a function with a distributed lock
+// It automatically acquires the lock, executes the function, and releases the lock
+// The lock is automatically refreshed (extended) while the function is executing
+// If the lock cannot be acquired, the function is not executed and returns ErrLockNotAcquired
+// If the context is cancelled, the lock is automatically released
+// The lock will automatically expire after ttl duration if the process crashes
+func (r *redisService) WithLock(ctx context.Context, key string, value string, ttl time.Duration, fn func() error) error {
+	// Try to acquire lock using Redis SetNX
+	acquired, err := r.client.SetNX(ctx, key, value, ttl).Result()
+	if err != nil {
+		return fmt.Errorf("failed to acquire lock: %w", err)
+	}
+	if !acquired {
+		return ErrLockNotAcquired
+	}
+
+	// Create a context that will be cancelled when we need to stop refreshing
+	refreshCtx, cancelRefresh := context.WithCancel(ctx)
+	defer cancelRefresh()
+
+	// Start a goroutine to refresh the lock periodically
+	// This ensures the lock doesn't expire if the task takes longer than ttl
+	refreshDone := make(chan struct{})
+	go func() {
+		defer close(refreshDone)
+		refreshInterval := ttl / 2 // Refresh at half the TTL to ensure we refresh before expiration
+		if refreshInterval < time.Second {
+			refreshInterval = time.Second // Minimum 1 second
+		}
+
+		ticker := time.NewTicker(refreshInterval)
+		defer ticker.Stop()
+
+		for {
+			select {
+			case <-refreshCtx.Done():
+				return
+			case <-ticker.C:
+				// Refresh the lock by extending its TTL
+				// Only refresh if the lock value matches (we still own it)
+				currentValue, err := r.client.Get(refreshCtx, key).Result()
+				if err != nil {
+					// Lock may have been released or expired, stop refreshing
+					return
+				}
+				if currentValue == value {
+					// We still own the lock, extend it
+					if err := r.client.Expire(refreshCtx, key, ttl).Err(); err != nil {
+						// Failed to refresh, stop trying
+						return
+					}
+				} else {
+					// Lock value changed, we no longer own it, stop refreshing
+					return
+				}
+			}
+		}
+	}()
+
+	// Ensure lock is released when function completes or context is cancelled
+	defer func() {
+		// Stop the refresh goroutine
+		cancelRefresh()
+		<-refreshDone
+
+		// Release the lock by deleting the key
+		// Use a short timeout context to avoid blocking
+		releaseCtx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+		defer cancel()
+		if _, err := r.client.Del(releaseCtx, key).Result(); err != nil {
+			// Log error but don't fail - lock will expire automatically
+			log.Printf("Warning: failed to release lock %s: %v", key, err)
+		}
+	}()
+
+	// Execute the function
+	// If context is cancelled, the function should handle it
+	return fn()
 }

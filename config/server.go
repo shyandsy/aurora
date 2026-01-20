@@ -27,6 +27,7 @@ type ServerConfig struct {
 	Port            int           `env:"PORT" envDefault:"8080"`
 	ReadTimeout     time.Duration `env:"READ_TIMEOUT" envDefault:"30s"`
 	WriteTimeout    time.Duration `env:"WRITE_TIMEOUT" envDefault:"30s"`
+	IdleTimeout     time.Duration `env:"IDLE_TIMEOUT" envDefault:"60s"`
 	ShutdownTimeout time.Duration `env:"SHUTDOWN_TIMEOUT" envDefault:"5s"`
 
 	Name     string `env:"SERVICE_NAME" envDefault:"myapp"`

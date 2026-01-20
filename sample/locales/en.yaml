@@ -1,0 +1,87 @@
+user.email_required:
+  id: user.email_required
+  other: Email is required
+
+user.email_exists:
+  id: user.email_exists
+  other: Email already exists
+
+user.invalid_email:
+  id: user.invalid_email
+  other: Invalid email format
+
+user.password_invalid:
+  id: user.password_invalid
+  other: "Password must be between {{.MinLength}} and {{.MaxLength}} characters"
+
+user.password_required:
+  id: user.password_required
+  other: Password is required
+
+user.account_disabled:
+  id: user.account_disabled
+  other: Account is disabled
+
+user.not_found:
+  id: user.not_found
+  other: User not found
+
+auth.login_failed:
+  id: auth.login_failed
+  other: Login failed, invalid username or password
+
+auth.unauthorized:
+  id: auth.unauthorized
+  other: Unauthorized
+
+error.bad_request:
+  id: error.bad_request
+  other: Bad request
+
+error.internal_server:
+  id: error.internal_server
+  other: Internal server error
+
+error.invalid_status:
+  id: error.invalid_status
+  other: Invalid status value
+
+role.not_found:
+  id: role.not_found
+  other: Role not found
+
+role.name_exists:
+  id: role.name_exists
+  other: Role name already exists
+
+feature.not_found:
+  id: feature.not_found
+  other: Feature not found
+
+rolefeature.not_found:
+  id: rolefeature.not_found
+  other: Role feature not found
+
+rolefeature.exists:
+  id: rolefeature.exists
+  other: Role feature already exists
+
+document.not_found:
+  id: document.not_found
+  other: Document not found
+
+document_category.not_found:
+  id: document_category.not_found
+  other: Document category not found
+
+document_category.name_exists:
+  id: document_category.name_exists
+  other: Document category name already exists
+
+commission.plan.not_found:
+  id: commission.plan.not_found
+  other: Commission plan not found
+
+commission.plan.inactive:
+  id: commission.plan.inactive
+  other: Commission plan is inactive
