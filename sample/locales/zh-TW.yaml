@@ -1,0 +1,87 @@
+user.email_required:
+  id: user.email_required
+  other: 電子郵件是必填項
+
+user.email_exists:
+  id: user.email_exists
+  other: 電子郵件已存在
+
+user.invalid_email:
+  id: user.invalid_email
+  other: 電子郵件格式無效
+
+user.password_invalid:
+  id: user.password_invalid
+  other: "密碼長度必須在 {{.MinLength}} 到 {{.MaxLength}} 個字元之間"
+
+user.password_required:
+  id: user.password_required
+  other: 密碼是必填項
+
+user.account_disabled:
+  id: user.account_disabled
+  other: 帳戶已被禁用
+
+user.not_found:
+  id: user.not_found
+  other: 用戶不存在
+
+auth.login_failed:
+  id: auth.login_failed
+  other: 登入失敗，用戶名或密碼錯誤
+
+auth.unauthorized:
+  id: auth.unauthorized
+  other: 未授權
+
+error.bad_request:
+  id: error.bad_request
+  other: 請求參數錯誤
+
+error.internal_server:
+  id: error.internal_server
+  other: 伺服器內部錯誤
+
+error.invalid_status:
+  id: error.invalid_status
+  other: 狀態值無效
+
+role.not_found:
+  id: role.not_found
+  other: 角色不存在
+
+role.name_exists:
+  id: role.name_exists
+  other: 角色名稱已存在
+
+feature.not_found:
+  id: feature.not_found
+  other: 功能不存在
+
+rolefeature.not_found:
+  id: rolefeature.not_found
+  other: 角色功能關聯不存在
+
+rolefeature.exists:
+  id: rolefeature.exists
+  other: 角色功能關聯已存在
+
+document.not_found:
+  id: document.not_found
+  other: 幫助文檔不存在
+
+document_category.not_found:
+  id: document_category.not_found
+  other: 幫助文檔分類不存在
+
+document_category.name_exists:
+  id: document_category.name_exists
+  other: 幫助文檔分類名稱已存在
+
+commission.plan.not_found:
+  id: commission.plan.not_found
+  other: 佣金計劃不存在
+
+commission.plan.inactive:
+  id: commission.plan.inactive
+  other: 佣金計劃未激活
