@@ -20,22 +20,37 @@ import (
 )
 
 type serverFeature struct {
-	App      contracts.App
-	Config   *config.ServerConfig `inject:""`
-	Engine   *gin.Engine
-	server   *http.Server
-	routes   []contracts.Route
-	stopChan chan os.Signal
-	running  bool
-	mu       sync.Mutex
-	wg       sync.WaitGroup
+	App          contracts.App
+	Config       *config.ServerConfig `inject:""`
+	Engine       *gin.Engine
+	server       *http.Server
+	routes       []contracts.Route
+	errorHandler contracts.ErrorHandler
+	stopChan     chan os.Signal
+	running      bool
+	mu           sync.Mutex
+	wg           sync.WaitGroup
 }
 
-func NewServerFeature() contracts.ServerFeature {
-	return &serverFeature{
+// ServerOption configures a ServerFeature.
+type ServerOption func(*serverFeature)
+
+// WithErrorHandler sets a custom error handler. If not set, the default handler is used.
+func WithErrorHandler(handler contracts.ErrorHandler) ServerOption {
+	return func(f *serverFeature) {
+		f.errorHandler = handler
+	}
+}
+
+func NewServerFeature(opts ...ServerOption) contracts.ServerFeature {
+	f := &serverFeature{
 		stopChan: make(chan os.Signal, 1),
 		running:  false,
 	}
+	for _, opt := range opts {
+		opt(f)
+	}
+	return f
 }
 
 func (f *serverFeature) Name() string {
@@ -288,6 +303,14 @@ func (f *serverFeature) createHandler(handler contracts.CustomizedHandlerFunc) g
 }
 
 func (f *serverFeature) handleError(c *gin.Context, err error) {
+	if f.errorHandler != nil {
+		f.errorHandler.HandleError(c, err)
+		return
+	}
+	f.defaultHandleError(c, err)
+}
+
+func (f *serverFeature) defaultHandleError(c *gin.Context, err error) {
 	bizErr, ok := err.(bizerr.BizError)
 	if ok {
 		c.JSON(bizErr.HTTPCode(), gin.H{

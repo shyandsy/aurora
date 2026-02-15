@@ -25,6 +25,17 @@ A lightweight, modular web framework for Go, built on top of Gin with dependency
 go get github.com/shyandsy/aurora
 ```
 
+## Examples
+
+The framework includes sample projects under **[sample](sample/)**:
+
+| Sample | Description |
+|--------|-------------|
+| **[sample/full_showcase](sample/full_showcase/)** | Full application: Server, GORM, Redis, JWT, i18n, migrations, layered structure (controller / service / datalayer), RBAC, and auth. Use this as a reference for building a complete Aurora app. |
+| **[sample/customize_error_handler](sample/customize_error_handler/)** | Minimal app that demonstrates [custom error response format](sample/customize_error_handler/README.md): implement `contracts.ErrorHandler` and pass it via `feature.WithErrorHandler()` so all handler errors use your own JSON shape. |
+
+Run an example from the **Aurora repo root** (e.g. `cd sample` then the run command in that sample’s README). See each sample’s README for required environment variables and run commands.
+
 ## Quick Start
 
 ### Basic Usage
@@ -197,7 +208,7 @@ I18N_LOCALE_DIR=locales
 
 **Important Notes**:
 
-- **Framework locale files** are embedded in the Aurora binary using `go:embed` and are always loaded automatically. They are located at `api/aurora/feature/i18n/` in the source code.
+- **Framework locale files** are embedded in the Aurora binary using `go:embed` and are always loaded automatically. They are located at `feature/i18n/` in the source code.
 - **Application locale files** should be placed in the directory specified by `I18N_LOCALE_DIR` (relative to your application's working directory).
 - Application locale files can override framework messages with the same message ID.
 
@@ -209,7 +220,7 @@ Create language files using **flat structure** (not nested). The framework suppo
 2. **TOML** (`.toml`)
 3. **JSON** (`.json`)
 
-**Framework locale file example** (`api/aurora/feature/i18n/en.yaml`):
+**Framework locale file example** (`feature/i18n/en.yaml`):
 
 ```yaml
 error.not_found:
@@ -549,6 +560,54 @@ bizerr.NewMultipleFieldErrors(map[string]string{
     "password": "password too short",
 })
 ```
+
+**Custom Error JSON Structure**
+
+By default, error responses use the format `{"message": "..."}` with the HTTP status code from `bizerr.BizError`. To use your own error response format (e.g. custom fields, error codes, or i18n), implement the `contracts.ErrorHandler` interface and pass it when creating the server:
+
+```go
+package main
+
+import (
+    "net/http"
+
+    "github.com/gin-gonic/gin"
+    "github.com/shyandsy/aurora/app"
+    "github.com/shyandsy/aurora/contracts"
+    "github.com/shyandsy/aurora/feature"
+    "github.com/shyandsy/aurora/bizerr"
+)
+
+// MyErrorHandler implements contracts.ErrorHandler to customize error response JSON.
+type MyErrorHandler struct{}
+
+func (MyErrorHandler) HandleError(c *gin.Context, err error) {
+    code := http.StatusInternalServerError
+    msg := err.Error()
+    if e, ok := err.(bizerr.BizError); ok {
+        code = e.HTTPCode()
+        msg = e.Message()
+    }
+    c.JSON(code, gin.H{
+        "code":    code,
+        "message": msg,
+        "error":   err.Error(),
+        // Add any custom fields you need
+    })
+}
+
+func main() {
+    a := app.NewApp()
+    a.AddFeature(feature.NewServerFeature(
+        feature.WithErrorHandler(MyErrorHandler{}),
+    ))
+    a.AddFeature(feature.NewGormFeature())
+    // ... register routes and run
+}
+```
+
+- If you do **not** pass `WithErrorHandler`, the default format `{"message": "..."}` is used.
+- If you pass `WithErrorHandler(handler)`, all handler errors are sent using your `HandleError(c, err)` implementation, so you control the full JSON body and status code.
 
 ### Database Migrations
 
