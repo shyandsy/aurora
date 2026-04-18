@@ -9,6 +9,7 @@ import (
 	"github.com/shyandsy/aurora/contracts"
 
 	"gorm.io/driver/mysql"
+	"gorm.io/driver/postgres"
 	"gorm.io/driver/sqlite"
 	"gorm.io/gorm"
 	"gorm.io/gorm/logger"
@@ -73,8 +74,10 @@ func (f *gormFeature) provideDatabase() (*gorm.DB, *sql.DB, error) {
 		db, err = gorm.Open(mysql.Open(f.config.DSN), gormConfig)
 	case "sqlite":
 		db, err = gorm.Open(sqlite.Open(f.config.DSN), gormConfig)
+	case "postgres", "postgresql", "pgx":
+		db, err = gorm.Open(postgres.Open(f.config.DSN), gormConfig)
 	default:
-		log.Fatalf("Unsupported database driver: %s, supported drivers: mysql, sqlite", f.config.Driver)
+		log.Fatalf("Unsupported database driver: %s, supported drivers: mysql, sqlite, postgres", f.config.Driver)
 	}
 
 	if err != nil {
