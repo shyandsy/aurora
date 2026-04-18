@@ -37,7 +37,7 @@ func (s *DatabaseConfig) Validate() error {
 		return NewConfigError("DB_MAX_IDLE_CONNS must be less than or equal to DB_MAX_OPEN_CONNS")
 	}
 
-	supportedDrivers := []string{"mysql", "sqlite"}
+	supportedDrivers := []string{"mysql", "sqlite", "postgres", "postgresql", "pgx"}
 	found := false
 	for _, driver := range supportedDrivers {
 		if s.Driver == driver {

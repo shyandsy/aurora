@@ -20,8 +20,13 @@ func RunMigrations(container di.Container) error {
 		return errors.New("sql.DB not found")
 	}
 
-	if err := goose.SetDialect("mysql"); err != nil {
-		return fmt.Errorf("failed to set dialect: %v", err)
+	var dbCfg auroraConfig.DatabaseConfig
+	if err := auroraConfig.ResolveConfig(&dbCfg); err != nil {
+		return fmt.Errorf("failed to resolve database config for migrations: %v", err)
+	}
+	dialect := gooseDialect(dbCfg.Driver)
+	if err := goose.SetDialect(dialect); err != nil {
+		return fmt.Errorf("failed to set dialect %q: %v", dialect, err)
 	}
 
 	// Load migration configuration (table name prefix)
@@ -66,4 +71,15 @@ func getMigrationsFolder() string {
 		return "migrations"
 	}
 	return filepath.Join(wd, "migrations")
+}
+
+func gooseDialect(driver string) string {
+	switch driver {
+	case "postgres", "postgresql", "pgx":
+		return "postgres"
+	case "sqlite":
+		return "sqlite3"
+	default:
+		return driver
+	}
 }
