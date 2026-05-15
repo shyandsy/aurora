@@ -8,18 +8,20 @@ import (
 
 const (
 	RunLevelLocal      = "local"
+	RunLevelEng        = "eng"
 	RunLevelStage      = "stage"
 	RunLevelProduction = "production"
 )
 
 var ValidRunLevels = map[string]bool{
 	RunLevelLocal:      true,
+	RunLevelEng:        true,
 	RunLevelStage:      true,
 	RunLevelProduction: true,
 }
 
 func validRunLevelsString() string {
-	return fmt.Sprintf("%s, %s, %s", RunLevelLocal, RunLevelStage, RunLevelProduction)
+	return fmt.Sprintf("%s, %s, %s, %s", RunLevelLocal, RunLevelEng, RunLevelStage, RunLevelProduction)
 }
 
 type ServerConfig struct {
