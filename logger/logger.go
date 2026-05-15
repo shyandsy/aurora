@@ -42,7 +42,7 @@ func init() {
 	switch strings.ToLower(runLevel) {
 	case "local":
 		SetLogLevel(LogLevelDebug)
-	case "stage":
+	case "eng", "stage":
 		SetLogLevel(LogLevelInfo)
 	case "production":
 		SetLogLevel(LogLevelError)
