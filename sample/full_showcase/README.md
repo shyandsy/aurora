@@ -141,6 +141,7 @@ Redis is required for JWT token blacklist.
 |----------|-------------|---------|
 | `JWT_SECRET` | Secret (change in production) | — |
 | `JWT_EXPIRE_TIME` | Token TTL, e.g. `24h`, `168h` | `24h` |
+| `JWT_REFRESH_EXPIRE_TIME` | Refresh token TTL (optional; defaults to `JWT_EXPIRE_TIME * 2`) | — |
 | `JWT_ISSUER` | Issuer | `sample-service` |
 
 ### I18N (optional)
