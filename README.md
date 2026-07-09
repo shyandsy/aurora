@@ -179,6 +179,7 @@ REDIS_DB=0
 - `JWT_SECRET`: JWT secret key (required, must be changed from default in production)
 - `JWT_EXPIRE_TIME`: Access token expiry duration (required, e.g., `15m`, `1h`)
 - `JWT_ISSUER`: JWT issuer identifier (required)
+- `JWT_REFRESH_EXPIRE_TIME`: Refresh token expiry duration (optional, e.g., `30m`, `24h`). When unset it defaults to `JWT_EXPIRE_TIME * 2`.
 
 **Example**:
 
@@ -186,9 +187,11 @@ REDIS_DB=0
 JWT_SECRET=your-super-secret-jwt-key-here-change-in-production
 JWT_EXPIRE_TIME=15m
 JWT_ISSUER=myapp
+# Optional: override refresh token lifetime (defaults to JWT_EXPIRE_TIME * 2)
+JWT_REFRESH_EXPIRE_TIME=30m
 ```
 
-**Note**: Refresh tokens expire after `JWT_EXPIRE_TIME * 24` (e.g., 15m * 24 = 6 hours).
+**Note**: Refresh tokens expire after `JWT_REFRESH_EXPIRE_TIME` when set, otherwise `JWT_EXPIRE_TIME * 2` (e.g., 15m * 2 = 30 minutes).
 
 ### I18N Configuration
 

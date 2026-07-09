@@ -172,7 +172,7 @@ func (f *jwtFeature) ExtractUserID(tokenString string) (int64, error) {
 
 func (f *jwtFeature) generateRefreshToken(userID int64, email string, features []string) (string, error) {
 	now := time.Now()
-	refreshExpire := f.Config.ExpireTime * 24
+	refreshExpire := f.Config.RefreshExpireOrDefault()
 
 	claims := &Claims{
 		RegisteredClaims: jwt.RegisteredClaims{
