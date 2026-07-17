@@ -2,6 +2,8 @@ package feature
 
 import (
 	"context"
+	"crypto/rand"
+	"encoding/hex"
 	"errors"
 	"fmt"
 	"log"
@@ -94,12 +96,35 @@ func (f *jwtFeature) GenerateToken(userID int64, email string, features []string
 	}, nil
 }
 
+// newTokenID 生成 jti(JWT ID):128 bit 随机,十六进制。
+//
+// 为什么必须有:除了时间戳,claims 里其余字段(issuer/subject/user_id/email/features)对同一个
+// 用户都是固定的,而 NumericDate 只精确到**秒**。没有 jti 的话,同一用户在同一秒内签发的两个
+// token 会**字节完全相同** —— 它们在密码学意义上就是同一个凭据。后果:
+//   - 按 token 拉黑的登出:登出一台设备,同秒登录的另一台也一起掉线;
+//   - 上层按 token 哈希做的会话管理(如登录设备数限制)根本没法区分两台设备。
+//
+// 用 crypto/rand 而不是 math/rand:token 标识必须不可预测,且这里不引入新依赖。
+func newTokenID() (string, error) {
+	var b [16]byte
+	if _, err := rand.Read(b[:]); err != nil {
+		return "", fmt.Errorf("generate token id: %w", err)
+	}
+	return hex.EncodeToString(b[:]), nil
+}
+
 func (f *jwtFeature) generateAccessToken(userID int64, email string, features []string) (string, error) {
 	now := time.Now()
 	expiresAt := now.Add(f.Config.ExpireTime)
 
+	tokenID, err := newTokenID()
+	if err != nil {
+		return "", err
+	}
+
 	claims := &Claims{
 		RegisteredClaims: jwt.RegisteredClaims{
+			ID:        tokenID,
 			ExpiresAt: jwt.NewNumericDate(expiresAt),
 			IssuedAt:  jwt.NewNumericDate(now),
 			NotBefore: jwt.NewNumericDate(now),
@@ -174,8 +199,14 @@ func (f *jwtFeature) generateRefreshToken(userID int64, email string, features [
 	now := time.Now()
 	refreshExpire := f.Config.RefreshExpireOrDefault()
 
+	tokenID, err := newTokenID()
+	if err != nil {
+		return "", err
+	}
+
 	claims := &Claims{
 		RegisteredClaims: jwt.RegisteredClaims{
+			ID:        tokenID,
 			ExpiresAt: jwt.NewNumericDate(now.Add(refreshExpire)),
 			IssuedAt:  jwt.NewNumericDate(now),
 			NotBefore: jwt.NewNumericDate(now),
