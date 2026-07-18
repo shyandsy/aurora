@@ -457,3 +457,74 @@ func TestResolveConfig_RealWorldExampleRedis(t *testing.T) {
 		t.Errorf("DB = %v, want 1", cfg.DB)
 	}
 }
+
+// TestDatabaseConfig_ConnMaxDurations 验证新增的连接寿命/空闲寿命字段:
+//   - 显式设置能按 duration 解析;
+//   - 不设(omitempty)= 0,保持旧行为(向后兼容);
+//   - 负值被 Validate 拒绝。
+func TestDatabaseConfig_ConnMaxDurations(t *testing.T) {
+	base := func() {
+		os.Setenv("DB_DRIVER", "mysql")
+		os.Setenv("DB_DSN", "user:pass@tcp(localhost:3306)/db")
+		os.Setenv("DB_MAX_IDLE_CONNS", "10")
+		os.Setenv("DB_MAX_OPEN_CONNS", "50")
+	}
+	cleanup := func() {
+		for _, k := range []string{"DB_DRIVER", "DB_DSN", "DB_MAX_IDLE_CONNS", "DB_MAX_OPEN_CONNS", "DB_CONN_MAX_LIFETIME", "DB_CONN_MAX_IDLE_TIME"} {
+			os.Unsetenv(k)
+		}
+	}
+
+	// 1) 显式设置 → 正确解析
+	t.Run("set", func(t *testing.T) {
+		defer cleanup()
+		base()
+		os.Setenv("DB_CONN_MAX_LIFETIME", "1h")
+		os.Setenv("DB_CONN_MAX_IDLE_TIME", "30m")
+
+		cfg := &DatabaseConfig{}
+		if err := ResolveConfig(cfg); err != nil {
+			t.Fatalf("ResolveConfig failed: %v", err)
+		}
+		if cfg.ConnMaxLifetime != time.Hour {
+			t.Errorf("ConnMaxLifetime = %v, want 1h", cfg.ConnMaxLifetime)
+		}
+		if cfg.ConnMaxIdleTime != 30*time.Minute {
+			t.Errorf("ConnMaxIdleTime = %v, want 30m", cfg.ConnMaxIdleTime)
+		}
+		if err := cfg.Validate(); err != nil {
+			t.Errorf("Validate() unexpected error: %v", err)
+		}
+	})
+
+	// 2) 不设 → 0(向后兼容),且 Validate 通过
+	t.Run("unset_backward_compatible", func(t *testing.T) {
+		defer cleanup()
+		base()
+
+		cfg := &DatabaseConfig{}
+		if err := ResolveConfig(cfg); err != nil {
+			t.Fatalf("ResolveConfig failed: %v", err)
+		}
+		if cfg.ConnMaxLifetime != 0 {
+			t.Errorf("ConnMaxLifetime = %v, want 0 (unset)", cfg.ConnMaxLifetime)
+		}
+		if cfg.ConnMaxIdleTime != 0 {
+			t.Errorf("ConnMaxIdleTime = %v, want 0 (unset)", cfg.ConnMaxIdleTime)
+		}
+		if err := cfg.Validate(); err != nil {
+			t.Errorf("Validate() with unset durations should pass, got: %v", err)
+		}
+	})
+
+	// 3) 负值 → Validate 报错
+	t.Run("negative_rejected", func(t *testing.T) {
+		cfg := &DatabaseConfig{
+			Driver: "mysql", DSN: "x", MaxIdleConns: 1, MaxOpenConns: 1,
+			ConnMaxLifetime: -1,
+		}
+		if err := cfg.Validate(); err == nil {
+			t.Error("Validate() should reject negative ConnMaxLifetime")
+		}
+	})
+}
