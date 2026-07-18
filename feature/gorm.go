@@ -91,6 +91,13 @@ func (f *gormFeature) provideDatabase() (*gorm.DB, *sql.DB, error) {
 
 	sqlDB.SetMaxIdleConns(f.config.MaxIdleConns)
 	sqlDB.SetMaxOpenConns(f.config.MaxOpenConns)
+	// 0 = 不设,保持 database/sql 默认(连接不因年龄/空闲时长回收),向后兼容。
+	if f.config.ConnMaxLifetime > 0 {
+		sqlDB.SetConnMaxLifetime(f.config.ConnMaxLifetime)
+	}
+	if f.config.ConnMaxIdleTime > 0 {
+		sqlDB.SetConnMaxIdleTime(f.config.ConnMaxIdleTime)
+	}
 
 	if err := sqlDB.Ping(); err != nil {
 		log.Fatalf("Failed to ping %s database: %v", f.config.Driver, err)
