@@ -54,6 +54,8 @@ func (c *MyConfig) Validate() error {
 
 **永远不要用 `envDefault`**,它是死标签。
 
+> 框架内的正面范例:`ServerConfig.TrustedProxies`([config/server.go](../../config/server.go))—— `env:"TRUSTED_PROXIES,omitempty"`(可选)+ 默认值 `DefaultTrustedProxies` 写在代码、由 `ResolvedTrustedProxies()` 兜底。加带默认值的可选配置照它抄,别照 `HOST`/`PORT` 那套 `envDefault`。
+
 ## 支持的字段类型
 
 [config/resolve.go:57](../../config/resolve.go#L57) `setFieldValue`:
