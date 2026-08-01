@@ -202,6 +202,12 @@ func (f *serverFeature) createGinEngine() *gin.Engine {
 	engine.Use(gin.Logger())
 	engine.Use(gin.Recovery())
 
+	// 可信代理:决定 c.ClientIP() 是否采信代理转发的 X-Forwarded-For(否则用直连对端 IP,防伪造)。
+	// 见 config.ServerConfig.TrustedProxies —— 默认只信私网/loopback,可用 TRUSTED_PROXIES 调整。
+	if err := engine.SetTrustedProxies(f.Config.ResolvedTrustedProxies()); err != nil {
+		log.Fatalf("Failed to set trusted proxies (TRUSTED_PROXIES): %v", err)
+	}
+
 	if err := f.setupCORS(engine); err != nil {
 		log.Fatalf("Failed to setup CORS: %v", err)
 	}

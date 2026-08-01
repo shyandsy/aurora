@@ -13,6 +13,7 @@ A lightweight, modular web framework for Go, built on top of Gin with dependency
 - ⚙️ **Configuration Management**: Environment-based configuration loading with validation
 - 🛡️ **Error Handling**: Unified business error handling with validation error support
 - 🌐 **CORS Support**: Configurable CORS middleware
+- 🕵️ **Trusted Proxies**: Configurable trusted-proxy list so `c.ClientIP()` returns the real client IP behind a reverse proxy and can't be spoofed via `X-Forwarded-For` (secure-by-default: trusts private ranges only)
 - 🔒 **Route Middlewares**: Support for route-specific Gin middlewares (e.g., JWT authentication, rate limiting)
 - 🏥 **Health Checks**: Built-in `/health` and `/ready` endpoints
 - 📝 **Request Context**: Extended request context with App instance for easy dependency access
@@ -138,6 +139,7 @@ Aurora uses environment variables for configuration. All configurations are vali
 - `READ_TIMEOUT`: Read timeout (default: `30s`)
 - `WRITE_TIMEOUT`: Write timeout (default: `30s`)
 - `SHUTDOWN_TIMEOUT`: Graceful shutdown timeout (default: `5s`)
+- `TRUSTED_PROXIES`: Comma-separated proxy IPs/CIDRs whose `X-Forwarded-For` is trusted for `c.ClientIP()` (optional). Unset → loopback + RFC1918 private ranges; `none` → trust nobody (client IP = direct peer); `0.0.0.0/0,::/0` → trust all (legacy gin default). See [Server feature docs](doc/features/server.md#可信代理--真实客户端-ip).
 
 **Note**: Gin mode is automatically set based on `RUN_LEVEL`:
 

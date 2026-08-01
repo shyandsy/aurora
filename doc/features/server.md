@@ -147,5 +147,27 @@ signal.Notify(SIGINT, SIGTERM)  →  收到信号
 | `SERVICE_NAME` | string | ✅ | `myapp` | 服务名(banner / 健康检查) |
 | `SERVICE_VERSION` | string | ✅ | `1.0.0` | 版本 |
 | `RUN_LEVEL` | string | ✅ | `local` | `local`/`eng`/`stage`/`production`;=production 时 gin 走 release 模式 |
+| `TRUSTED_PROXIES` | `[]string` | ❌(omitempty) | —(默认写在代码里) | 可信代理 IP/CIDR。见下方[「可信代理」](#可信代理--真实客户端-ip)。**这一项是正确写法**:`,omitempty` + 默认值在代码(`DefaultTrustedProxies`),不踩 `envDefault` 的坑 |
+
+> 📌 `TRUSTED_PROXIES` 与上表其余字段不同 —— 它带 `,omitempty`(可选)、默认值写在代码里,是**加配置的正确姿势**;其余字段那套"`envDefault` + 无 omitempty"是历史遗留坑(见 [config.md](./config.md)),别照抄。
 
 CORS 走独立的 `CORSConfig`([config/cors.go](../../config/cors.go)):`CORS_ALLOWED_ORIGINS` / `_METHODS` / `_HEADERS` / `_CREDENTIALS`(前三个是逗号分隔列表)。**三个列表全空 = 不启用 CORS**;任一非空则三者都要填。
+
+---
+
+## 可信代理 · 真实客户端 IP
+
+`c.ClientIP()`(gin)拿到的是不是**真实**客户端 IP,取决于「信任哪些代理」。gin 的默认是**信任所有代理**——即无条件采信请求头里的 `X-Forwarded-For` / `X-Real-IP`。这在反代后能拿到真 IP,但**任何客户端都能伪造 `X-Forwarded-For` 冒充任意 IP**。凡是拿 `c.ClientIP()` 做审计、限流、IP 白名单/黑名单的地方,这就是个洞。
+
+Aurora 用 `SetTrustedProxies` 收敛:**只有请求的直接对端(TCP peer)落在可信网段内时,才解析 XFF;否则 `c.ClientIP()` 用直连对端 IP。** 由 `TRUSTED_PROXIES`(`config.ServerConfig.TrustedProxies`)控制:
+
+| `TRUSTED_PROXIES` 取值 | 行为 |
+|---|---|
+| **不设**(默认) | 信任 `DefaultTrustedProxies` = loopback + RFC1918 私网([config/server.go](../../config/server.go));反代在私网里→拿真 IP,直连公网→无法伪造 |
+| `none` | 谁都不信,`c.ClientIP()` **恒为直连对端** IP |
+| `10.0.0.0/8,1.2.3.4` | 精确信任这些 IP/CIDR(如只信你的反代地址),逗号分隔 |
+| `0.0.0.0/0,::/0` | 信任所有代理,**恢复 gin 历史默认**(可被伪造,不推荐) |
+
+- 非法 IP/CIDR 在 `ServerConfig.Validate()` 直接报错(fail-fast)。
+- ⚠️ **行为变更**:相对 gin 原生默认("信任所有代理"),Aurora 默认改为"只信私网/loopback"。这是安全硬化。若你的应用**直连公网无反代**、或反代不在私网,请显式设 `TRUSTED_PROXIES`(直连无反代场景建议 `none`;反代不在私网则填反代的实际 IP/CIDR)。
+- 部署形态:典型是"服务只经私网里的 traefik/nginx 反代可达",默认值即开箱可用,无需配置。
