@@ -1,6 +1,6 @@
 # Aurora 框架文档
 
-Aurora 是一个约定优于配置的 Go 后端框架:把「HTTP 服务器 + 数据库 + Redis + JWT + i18n + 邮件 + 迁移」收敛成一组可插拔的 **Feature**,用一个 **App** 容器统一装配、按环境变量配置、统一启停。
+Aurora 是一个约定优于配置的 Go 后端框架:把「HTTP 服务器 + 数据库 + Redis + JWT + i18n + 迁移」收敛成一组可插拔的 **Feature**,用一个 **App** 容器统一装配、按环境变量配置、统一启停。发信是**独立的库**(`feature/mail`,非自动注册的 Feature、不读 env),按需构造。
 
 > 快速上手和完整示例见仓库根 [README.md](../README.md) 与 [sample/](../sample/)。本目录是**成体系的深度文档**:讲清每个机制的真实行为和坑。
 
@@ -18,7 +18,7 @@ Aurora 是一个约定优于配置的 Go 后端框架:把「HTTP 服务器 + 数
 | [redis](./features/redis.md) | Redis 封装、分布式锁 | `WithLock` 是 skip-if-running;`REDIS_PASSWORD` 强制非空 |
 | [jwt](./features/jwt.md) | access/refresh token、黑名单登出 | jti;黑名单 TTL=剩余寿命;Redis 故障 fail-open |
 | [i18n](./features/i18n.md) | 多语言翻译 | 请求语言:`?lang=`>Accept-Language;`LoadEmbedded` 未用 |
-| [mail](./features/mail.md) | SMTP 发信 | MAIL_* 全强制必填,不发信也要填占位 |
+| [mail](./features/mail.md) | 发信(供应商无关,SMTP + 可插拔授权) | **不是 Feature**:不走 `AddFeature`、不读 env;`mail.NewSMTP(...)` 按需构造 |
 | [migration](./features/migration.md) | goose 迁移 | `GOOSE_TABLE_PREFIX` 隔离共库版本表;worker 别跑迁移 |
 | [错误模型 & 日志](./features/bizerr.md) | bizerr / logger | 默认响应只含 message;LOG_LEVEL>RUN_LEVEL |
 
@@ -39,5 +39,4 @@ Aurora 是一个约定优于配置的 Go 后端框架:把「HTTP 服务器 + 数
 
 - `config/server.go` 的 `envDefault` 标签是死代码,建议要么让 `ResolveConfig` 真正支持 `envDefault`,要么删掉这些误导标签并给字段加 `omitempty` + 代码默认值。
 - `i18n` 的 `LoadEmbedded`(`I18N_LOAD_EMBEDDED`)声明了但从未被读取,要么接上要么删。
-- `mail` 全字段强制必填,不利于"可选发信"场景,可考虑改 `omitempty` + 用时判空。
 - `RedisService` 未设 `PoolSize`,高并发下走默认池(`10×GOMAXPROCS`),可考虑做成可配。
