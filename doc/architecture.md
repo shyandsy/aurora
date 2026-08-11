@@ -3,7 +3,7 @@
 > 本文讲 Aurora 的"骨架"——App 生命周期、Feature 系统、依赖注入、配置解析。
 > 各 Feature 的具体用法见 [features/](./features/)。
 
-Aurora 是一个约定优于配置的 Go 后端框架:把「HTTP 服务器 + 数据库 + Redis + JWT + i18n + 邮件 + 迁移」这些每个服务都要重写的基础设施,收敛成一组可插拔的 **Feature**,用一个 **App** 容器统一装配、统一按环境变量配置、统一启停。
+Aurora 是一个约定优于配置的 Go 后端框架:把「HTTP 服务器 + 数据库 + Redis + JWT + i18n + 迁移」这些每个服务都要重写的基础设施,收敛成一组可插拔的 **Feature**,用一个 **App** 容器统一装配、统一按环境变量配置、统一启停。(发信不在此列 —— 它是独立的 `feature/mail` 库,非 Feature、不读 env,按需构造,见 [features/mail.md](./features/mail.md)。)
 
 ---
 
@@ -56,7 +56,7 @@ func InitDefaultApp() contracts.App {
     a.AddFeature(feature.NewRedisFeature()) // Redis
     a.AddFeature(feature.NewJWTFeature())   // JWT(依赖 Redis 做黑名单)
     a.AddFeature(feature.NewI18NFeature())  // i18n
-    a.AddFeature(feature.NewMailFeature())  // 邮件
+    // 邮件不再是自动注册的 feature —— 用 feature/mail 包按需构造 Mailer(见 doc/features/mail.md)
 
     migration.RunMigrations(a)           // ★ 最后跑 DB 迁移
     return a
@@ -141,7 +141,6 @@ main
  │    ├─ AddFeature(redis) ──────── redis.Setup(app)    [连 Redis, Provide RedisService]
  │    ├─ AddFeature(jwt) ────────── jwt.Setup(app)      [取 RedisService, Provide JWT]
  │    ├─ AddFeature(i18n) ───────── i18n.Setup(app)     [加载 locale]
- │    ├─ AddFeature(mail) ───────── mail.Setup(app)     [校验 SMTP 配置]
  │    └─ RunMigrations(app) ─────── [用 *gorm.DB 跑 goose]
  │
  ├─ app.RegisterRoutes(routes) ──── serverFeature.RegisterRoutes()

@@ -1,45 +1,121 @@
-# Mail Feature(邮件)
+# Mail(邮件)
 
-基于 `gopkg.in/mail.v2` 的 SMTP 发信,支持纯文本 / HTML / 两者混合。
+供应商无关的发信抽象。调用方只依赖 `Mailer.Send(ctx, Message)`,用**自己的配置来源**(env / 数据库 / 临时)构造具体 `Mailer` —— 换供应商、换授权方式、换凭据来源都不动调用点。
 
-源码:[feature/mail.go](../../feature/mail.go)、[config/mail.go](../../config/mail.go)
+包:`github.com/shyandsy/aurora/feature/mail`
+源码:[mailer.go](../../feature/mail/mailer.go)(接口/Message)、[smtp.go](../../feature/mail/smtp.go)(SMTP 供应商)、[auth.go](../../feature/mail/auth.go)(授权)
+
+> ⚠️ 这**不是**一个自动注册的 `contracts.Features`(不走 `AddFeature`、不读 env)。它是一个库,由 app 按需构造。旧的 `feature.NewMailFeature` / `EmailService` / `config.MailConfig`(从 `MAIL_SMTP_*` 读配置)已移除,见文末「从旧版迁移」。
 
 ---
 
-## 创建 & 用法
+## 核心
 
 ```go
-app.AddFeature(feature.NewMailFeature())
-```
+type Message struct {
+    From    string   // 可选;为空则用供应商默认 From(SMTP 见 WithFrom)
+    To, Cc, Bcc []string
+    Subject string
+    Text    string   // 纯文本正文
+    HTML    string   // 可选 HTML 正文
+}
 
-以接口 `EmailService` 注入([feature/mail.go:43](../../feature/mail.go#L43)):
-
-```go
-type EmailService interface {
-    SendText(ctx, to []string, subject, body string) error
-    SendHTML(ctx, to []string, subject, htmlBody string) error
-    Send(ctx, to []string, subject, textBody, htmlBody string) error   // 同时带 text+html
+// 调用方依赖这个;换实现(供应商/授权)都不动调用点。
+type Mailer interface {
+    Send(ctx context.Context, msg Message) error
 }
 ```
 
-行为([feature/mail.go:80](../../feature/mail.go#L80) `send`):
-- From 头:有 `MAIL_FROM_NAME` 时为 `Name <email>`,否则纯 email;
-- text+html 都给 → `text/plain` 正文 + `text/html` alternative;只给一个 → 对应类型;两个都空 → 报错;
-- 底层 `dialer.DialAndSend`。
+**内容规则**:只 `Text` → `text/plain`;只 `HTML` → `text/html`;**两者都给 → `multipart/alternative`**(纯文本回退 + HTML);都空 → 报错。`From` 解析后为空也报错(避免发出去被服务器拒)。
 
-> ⚠️ 接口签名带 `ctx context.Context`,但**实际发信没用到 ctx**(不支持超时/取消)。
+---
 
-## 环境变量 —— 全部强制必填(FromName 除外)
+## SMTP 供应商
 
-`MailConfig.Validate` 强制校验([config/mail.go:16](../../config/mail.go#L16)),缺任一 → `Setup` 失败、进程不启动:
+```go
+m := mail.NewSMTP("smtp.gmail.com", 587,
+    mail.WithFrom("me@gmail.com"),
+    mail.WithAuth(mail.BasicAuth("me@gmail.com", "<app-password>")),
+    mail.WithTimeout(15*time.Second),   // 可选,默认 10s
+)
 
-| Env | 字段 | 必填 | 说明 |
-|---|---|---|---|
-| `MAIL_SMTP_HOST` | SMTPHost | ✅ | SMTP 主机 |
-| `MAIL_SMTP_PORT` | SMTPPort | ✅ | int,1–65535 |
-| `MAIL_SMTP_USER` | SMTPUser | ✅ | 用户名 |
-| `MAIL_SMTP_PASSWORD` | SMTPPassword | ✅ | 密码 |
-| `MAIL_FROM_EMAIL` | FromEmail | ✅ | 发件邮箱 |
-| `MAIL_FROM_NAME` | FromName | ❌(omitempty) | 发件人显示名 |
+err := m.Send(ctx, mail.Message{
+    To:      []string{"user@example.com"},
+    Subject: "Hello",
+    Text:    "plain body",
+    HTML:    "<b>html body</b>",
+})
+```
 
-> ⚠️ 因为**强制必填**,即使某服务不真的发信,也得给这些 env 填占位值(否则起不来)。homeserver 就用 `noop.invalid` 之类占位过校验。若希望"可选发信",要改成把这些字段标 `omitempty` 并在发信处判空 —— 当前实现不支持。
+- `NewSMTP(host, port, ...SMTPOption)`:host+port 必填;`WithFrom` / `WithAuth` / `WithTimeout` 为可选项。
+- 端口自动判加密:`465` = 隐式 TLS,其余(如 `587`)= STARTTLS。
+- **ctx 生效**:`Send` 把底层发送放到 goroutine,`ctx` 取消/超时会让**调用方立即返回**(`ctx.Err()`);后台拨号由 `WithTimeout` 兜底。
+
+---
+
+## 授权(可插拔、对外开放)
+
+```go
+mail.BasicAuth(username, password)   // 账号+密码(PLAIN/LOGIN),最常见
+mail.NoAuth()                        // 无鉴权(内网中继)
+mail.XOAuth2(username, tokenSource)  // OAuth2 Bearer(SASL XOAUTH2),Gmail/Outlook/O365 现代认证
+```
+
+`XOAuth2` 的 token 每次发送现取(带 ctx),短时 token 不会过期:
+
+```go
+mail.XOAuth2("me@outlook.com", func(ctx context.Context) (string, error) {
+    return oauthClient.AccessToken(ctx)   // 你的 token 逻辑
+})
+```
+
+### 加一种自己的授权方式
+
+授权是**开放**的:实现 `SMTPAuth`(只依赖本接口 + 标准库 `net/smtp`,**不碰底层 SMTP 库**):
+
+```go
+type SMTPAuth interface {
+    Apply(ctx context.Context, d SMTPDialer) error
+}
+type SMTPDialer interface {
+    SetBasic(username, password string)          // 账号+密码
+    SetMechanism(username string, mech smtp.Auth) // 自定义 SASL 机制
+}
+
+// 例:自定义机制
+type myAuth struct{ user string }
+func (a myAuth) Apply(ctx context.Context, d mail.SMTPDialer) error {
+    d.SetMechanism(a.user, myMechanism{...}) // myMechanism 实现 net/smtp.Auth
+    return nil
+}
+// 用:mail.NewSMTP(host, port, mail.WithAuth(myAuth{...}))
+```
+
+---
+
+## 加一个新供应商
+
+每个供应商就是一个返回 `Mailer` 的构造器。要接阿里云邮件推送 / AWS SES / SendGrid,新增一个实现即可(建议放子包如 `feature/mail/aliyun`、`feature/mail/ses`,让各自的 SDK 依赖不污染核心):
+
+```go
+package aliyun
+func New(cfg Config) mail.Mailer { /* 实现 Send:调阿里云 DirectMail API */ }
+```
+
+调用方只认 `mail.Mailer`,换供应商零改动。
+
+---
+
+## 从旧版迁移(破坏性变更)
+
+旧的 `feature.NewMailFeature()` / `EmailService`(`SendText/SendHTML/Send`)/ `config.MailConfig`(从 `MAIL_SMTP_*` env 读、`bootstrap` 自动注册)**已删除**。迁移:
+
+| 旧 | 新 |
+|---|---|
+| `app.AddFeature(feature.NewMailFeature())` + 注入 `EmailService` | 直接 `mail.NewSMTP(host, port, opts...)` 构造 `Mailer` |
+| 配 `MAIL_SMTP_*` env | 配置来源交给 app(env / DB / 临时),自己读出来传给 `NewSMTP` / `WithAuth` |
+| `svc.SendText(ctx, to, subject, body)` | `m.Send(ctx, mail.Message{To: to, Subject: subject, Text: body})` |
+| `SendHTML` | `Send(..., Message{HTML: ...})` |
+| ctx 不生效 | ctx 生效(可取消/超时) |
+
+`bootstrap.InitDefaultApp` 不再自动注册邮件。
