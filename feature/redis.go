@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"log"
+	"sync"
 	"time"
 
 	"github.com/go-redis/redis/v8"
@@ -35,6 +36,15 @@ type RedisService interface {
 	// If the context is cancelled, the lock is automatically released
 	// The lock will automatically expire after ttl duration if the process crashes
 	WithLock(ctx context.Context, key string, value string, ttl time.Duration, fn func() error) error
+
+	// Pub/Sub operations
+	// Publish sends a message to a channel (fire-and-forget; no error if there are no subscribers).
+	Publish(ctx context.Context, channel string, message string) error
+	// Subscribe subscribes to a channel and returns a receive-only channel of message payloads
+	// plus a close function. The internal read loop auto-reconnects. The returned channel is closed
+	// when the close function is called or ctx is cancelled; callers MUST call close (or cancel ctx)
+	// when done, to release the underlying connection.
+	Subscribe(ctx context.Context, channel string) (<-chan string, func() error, error)
 }
 
 type redisFeature struct {
@@ -249,4 +259,57 @@ func (r *redisService) WithLock(ctx context.Context, key string, value string, t
 	// Execute the function
 	// If context is cancelled, the function should handle it
 	return fn()
+}
+
+// Publish implements RedisService.Publish.
+func (r *redisService) Publish(ctx context.Context, channel string, message string) error {
+	return r.client.Publish(ctx, channel, message).Err()
+}
+
+// Subscribe implements RedisService.Subscribe.
+//
+// It confirms the subscription is established before returning, then pumps message payloads into
+// the returned channel from an auto-reconnecting read loop. The returned channel is closed (and the
+// underlying connection released) when the returned close function is called or ctx is cancelled.
+func (r *redisService) Subscribe(ctx context.Context, channel string) (<-chan string, func() error, error) {
+	sub := r.client.Subscribe(ctx, channel)
+	// The first Receive returns the subscription confirmation; a failure here means we never
+	// actually subscribed, so surface it instead of returning a channel that never delivers.
+	if _, err := sub.Receive(ctx); err != nil {
+		_ = sub.Close()
+		return nil, nil, fmt.Errorf("subscribe %q failed: %w", channel, err)
+	}
+
+	// close is idempotent: both the caller's close func and the goroutine's defer route through it,
+	// so the PubSub is closed exactly once regardless of which path fires first.
+	var once sync.Once
+	var closeErr error
+	closeFn := func() error {
+		once.Do(func() { closeErr = sub.Close() })
+		return closeErr
+	}
+
+	out := make(chan string, 16)
+	go func() {
+		defer close(out)
+		defer closeFn() // ctx cancellation / loop exit also releases the connection (no leak)
+		ch := sub.Channel()
+		for {
+			select {
+			case msg, ok := <-ch:
+				if !ok {
+					return // sub.Close() was called → channel closed → stop
+				}
+				select {
+				case out <- msg.Payload:
+				case <-ctx.Done():
+					return
+				}
+			case <-ctx.Done():
+				return
+			}
+		}
+	}()
+
+	return out, closeFn, nil
 }
