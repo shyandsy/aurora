@@ -17,6 +17,25 @@ var (
 
 const defaultSMTPTimeout = 10 * time.Second
 
+// Encryption selects how the SMTP transport is secured. Empty ("") == EncryptionAuto, which
+// preserves gomail's historical behaviour (SSL-on-connect only when port==465, otherwise
+// opportunistic STARTTLS that silently falls back to plaintext). Set an explicit value to force
+// a mode regardless of port.
+type Encryption string
+
+const (
+	// EncryptionAuto keeps gomail defaults: SSL iff port==465, else opportunistic STARTTLS with
+	// plaintext fallback. This is the zero value, so existing callers are unaffected.
+	EncryptionAuto Encryption = ""
+	// EncryptionNone sends over plaintext and disables STARTTLS entirely (no encryption).
+	EncryptionNone Encryption = "none"
+	// EncryptionStartTLS mandates STARTTLS: connect in plaintext then upgrade; fail if the server
+	// does not advertise STARTTLS.
+	EncryptionStartTLS Encryption = "starttls"
+	// EncryptionSSL forces implicit TLS on connect (SMTPS), regardless of port.
+	EncryptionSSL Encryption = "ssl"
+)
+
 // SMTPOption configures the SMTP mailer (functional options).
 type SMTPOption func(*smtpMailer)
 
@@ -30,12 +49,17 @@ func WithAuth(a SMTPAuth) SMTPOption { return func(m *smtpMailer) { m.auth = a }
 // send is cancelled via context.
 func WithTimeout(d time.Duration) SMTPOption { return func(m *smtpMailer) { m.timeout = d } }
 
+// WithEncryption forces the transport security mode. Omit (or pass EncryptionAuto) to keep the
+// port-based auto behaviour.
+func WithEncryption(e Encryption) SMTPOption { return func(m *smtpMailer) { m.encryption = e } }
+
 type smtpMailer struct {
-	host    string
-	port    int
-	from    string
-	auth    SMTPAuth
-	timeout time.Duration
+	host       string
+	port       int
+	from       string
+	auth       SMTPAuth
+	timeout    time.Duration
+	encryption Encryption
 }
 
 // NewSMTP builds a Mailer that sends over SMTP (Gmail / Outlook / any host). host+port are
@@ -62,6 +86,20 @@ func (s *smtpMailer) Send(ctx context.Context, msg Message) error {
 
 	d := gomail.NewDialer(s.host, s.port, "", "")
 	d.Timeout = s.timeout
+	// Transport security. EncryptionAuto leaves gomail's port-based defaults (SSL iff port==465,
+	// else opportunistic STARTTLS). Explicit modes override regardless of port.
+	switch s.encryption {
+	case EncryptionSSL:
+		d.SSL = true
+	case EncryptionStartTLS:
+		d.SSL = false
+		d.StartTLSPolicy = gomail.MandatoryStartTLS
+	case EncryptionNone:
+		d.SSL = false
+		d.StartTLSPolicy = gomail.NoStartTLS
+	case EncryptionAuto:
+		// keep gomail defaults
+	}
 	if s.auth != nil {
 		if err := s.auth.Apply(ctx, (*dialerAdapter)(d)); err != nil {
 			return err

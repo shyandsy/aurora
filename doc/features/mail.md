@@ -47,8 +47,11 @@ err := m.Send(ctx, mail.Message{
 })
 ```
 
-- `NewSMTP(host, port, ...SMTPOption)`:host+port 必填;`WithFrom` / `WithAuth` / `WithTimeout` 为可选项。
-- 端口自动判加密:`465` = 隐式 TLS,其余(如 `587`)= STARTTLS。
+- `NewSMTP(host, port, ...SMTPOption)`:host+port 必填;`WithFrom` / `WithAuth` / `WithTimeout` / `WithEncryption` 为可选项。
+- 加密方式:`WithEncryption` 显式指定,不设 = **自动**(`EncryptionAuto`,零值):`465` = 隐式 TLS(SSL),其余端口机会式 STARTTLS(服务器不支持则明文降级)。显式取值:
+  - `EncryptionNone` —— 明文,禁用 STARTTLS;
+  - `EncryptionStartTLS` —— 强制 STARTTLS(不支持即报错);
+  - `EncryptionSSL` —— 强制隐式 TLS on connect(不看端口)。
 - **ctx 生效**:`Send` 把底层发送放到 goroutine,`ctx` 取消/超时会让**调用方立即返回**(`ctx.Err()`);后台拨号由 `WithTimeout` 兜底。
 
 ---

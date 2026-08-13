@@ -44,6 +44,20 @@ func TestSMTPOptions_ApplyAndDefaults(t *testing.T) {
 	}
 }
 
+// TestWithEncryption proves the encryption option is applied and defaults to auto (empty),
+// which keeps gomail's port-based behaviour for existing callers.
+func TestWithEncryption(t *testing.T) {
+	// Default: no option -> EncryptionAuto ("").
+	if m := NewSMTP("h", 25).(*smtpMailer); m.encryption != EncryptionAuto {
+		t.Errorf("default encryption = %q, want auto (empty)", m.encryption)
+	}
+	for _, enc := range []Encryption{EncryptionNone, EncryptionStartTLS, EncryptionSSL} {
+		if m := NewSMTP("h", 25, WithEncryption(enc)).(*smtpMailer); m.encryption != enc {
+			t.Errorf("WithEncryption(%q): got %q", enc, m.encryption)
+		}
+	}
+}
+
 // TestSend_AuthErrorAbortsBeforeDial proves WithAuth is wired into Send and that an auth failure
 // aborts the send before any network I/O (here: XOAuth2 whose token fetch fails).
 func TestSend_AuthErrorAbortsBeforeDial(t *testing.T) {
