@@ -18,7 +18,7 @@ Aurora 是一个约定优于配置的 Go 后端框架:把「HTTP 服务器 + 数
 | [redis](./features/redis.md) | Redis 封装、分布式锁 | `WithLock` 是 skip-if-running;`REDIS_PASSWORD` 强制非空 |
 | [jwt](./features/jwt.md) | access/refresh token、黑名单登出 | jti;黑名单 TTL=剩余寿命;Redis 故障 fail-open |
 | [i18n](./features/i18n.md) | 多语言翻译 | 请求语言:`?lang=`>Accept-Language;`LoadEmbedded` 未用 |
-| [mail](./features/mail.md) | 发信(供应商无关,SMTP + 可插拔授权) | **不是 Feature**:不走 `AddFeature`、不读 env;`mail.NewSMTP(...)` 按需构造 |
+| [mail](./features/mail.md) | 发信(供应商无关,SMTP + 可插拔授权 + 可配加密) | **不是 Feature**:不走 `AddFeature`、不读 env;`mail.NewSMTP(...)` 按需构造 |
 | [migration](./features/migration.md) | goose 迁移 | `GOOSE_TABLE_PREFIX` 隔离共库版本表;worker 别跑迁移 |
 | [错误模型 & 日志](./features/bizerr.md) | bizerr / logger | 默认响应只含 message;LOG_LEVEL>RUN_LEVEL |
 
