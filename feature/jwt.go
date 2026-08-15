@@ -36,11 +36,21 @@ type TokenResponse struct {
 	ExpiresIn    int64  `json:"expires_in"`
 }
 
+// 令牌类型:区分 access / refresh。二者同密钥、同 Claims 结构,不加类型标记就无法区分,
+// 会让 refresh 令牌被当 access 用去调业务接口——而"退出/踢设备"的吊销恰恰挂在 refresh 黑名单/RT 集上,
+// 于是被绕过。加上类型标记后,ValidateToken 只认 access、ValidateRefreshToken 只认 refresh。
+const (
+	TokenTypeAccess  = "access"
+	TokenTypeRefresh = "refresh"
+)
+
 type Claims struct {
 	jwt.RegisteredClaims
 	UserID   int64    `json:"user_id"`
 	Email    string   `json:"email"`
 	Features []string `json:"features"`
+	// TokenType = access / refresh(旧令牌无此字段 → 校验按"非对应类型"拒,即强制重登)。
+	TokenType string `json:"token_type,omitempty"`
 }
 
 type jwtFeature struct {
@@ -131,9 +141,10 @@ func (f *jwtFeature) generateAccessToken(userID int64, email string, features []
 			Issuer:    f.Config.Issuer,
 			Subject:   fmt.Sprintf("%d", userID),
 		},
-		UserID:   userID,
-		Email:    email,
-		Features: features,
+		UserID:    userID,
+		Email:     email,
+		Features:  features,
+		TokenType: TokenTypeAccess,
 	}
 
 	token := jwt.NewWithClaims(jwt.SigningMethodHS256, claims)
@@ -144,6 +155,10 @@ func (f *jwtFeature) ValidateToken(tokenString string) (*Claims, error) {
 	claims, err := f.parseClaims(tokenString)
 	if err != nil {
 		return nil, err
+	}
+	// 只认 access:refresh 令牌(同密钥同结构)不能当 access 用去调业务接口,否则退出/踢设备被绕过。
+	if claims.TokenType != TokenTypeAccess {
+		return nil, fmt.Errorf("token is not an access token")
 	}
 
 	key := fmt.Sprintf("%s:%s", RedisKeyBlackAccessTokenPrefix, tokenString)
@@ -213,9 +228,10 @@ func (f *jwtFeature) generateRefreshToken(userID int64, email string, features [
 			Issuer:    f.Config.Issuer,
 			Subject:   fmt.Sprintf("%d", userID),
 		},
-		UserID:   userID,
-		Email:    email,
-		Features: features,
+		UserID:    userID,
+		Email:     email,
+		Features:  features,
+		TokenType: TokenTypeRefresh,
 	}
 
 	token := jwt.NewWithClaims(jwt.SigningMethodHS256, claims)
@@ -230,6 +246,10 @@ func (f *jwtFeature) ValidateRefreshToken(tokenString string) (*Claims, error) {
 	claims, err := f.parseClaims(tokenString)
 	if err != nil {
 		return nil, err
+	}
+	// 只认 refresh:access 令牌不能拿来续期(对称加固)。
+	if claims.TokenType != TokenTypeRefresh {
+		return nil, fmt.Errorf("token is not a refresh token")
 	}
 
 	key := fmt.Sprintf("%s:%s", RedisKeyBlackRefreshTokenPrefix, tokenString)
