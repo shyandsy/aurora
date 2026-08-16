@@ -1,6 +1,8 @@
 package feature
 
 import (
+	"context"
+	"errors"
 	"testing"
 	"time"
 
@@ -8,6 +10,17 @@ import (
 
 	"github.com/shyandsy/aurora/config"
 )
+
+// fakeRedis 是 RedisService 的最小测试替身:内嵌接口自动满足全部方法(接口日后再加方法也不会崩),
+// 只覆盖 Get(返回 getVal / getErr)。仅 Get 被本测试用到;其余方法若被调用会因内嵌接口为 nil 而 panic,
+// 正好暴露"测试路径外不该碰 Redis"的意外。用于验证撤销(黑名单)检查在后端报错时的行为。
+type fakeRedis struct {
+	RedisService
+	getVal string
+	getErr error
+}
+
+func (r *fakeRedis) Get(context.Context, string) (string, error) { return r.getVal, r.getErr }
 
 func testJWT() *jwtFeature {
 	return &jwtFeature{
@@ -143,6 +156,56 @@ func TestParse_LegacyTokenWithoutJTI_StillValid(t *testing.T) {
 	}
 	if claims.ID != "" {
 		t.Errorf("老 token 不该有 jti,却解出 %q", claims.ID)
+	}
+}
+
+// 撤销存储(Redis)报错时,ValidateToken 必须 fail-closed(拒),绝不放行。
+// 否则一次瞬时 Redis 抖动就会让已登出/已吊销(但未过期)的 token 复活 —— 登出/吊销是承重安全控制。
+func TestValidateToken_RevocationStoreError_FailClosed(t *testing.T) {
+	f := testJWT()
+	f.RedisService = &fakeRedis{getErr: errors.New("redis unavailable")}
+
+	resp, err := f.GenerateToken(7, "who@example.com", nil)
+	if err != nil {
+		t.Fatalf("GenerateToken 失败: %v", err)
+	}
+	if _, verr := f.ValidateToken(resp.AccessToken); verr == nil {
+		t.Fatal("撤销检查后端报错时 ValidateToken 仍放行 —— 一次 redis 抖动就能让已吊销 token 复活")
+	}
+	if _, verr := f.ValidateRefreshToken(resp.RefreshToken); verr == nil {
+		t.Fatal("撤销检查后端报错时 ValidateRefreshToken 仍放行")
+	}
+}
+
+// 未拉黑(Get 返回空)时正常放行,校验 fail-closed 没误伤正常路径。
+func TestValidateToken_NotBlacklisted_OK(t *testing.T) {
+	f := testJWT()
+	f.RedisService = &fakeRedis{getVal: ""}
+
+	resp, err := f.GenerateToken(7, "who@example.com", []string{"vip"})
+	if err != nil {
+		t.Fatalf("GenerateToken 失败: %v", err)
+	}
+	claims, err := f.ValidateToken(resp.AccessToken)
+	if err != nil {
+		t.Fatalf("未拉黑的正常 token 应验过,却报错: %v", err)
+	}
+	if claims.UserID != 7 {
+		t.Errorf("UserID = %d, 期望 7", claims.UserID)
+	}
+}
+
+// 已拉黑(Get 返回非空)时必须拒。
+func TestValidateToken_Blacklisted_Rejected(t *testing.T) {
+	f := testJWT()
+	f.RedisService = &fakeRedis{getVal: "1"}
+
+	resp, err := f.GenerateToken(7, "who@example.com", nil)
+	if err != nil {
+		t.Fatalf("GenerateToken 失败: %v", err)
+	}
+	if _, verr := f.ValidateToken(resp.AccessToken); verr == nil {
+		t.Fatal("已拉黑的 token 应被拒,却验过了")
 	}
 }
 

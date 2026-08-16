@@ -162,7 +162,15 @@ func (f *jwtFeature) ValidateToken(tokenString string) (*Claims, error) {
 	}
 
 	key := fmt.Sprintf("%s:%s", RedisKeyBlackAccessTokenPrefix, tokenString)
-	if ok, _ := f.isBlacklisted(context.Background(), key); ok {
+	blacklisted, berr := f.isBlacklisted(context.Background(), key)
+	if berr != nil {
+		// fail-closed: when the revocation store is unavailable, reject rather than accept.
+		// Swallowing the error would let a single transient Redis hiccup resurrect a
+		// logged-out / revoked (but unexpired) token — logout & revocation are load-bearing
+		// security controls, so a failed revocation check must deny, not allow.
+		return nil, fmt.Errorf("token revocation check unavailable: %w", berr)
+	}
+	if blacklisted {
 		return nil, fmt.Errorf("token is blacklisted")
 	}
 
@@ -253,7 +261,12 @@ func (f *jwtFeature) ValidateRefreshToken(tokenString string) (*Claims, error) {
 	}
 
 	key := fmt.Sprintf("%s:%s", RedisKeyBlackRefreshTokenPrefix, tokenString)
-	if ok, _ := f.isBlacklisted(context.Background(), key); ok {
+	blacklisted, berr := f.isBlacklisted(context.Background(), key)
+	if berr != nil {
+		// fail-closed: revocation store unavailable → deny (see ValidateToken for rationale).
+		return nil, fmt.Errorf("refresh token revocation check unavailable: %w", berr)
+	}
+	if blacklisted {
 		return nil, fmt.Errorf("refresh token is blacklisted")
 	}
 	return claims, nil
