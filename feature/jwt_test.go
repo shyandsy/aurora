@@ -209,6 +209,57 @@ func TestValidateToken_Blacklisted_Rejected(t *testing.T) {
 	}
 }
 
+// GenerateTokenWithRoles 必须把 roles 写进 access 与 refresh 两种 token 的 Claims.Roles。
+func TestGenerateTokenWithRoles_CarriesRoles(t *testing.T) {
+	f := testJWT()
+	resp, err := f.GenerateTokenWithRoles(7, "who@example.com", []string{"vip"}, []string{"admin", "ops"})
+	if err != nil {
+		t.Fatalf("GenerateTokenWithRoles 失败: %v", err)
+	}
+	ac := mustParse(t, f, resp.AccessToken)
+	if len(ac.Roles) != 2 || ac.Roles[0] != "admin" || ac.Roles[1] != "ops" {
+		t.Fatalf("access Roles = %v, 期望 [admin ops]", ac.Roles)
+	}
+	rc := mustParse(t, f, resp.RefreshToken)
+	if len(rc.Roles) != 2 || rc.Roles[0] != "admin" || rc.Roles[1] != "ops" {
+		t.Fatalf("refresh Roles = %v, 期望 [admin ops]", rc.Roles)
+	}
+}
+
+// RefreshToken 续期后必须保留 Roles(否则一次续期后 role 丢失,鉴权全塌)。
+func TestRefreshToken_PreservesRoles(t *testing.T) {
+	f := testJWT()
+	f.RedisService = &fakeRedis{getVal: ""} // 未拉黑
+	resp, err := f.GenerateTokenWithRoles(7, "who@example.com", []string{"vip"}, []string{"admin"})
+	if err != nil {
+		t.Fatalf("GenerateTokenWithRoles 失败: %v", err)
+	}
+	refreshed, err := f.RefreshToken(resp.RefreshToken)
+	if err != nil {
+		t.Fatalf("RefreshToken 失败: %v", err)
+	}
+	ac := mustParse(t, f, refreshed.AccessToken)
+	if len(ac.Roles) != 1 || ac.Roles[0] != "admin" {
+		t.Fatalf("续期后 access Roles = %v, 期望 [admin]", ac.Roles)
+	}
+}
+
+// 向后兼容:老的 GenerateToken(不传 roles)签出的 token,Roles 为空,其余字段照常。
+func TestGenerateToken_NoRoles_BackwardCompatible(t *testing.T) {
+	f := testJWT()
+	resp, err := f.GenerateToken(7, "who@example.com", []string{"vip"})
+	if err != nil {
+		t.Fatalf("GenerateToken 失败: %v", err)
+	}
+	ac := mustParse(t, f, resp.AccessToken)
+	if len(ac.Roles) != 0 {
+		t.Fatalf("不传 roles 时 Roles 应为空,得到 %v", ac.Roles)
+	}
+	if ac.UserID != 7 || len(ac.Features) != 1 || ac.Features[0] != "vip" {
+		t.Fatalf("其余 claims 应照常: %+v", ac)
+	}
+}
+
 func mustParse(t *testing.T, f *jwtFeature, token string) *Claims {
 	t.Helper()
 	claims, err := f.parseClaims(token)
