@@ -23,6 +23,9 @@ const (
 type JWTService interface {
 	contracts.Features
 	GenerateToken(userID int64, email string, features []string) (*TokenResponse, error)
+	// GenerateTokenWithRoles 同 GenerateToken,但额外把 roles 写入 Claims.Roles(access + refresh 都带,
+	// 且 RefreshToken 续期时保留)。roles 传 nil 等价于 GenerateToken。
+	GenerateTokenWithRoles(userID int64, email string, features []string, roles []string) (*TokenResponse, error)
 	ValidateToken(tokenString string) (*Claims, error)
 	RefreshToken(tokenString string) (*TokenResponse, error)
 	ExtractUserID(tokenString string) (int64, error)
@@ -49,6 +52,10 @@ type Claims struct {
 	UserID   int64    `json:"user_id"`
 	Email    string   `json:"email"`
 	Features []string `json:"features"`
+	// Roles 是签发时写入的角色名(可选)。用于「token 存 role、鉴权时再展开成 feature」的模式,
+	// 避免把权限点摊平进 token 导致其随 API 数量膨胀。存名字(与 Features 一致、可读、改名由上层负责)。
+	// 旧令牌无此字段 → 解析为空切片。
+	Roles []string `json:"roles,omitempty"`
 	// TokenType = access / refresh(旧令牌无此字段 → 校验按"非对应类型"拒,即强制重登)。
 	TokenType string `json:"token_type,omitempty"`
 }
@@ -88,11 +95,15 @@ func (f *jwtFeature) Close() error {
 }
 
 func (f *jwtFeature) GenerateToken(userID int64, email string, features []string) (*TokenResponse, error) {
-	accessToken, err := f.generateAccessToken(userID, email, features)
+	return f.GenerateTokenWithRoles(userID, email, features, nil)
+}
+
+func (f *jwtFeature) GenerateTokenWithRoles(userID int64, email string, features []string, roles []string) (*TokenResponse, error) {
+	accessToken, err := f.generateAccessToken(userID, email, features, roles)
 	if err != nil {
 		return nil, err
 	}
-	refreshToken, err := f.generateRefreshToken(userID, email, features)
+	refreshToken, err := f.generateRefreshToken(userID, email, features, roles)
 	if err != nil {
 		return nil, err
 	}
@@ -123,7 +134,7 @@ func newTokenID() (string, error) {
 	return hex.EncodeToString(b[:]), nil
 }
 
-func (f *jwtFeature) generateAccessToken(userID int64, email string, features []string) (string, error) {
+func (f *jwtFeature) generateAccessToken(userID int64, email string, features []string, roles []string) (string, error) {
 	now := time.Now()
 	expiresAt := now.Add(f.Config.ExpireTime)
 
@@ -144,6 +155,7 @@ func (f *jwtFeature) generateAccessToken(userID int64, email string, features []
 		UserID:    userID,
 		Email:     email,
 		Features:  features,
+		Roles:     roles,
 		TokenType: TokenTypeAccess,
 	}
 
@@ -191,12 +203,12 @@ func (f *jwtFeature) RefreshToken(tokenString string) (*TokenResponse, error) {
 		return nil, errors.New("refresh token has expired")
 	}
 
-	accessToken, err := f.generateAccessToken(claims.UserID, claims.Email, claims.Features)
+	accessToken, err := f.generateAccessToken(claims.UserID, claims.Email, claims.Features, claims.Roles)
 	if err != nil {
 		return nil, err
 	}
 
-	refreshToken, err := f.generateRefreshToken(claims.UserID, claims.Email, claims.Features)
+	refreshToken, err := f.generateRefreshToken(claims.UserID, claims.Email, claims.Features, claims.Roles)
 	if err != nil {
 		return nil, err
 	}
@@ -218,7 +230,7 @@ func (f *jwtFeature) ExtractUserID(tokenString string) (int64, error) {
 	return claims.UserID, nil
 }
 
-func (f *jwtFeature) generateRefreshToken(userID int64, email string, features []string) (string, error) {
+func (f *jwtFeature) generateRefreshToken(userID int64, email string, features []string, roles []string) (string, error) {
 	now := time.Now()
 	refreshExpire := f.Config.RefreshExpireOrDefault()
 
@@ -239,6 +251,7 @@ func (f *jwtFeature) generateRefreshToken(userID int64, email string, features [
 		UserID:    userID,
 		Email:     email,
 		Features:  features,
+		Roles:     roles,
 		TokenType: TokenTypeRefresh,
 	}
 
