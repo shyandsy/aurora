@@ -18,6 +18,7 @@ A lightweight, modular web framework for Go, built on top of Gin with dependency
 - 🏥 **Health Checks**: Built-in `/health` and `/ready` endpoints
 - 📝 **Request Context**: Extended request context with App instance for easy dependency access
 - 🌍 **Internationalization (i18n)**: Multi-language support using go-i18n with automatic language detection
+- 🌏 **GeoIP**: Offline IP→location (country/province/city/ISP) with embedded ip2region (CN) + DB-IP (international) databases — zero-config, self-contained, no network at build or runtime
 - 📊 **Structured Logging**: Built-in logger with log levels (Error, Info, Debug) and environment-based configuration
 
 ## Installation
