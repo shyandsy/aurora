@@ -1,6 +1,6 @@
 # Aurora 框架文档
 
-Aurora 是一个约定优于配置的 Go 后端框架:把「HTTP 服务器 + 数据库 + Redis + JWT + i18n + 迁移」收敛成一组可插拔的 **Feature**,用一个 **App** 容器统一装配、按环境变量配置、统一启停。发信是**独立的库**(`feature/mail`,非自动注册的 Feature、不读 env),按需构造。
+Aurora 是一个约定优于配置的 Go 后端框架:把「HTTP 服务器 + 数据库 + Redis + JWT + i18n + geoip + 迁移」收敛成一组可插拔的 **Feature**,用一个 **App** 容器统一装配、按环境变量配置、统一启停。发信是**独立的库**(`feature/mail`,非自动注册的 Feature、不读 env),按需构造。
 
 > 快速上手和完整示例见仓库根 [README.md](../README.md) 与 [sample/](../sample/)。本目录是**成体系的深度文档**:讲清每个机制的真实行为和坑。
 
@@ -18,6 +18,7 @@ Aurora 是一个约定优于配置的 Go 后端框架:把「HTTP 服务器 + 数
 | [redis](./features/redis.md) | Redis 封装、分布式锁 | `WithLock` 是 skip-if-running;`REDIS_PASSWORD` 强制非空 |
 | [jwt](./features/jwt.md) | access/refresh token、黑名单登出 | jti;黑名单 TTL=剩余寿命;Redis 故障 fail-open |
 | [i18n](./features/i18n.md) | 多语言翻译 | 请求语言:`?lang=`>Accept-Language;`LoadEmbedded` 未用 |
+| [geoip](./features/geoip.md) | IP→归属地(国家/省/市/运营商)本地离线解析 | 国内 ip2region + 国外 DB-IP **双库都 `//go:embed` 自包含**;`AddFeature(geoip.NewFeature())` 零配置;`GEOIP_*` 仅外挂覆盖;IP 不外发 |
 | [mail](./features/mail.md) | 发信(供应商无关,SMTP + 可插拔授权 + 可配加密) | **不是 Feature**:不走 `AddFeature`、不读 env;`mail.NewSMTP(...)` 按需构造 |
 | [migration](./features/migration.md) | goose 迁移 | `GOOSE_TABLE_PREFIX` 隔离共库版本表;worker 别跑迁移 |
 | [错误模型 & 日志](./features/bizerr.md) | bizerr / logger | 默认响应只含 message;LOG_LEVEL>RUN_LEVEL |
