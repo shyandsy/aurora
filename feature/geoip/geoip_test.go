@@ -127,3 +127,88 @@ func TestChinaFallback(t *testing.T) {
 		}
 	})
 }
+
+// TestEmbeddedASN:内嵌 ASN 库开箱即用——解析已知 IP 的 ASN/组织名并按组织名判机房;Close 删临时文件。
+func TestEmbeddedASN(t *testing.T) {
+	src := EmbeddedDBIPASNSource()
+	closer, ok := src.(interface {
+		Source
+		io.Closer
+	})
+	if !ok {
+		t.Fatalf("内嵌 ASN 源应实现 io.Closer,got %T(可能解压/落盘失败降级为空源)", src)
+	}
+	got := src.Lookup("8.8.8.8") // Google DNS,AS15169
+	if got.ASN != 15169 {
+		t.Fatalf("8.8.8.8 应为 AS15169,got ASN=%d org=%q", got.ASN, got.ASNOrg)
+	}
+	if !got.IsHosting {
+		t.Fatalf("Google ASN 应判为机房/云,got=%+v", got)
+	}
+	tmpPath := src.(*dbipASNSource).tmpPath
+	if tmpPath == "" {
+		t.Fatal("内嵌 ASN 源应带临时文件路径")
+	}
+	if err := closer.Close(); err != nil {
+		t.Fatalf("Close 失败: %v", err)
+	}
+	if _, err := os.Stat(tmpPath); !os.IsNotExist(err) {
+		t.Fatalf("Close 后临时文件应被删除,stat(%q) err=%v(非 NotExist)", tmpPath, err)
+	}
+}
+
+// TestASNToggleAndMerge:ASN 是**可开关**的(WithASN 传了才查、不写死),且与归属地**正交**——
+// 并进同一 Record 不影响定位字段;国内 IP 也查(国内云=机房)。
+func TestASNToggleAndMerge(t *testing.T) {
+	geo := fakeSource{Record{CountryISO: "US", Province: "California", City: "Mountain View"}}
+	asn := fakeSource{Record{ASN: 15169, ASNOrg: "Google LLC", IsHosting: true}}
+
+	t.Run("不传 WithASN:ASN 字段保持零值(未启用)", func(t *testing.T) {
+		got := New(WithInternational(geo)).Lookup("8.8.8.8")
+		if got.ASN != 0 || got.ASNOrg != "" || got.IsHosting {
+			t.Fatalf("未启用 ASN 时不应有 ASN 结论,got=%+v", got)
+		}
+		if got.CountryISO != "US" || got.City != "Mountain View" {
+			t.Fatalf("定位字段应正常,got=%+v", got)
+		}
+	})
+	t.Run("传 WithASN:ASN 并进结果,定位字段不受影响", func(t *testing.T) {
+		got := New(WithInternational(geo), WithASN(asn)).Lookup("8.8.8.8")
+		if got.ASN != 15169 || got.ASNOrg != "Google LLC" || !got.IsHosting {
+			t.Fatalf("应并入 ASN 结论,got=%+v", got)
+		}
+		if got.CountryISO != "US" || got.City != "Mountain View" {
+			t.Fatalf("ASN 增强不应改动定位字段,got=%+v", got)
+		}
+	})
+	t.Run("国内 IP 也查 ASN(国内云=机房)", func(t *testing.T) {
+		cn := fakeSource{Record{CountryISO: "CN", Province: "北京市", ISP: "阿里云"}}
+		cloud := fakeSource{Record{ASN: 37963, ASNOrg: "Alibaba", IsHosting: true}}
+		got := New(WithChina(cn), WithASN(cloud)).Lookup("1.2.3.4")
+		if !got.IsChina() || got.ASN != 37963 || !got.IsHosting {
+			t.Fatalf("国内 IP 也应带 ASN 结论,got=%+v", got)
+		}
+	})
+}
+
+// TestLooksLikeHosting:机房/云/Tor 组织名判 true;住宅/骨干运营商判 false;空串 false。启发式钉住。
+func TestLooksLikeHosting(t *testing.T) {
+	hosting := []string{
+		"Google LLC", "Cloudflare, Inc.", "The Infrastructure Group B.V.",
+		"Foreningen for digitala fri- och rattigheter", // DFRI(Tor 出口)
+		"Amazon.com, Inc.", "DigitalOcean, LLC", "OVH SAS", "Hetzner Online GmbH",
+	}
+	residential := []string{
+		"CHINA UNICOM China169 Backbone", "China Telecom", "Comcast Cable Communications", "",
+	}
+	for _, o := range hosting {
+		if !looksLikeHosting(o) {
+			t.Errorf("looksLikeHosting(%q) = false, want true", o)
+		}
+	}
+	for _, o := range residential {
+		if looksLikeHosting(o) {
+			t.Errorf("looksLikeHosting(%q) = true, want false", o)
+		}
+	}
+}
