@@ -12,7 +12,11 @@
 // 两个源都免费可再分发(ip2region=Apache 2.0、DB-IP=CC-BY),适合随镜像交付。
 // 优雅降级:某个源路径为空/打开失败 → 该源返回空记录,不 panic、不阻断调用。IP 只查本地库,绝不外发。
 //
-// 作为 aurora Feature 使用见 NewFeature / Config(读 GEOIP_IP2REGION_PATH、GEOIP_DBIP_PATH 两个环境变量)。
+// 另有**可选**的 ASN 面(与归属地正交,回答「谁家的网 / 是不是机房」):传 WithASN(或 Feature 层
+// WithASNEnabled(true))才启用,给 Record 补 ASN/ASNOrg/IsHosting——用于识别「注册自机房/云/Tor 出口」这类信号。
+// 默认不开、不加载 ASN 库。
+//
+// 作为 aurora Feature 使用见 NewFeature / Config(读 GEOIP_IP2REGION_PATH、GEOIP_DBIP_PATH、GEOIP_ASN_PATH)。
 package geoip
 
 import (
@@ -47,6 +51,16 @@ var embeddedIP2RegionGz []byte
 //go:embed data/dbip-city-lite.mmdb.gz
 var embeddedDBIPGz []byte
 
+// embeddedDBIPASNGz 是**编译期内嵌**的 DB-IP ASN Lite(mmdb,gz 压缩,~5MB)。
+// 提供 IP → ASN(自治系统号 + 归属组织名),与归属地(在哪)正交:它回答「这个 IP 是谁家的网」,
+// 用来识别「注册自机房/云/Tor 出口」这类信号。库与 DB-IP City 同源同许可(CC-BY),schema
+// 兼容 GeoLite2-ASN。随二进制交付、构建不联网(实体 gz 在版本控制里)。解压后 ~9.5MB:
+// 与 DB-IP City 一样不常驻,解压到临时文件后 mmap(见 EmbeddedDBIPASNSource)。
+// **是否启用由调用方决定**(WithASN / 在 Feature 层 WithASNEnabled),默认不开、不加载。
+//
+//go:embed data/dbip-asn-lite.mmdb.gz
+var embeddedDBIPASNGz []byte
+
 // Record 一条归属地记录。未知/空字段统一为 ""。
 type Record struct {
 	CountryISO string // ISO-3166 alpha-2(CN/US/…);判定国内外的唯一依据
@@ -57,6 +71,13 @@ type Record struct {
 	// 开启 WithChinaFallback 后用国外库(DB-IP)在**省一致**前提下兜底补的市。
 	// DB-IP 对华城市偏粗(精度有限)→ 标记为参考,展示侧应提示「参考」,分析侧应知其非权威。
 	CityApprox bool
+	// ── ASN 面(与归属地正交,仅当启用 ASN 源时填;回答「谁家的网 / 是不是机房」)──
+	ASN    uint   // 自治系统号(如 15169);0 = 未知/未启用/私网。
+	ASNOrg string // AS 归属组织名(如 "Google LLC"、"CHINA UNICOM China169 Backbone");"" = 未知。
+	// IsHosting 该 ASN 是否**机房/云/托管/Tor 出口**这类「非终端用户网络」——由 ASNOrg 关键词启发式判定。
+	// 是**结论性**字段:true 表示这个 IP 大概率来自数据中心而非住宅/移动宽带,是识别脚本/机器人注册的硬信号之一。
+	// ⚠️ 启发式,非权威(无免费权威的 hosting 数据源):可能漏判小众机房、误判个别名字含关键词的运营商;够用不完美。
+	IsHosting bool
 }
 
 // IsChina 是否判为中国大陆。
@@ -80,7 +101,9 @@ type Option func(*resolverConfig)
 type resolverConfig struct {
 	china         Source
 	international Source
+	asn           Source // ASN 源(可选,与归属地正交);nil = 不查 ASN
 	cnFallback    bool
+	asnEnabled    bool // 仅供 Feature 层读:是否让 NewFeature 装配内嵌/外挂 ASN 源(见 WithASNEnabled)
 }
 
 // WithChina 指定管**中国大陆**的源(通常 ip2region)。它也负责判定 IP 是否国内(CountryISO=="CN")。
@@ -88,6 +111,17 @@ func WithChina(s Source) Option { return func(c *resolverConfig) { c.china = s }
 
 // WithInternational 指定管**国外**的源(通常 DB-IP)。
 func WithInternational(s Source) Option { return func(c *resolverConfig) { c.international = s } }
+
+// WithASN 指定 ASN 源(通常 DB-IP ASN Lite)。**这是库层的开关:传了才查 ASN、不传就完全不查**
+// (Record 的 ASN/ASNOrg/IsHosting 留零值)——ASN 与国内/国外定位正交,查到就把三个字段并进结果。
+// 裸用底层库时:geoip.New(WithChina(...), WithInternational(...), WithASN(geoip.EmbeddedDBIPASNSource()))。
+// 走 Feature 时改用 WithASNEnabled(true)(由 Feature 负责按 env/内嵌装配源)。
+func WithASN(s Source) Option { return func(c *resolverConfig) { c.asn = s } }
+
+// WithASNEnabled 是**Feature 层**的 ASN 开关(默认关):传 true 时 NewFeature 才装配 ASN 源
+// (GEOIP_ASN_PATH 有值→外挂;否则→内嵌库),否则完全不加载 ASN 库、不查 ASN。**不写死,交给装配处决定**:
+// app.AddFeature(geoip.NewFeature(geoip.WithASNEnabled(true)))。
+func WithASNEnabled(on bool) Option { return func(c *resolverConfig) { c.asnEnabled = on } }
 
 // WithChinaFallback 开关(库参数,由调用方决定):国内(CN)命中但字段不全(目前是「只到省、无市」)时,
 // 是否用国外库(DB-IP)在**省一致**前提下兜底补全,并把补来的市标记为参考(CityApprox=true)。
@@ -117,12 +151,13 @@ func New(opts ...Option) Resolver {
 	if c.international == nil {
 		c.international = nopSource{}
 	}
-	return &router{cn: c.china, intl: c.international, cnFallback: c.cnFallback}
+	return &router{cn: c.china, intl: c.international, asn: c.asn, cnFallback: c.cnFallback}
 }
 
 type router struct {
 	cn         Source
 	intl       Source
+	asn        Source // nil = 不查 ASN(未启用)
 	cnFallback bool
 }
 
@@ -132,7 +167,10 @@ func (r *router) Lookup(ip string) Record {
 	if ip == "" || net.ParseIP(ip) == nil {
 		return Record{}
 	}
-	if rec := r.cn.Lookup(ip); rec.IsChina() {
+	// ① 定位(国内/国外二选一):决定 CountryISO/Province/City/ISP。
+	var rec Record
+	if cn := r.cn.Lookup(ip); cn.IsChina() {
+		rec = cn
 		// 国内 → 国内源(中文省/市 + 运营商)。开了兜底且「有省无市」时,用国外库补一个参考市:
 		// 仅当国外库的省(转中文后)与 ip2region 的省一致才采信(挡掉 DB-IP 跨省乱标),标 CityApprox。
 		if r.cnFallback && rec.City == "" && rec.Province != "" {
@@ -141,9 +179,15 @@ func (r *router) Lookup(ip string) Record {
 				rec.CityApprox = true
 			}
 		}
-		return rec
+	} else {
+		rec = r.intl.Lookup(ip) // 国外(或国内源没命中)→ 国外源
 	}
-	return r.intl.Lookup(ip) // 国外(或国内源没命中)→ 国外源
+	// ② ASN 增强(与①正交,恒查):启用了 ASN 源就补 ASN/ASNOrg/IsHosting——国内 IP 也查(国内云主机=机房)。
+	if r.asn != nil {
+		a := r.asn.Lookup(ip)
+		rec.ASN, rec.ASNOrg, rec.IsHosting = a.ASN, a.ASNOrg, a.IsHosting
+	}
+	return rec
 }
 
 // ── 空源 ─────────────────────────────────────────────────────────────────────
@@ -348,6 +392,133 @@ func (s *dbipSource) Lookup(ip string) Record {
 	}
 }
 
+// ── DB-IP ASN 源(全球 IP → ASN + 组织名,判机房)────────────────────────────
+// 与归属地正交:只填 Record 的 ASN/ASNOrg/IsHosting,不碰 CountryISO/Province/City/ISP。
+type dbipASNSource struct {
+	reader  *maxminddb.Reader // mmap,并发安全
+	tmpPath string            // 非空 = 来自内嵌库解压的临时文件,Close 时一并删;外挂文件为空
+}
+
+// dbipASNRecord DB-IP ASN Lite / GeoLite2-ASN 兼容 schema。
+type dbipASNRecord struct {
+	ASN    uint   `maxminddb:"autonomous_system_number"`
+	ASNOrg string `maxminddb:"autonomous_system_organization"`
+}
+
+// NewDBIPASNSource 打开 DB-IP ASN mmdb(外挂文件,直接 mmap)。路径空/打开失败 → 空源。
+func NewDBIPASNSource(path string) Source {
+	if path == "" {
+		logger.Infof("geoip: 未配 DB-IP ASN(路径空),ASN 源禁用")
+		return nopSource{}
+	}
+	reader, err := maxminddb.Open(path)
+	if err != nil {
+		logger.Errorf("geoip: DB-IP ASN 打开失败 %s,ASN 源禁用: %+v", path, err)
+		return nopSource{}
+	}
+	logger.Infof("geoip: DB-IP ASN 已加载 %s (type=%s)", path, reader.Metadata.DatabaseType)
+	return &dbipASNSource{reader: reader}
+}
+
+// EmbeddedDBIPASNSource 用**编译期内嵌**的 DB-IP ASN Lite(见 embeddedDBIPASNGz)构造 ASN 源,零配置开箱即用。
+// 同 EmbeddedDBIPSource:内存 gunzip → 写临时文件 → maxminddb.Open 走 mmap;实现 io.Closer(Close 关 reader 并删临时文件)。
+// 任何失败(解压/落盘/打开)→ 空源(降级,不 panic)。
+func EmbeddedDBIPASNSource() Source {
+	gz, err := gzip.NewReader(bytes.NewReader(embeddedDBIPASNGz))
+	if err != nil {
+		logger.Errorf("geoip: 内嵌 DB-IP ASN 解压器创建失败,ASN 源禁用: %+v", err)
+		return nopSource{}
+	}
+	defer gz.Close()
+
+	tmp, err := os.CreateTemp("", "geoip-asn-*.mmdb")
+	if err != nil {
+		logger.Errorf("geoip: 内嵌 DB-IP ASN 临时文件创建失败,ASN 源禁用: %+v", err)
+		return nopSource{}
+	}
+	tmpPath := tmp.Name()
+	if _, err := io.Copy(tmp, gz); err != nil {
+		tmp.Close()
+		os.Remove(tmpPath)
+		logger.Errorf("geoip: 内嵌 DB-IP ASN 解压落盘失败,ASN 源禁用: %+v", err)
+		return nopSource{}
+	}
+	if err := tmp.Close(); err != nil {
+		os.Remove(tmpPath)
+		logger.Errorf("geoip: 内嵌 DB-IP ASN 临时文件关闭失败,ASN 源禁用: %+v", err)
+		return nopSource{}
+	}
+	reader, err := maxminddb.Open(tmpPath)
+	if err != nil {
+		os.Remove(tmpPath)
+		logger.Errorf("geoip: 内嵌 DB-IP ASN 打开失败,ASN 源禁用: %+v", err)
+		return nopSource{}
+	}
+	logger.Infof("geoip: 内嵌 DB-IP ASN 已解压到临时文件并 mmap %s (type=%s)", tmpPath, reader.Metadata.DatabaseType)
+	return &dbipASNSource{reader: reader, tmpPath: tmpPath}
+}
+
+// resolveASNSource 决定 ASN 源:GEOIP_ASN_PATH 有值 → 外挂文件覆盖;否则 → 内嵌 gz。
+func resolveASNSource(path string) Source {
+	if path != "" {
+		logger.Infof("geoip: GEOIP_ASN_PATH 已配,ASN 源用外挂文件覆盖内嵌库: %s", path)
+		return NewDBIPASNSource(path)
+	}
+	return EmbeddedDBIPASNSource()
+}
+
+func (dbipASNSource) Name() string { return "dbip-asn" }
+
+// Close 释放底层 mmap reader;内嵌来源(tmpPath 非空)再删解压出的临时文件。
+func (s *dbipASNSource) Close() error {
+	err := s.reader.Close()
+	if s.tmpPath != "" {
+		if rmErr := os.Remove(s.tmpPath); rmErr != nil && err == nil {
+			err = rmErr
+		}
+	}
+	return err
+}
+
+// Lookup 查 IP 的 ASN + 组织名,并据组织名启发式判 IsHosting。查不到 → 零值 Record。
+func (s *dbipASNSource) Lookup(ip string) Record {
+	var rec dbipASNRecord
+	if err := s.reader.Lookup(net.ParseIP(ip), &rec); err != nil {
+		return Record{}
+	}
+	return Record{ASN: rec.ASN, ASNOrg: rec.ASNOrg, IsHosting: looksLikeHosting(rec.ASNOrg)}
+}
+
+// hostingOrgKeywords 是判定「机房/云/托管/Tor 出口」的组织名关键词(小写子串匹配)。
+// 覆盖主流云厂商 + 通用托管词 + 已知 Tor 出口运营商用词。**刻意避开** backbone/telecom/mobile/broadband
+// 等骨干/终端运营商词,减少把住宅/移动宽带误判成机房。启发式、非权威,按需增删即可。
+var hostingOrgKeywords = []string{
+	// 通用托管/机房词
+	"hosting", "host", "cloud", "data center", "datacenter", "server", "vps", "dedicated",
+	"colo", "colocation", "virtual", "infrastructure", "networks solutions", "internet solutions",
+	// 主流云 / 托管厂商
+	"amazon", "aws", "azure", "microsoft", "google", "digitalocean", "digital ocean", "ovh",
+	"hetzner", "linode", "vultr", "leaseweb", "choopa", "contabo", "scaleway", "oracle",
+	"alibaba", "aliyun", "tencent", "huawei cloud", "ucloud", "m247", "datacamp", "g-core",
+	"gcore", "fastly", "akamai", "psychz", "quadranet", "hostwinds", "namecheap", "gigenet",
+	// 匿名/代理/Tor 相关用词(DFRI 等 Tor 出口运营商)
+	"vpn", "proxy", "tor ", "digitala fri", "frikt",
+}
+
+// looksLikeHosting 组织名(转小写)命中任一关键词即判为机房/托管类网络。org 空 → false。
+func looksLikeHosting(org string) bool {
+	if org == "" {
+		return false
+	}
+	l := strings.ToLower(org)
+	for _, kw := range hostingOrgKeywords {
+		if strings.Contains(l, kw) {
+			return true
+		}
+	}
+	return false
+}
+
 // ── aurora Feature 封装 ───────────────────────────────────────────────────────
 
 // Config 从环境变量读两个本地 IP 库的路径,都可选(两库都已内嵌,不配即用内嵌库):
@@ -356,6 +527,7 @@ func (s *dbipSource) Lookup(ip string) Record {
 type Config struct {
 	IP2RegionPath string `env:"GEOIP_IP2REGION_PATH,omitempty"` // 国内 ip2region_v4.xdb 路径(空=用内嵌库)
 	DBIPPath      string `env:"GEOIP_DBIP_PATH,omitempty"`      // 国外 DB-IP City mmdb 路径(空=用内嵌库)
+	ASNPath       string `env:"GEOIP_ASN_PATH,omitempty"`       // ASN DB-IP ASN mmdb 路径(空=用内嵌库);仅在 WithASNEnabled(true) 时才加载
 }
 
 // geoipFeature 实现 contracts.Features,把 Resolver 注入 DI 容器。
@@ -384,16 +556,31 @@ func (f *geoipFeature) Name() string { return "geoip" }
 func (f *geoipFeature) Setup(app contracts.App) error {
 	cn := resolveChinaSource(f.cfg.IP2RegionPath) // env 有值→外挂覆盖;否则→内嵌 gz(开箱即用)
 	intl := resolveIntlSource(f.cfg.DBIPPath)     // 同上;内嵌那份解压到临时文件后 mmap
-	for _, s := range []Source{cn, intl} {        // 两条路径(外挂/内嵌)凡实现 Closer 的都登记,Close 时释放
+	sources := []Source{cn, intl}
+
+	// ASN 源**默认不装**:仅当调用方传了 WithASNEnabled(true) 才按 env/内嵌加载(不写死)。
+	// 先把 opts 应用到一个探针 config 读出这个开关(opts 只在 New 里生效,Feature 需提前知道要不要建源)。
+	var probe resolverConfig
+	for _, o := range f.opts {
+		if o != nil {
+			o(&probe)
+		}
+	}
+	// 基础路由选项在前,调用方 opts(如 WithChinaFallback)在后,可覆盖/追加。
+	opts := make([]Option, 0, len(f.opts)+3)
+	opts = append(opts, WithChina(cn), WithInternational(intl))
+	if probe.asnEnabled {
+		asn := resolveASNSource(f.cfg.ASNPath) // env 有值→外挂覆盖;否则→内嵌 gz
+		sources = append(sources, asn)
+		opts = append(opts, WithASN(asn))
+	}
+	opts = append(opts, f.opts...)
+
+	for _, s := range sources { // 凡实现 Closer 的源(外挂/内嵌 mmap reader)都登记,Close 时释放
 		if c, ok := s.(io.Closer); ok {
 			f.closers = append(f.closers, c)
 		}
 	}
-
-	// 基础路由选项在前,调用方 opts(如 WithChinaFallback)在后,可覆盖/追加。
-	opts := make([]Option, 0, len(f.opts)+2)
-	opts = append(opts, WithChina(cn), WithInternational(intl))
-	opts = append(opts, f.opts...)
 
 	resolver := New(opts...)
 	app.ProvideAs(resolver, (*Resolver)(nil))

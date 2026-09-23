@@ -25,22 +25,30 @@ func main() {
 		defer c.Close() // 内嵌 DB-IP 走临时文件 mmap,退出前关闭并删除临时文件
 	}
 
+	// ASN 面可选:传 WithASN 才查(默认不开)。这里也用内嵌 ASN 库演示。
+	asn := geoip.EmbeddedDBIPASNSource()
+	if c, ok := asn.(interface{ Close() error }); ok {
+		defer c.Close() // 内嵌 ASN 同样走临时文件 mmap,退出前关闭并删除
+	}
+
 	r := geoip.New(
 		geoip.WithChina(cn),
 		geoip.WithInternational(intl),
 		geoip.WithChinaFallback(true),
+		geoip.WithASN(asn), // 开启 ASN 面:补 ASN / ASNOrg / IsHosting
 	)
 
 	ips := []string{
-		"112.224.163.187", // 国内:山东 · 联通
+		"112.224.163.187", // 国内:山东 · 联通(住宅,非机房)
 		"116.7.32.9",      // 国内:广东
-		"8.8.8.8",         // 国外:美国(内嵌 DB-IP)
+		"8.8.8.8",         // 国外:美国 · Google(机房)
+		"171.25.193.36",   // 国外:瑞典 · Tor 出口(DFRI)
 	}
 
-	fmt.Println("IP → 归属地(国内 + 国外库都已内嵌,零配置):")
+	fmt.Println("IP → 归属地 + ASN(全部内嵌,零配置):")
 	for _, ip := range ips {
 		rec := r.Lookup(ip)
-		fmt.Printf("  %-16s country=%-2s province=%q city=%q isp=%q approx=%v\n",
-			ip, rec.CountryISO, rec.Province, rec.City, rec.ISP, rec.CityApprox)
+		fmt.Printf("  %-16s country=%-2s province=%q city=%q isp=%q approx=%v | asn=%d org=%q hosting=%v\n",
+			ip, rec.CountryISO, rec.Province, rec.City, rec.ISP, rec.CityApprox, rec.ASN, rec.ASNOrg, rec.IsHosting)
 	}
 }

@@ -38,6 +38,7 @@ rec := r.Lookup("112.224.163.187")
 `NewFeature(opts ...Option)` 的 `opts` 是收口库选项。目前对外的:
 
 - `WithChinaFallback(on bool)` —— 中国兜底开关(见下)。默认关。
+- `WithASNEnabled(on bool)` —— ASN 面开关(见下「ASN」)。默认关:不传就完全不加载 ASN 库、不查 ASN。
 
 > 两个源的路径不在 `opts` 里(两库都内嵌,env 仅用于外挂覆盖,见[配置](#配置))。`WithChina` / `WithInternational` / `EmbeddedIP2RegionSource` / `EmbeddedDBIPSource` 也是导出的,给「不走 Feature、直接用 `geoip.New(...)` 库」时手动装配用(注意:`EmbeddedDBIPSource()` 返回的源实现 `io.Closer`,用完要 `Close()` 以删掉临时文件)。
 
@@ -52,6 +53,10 @@ type Record struct {
     City       string // 市
     ISP        string // 运营商(仅国内 ip2region 源有:电信 / 联通 / 移动 …)
     CityApprox bool   // 见下
+    // ── ASN 面(与归属地正交,仅启用 ASN 源时填)──
+    ASN       uint   // 自治系统号(如 15169);0 = 未知 / 未启用 / 私网
+    ASNOrg    string // AS 归属组织名(如 "Google LLC");"" = 未知
+    IsHosting bool   // 该 ASN 是否机房 / 云 / 托管 / Tor 出口(据 ASNOrg 关键词启发式判);见下「ASN」
 }
 ```
 
@@ -66,6 +71,31 @@ type Record struct {
 
 采信有闸门:**只有当 DB-IP 的省(转中文后)与 ip2region 的省一致**才补(挡掉 DB-IP 跨省乱标);且 ip2region 已有市时绝不覆盖。DB-IP 对华城市精度有限,所以补来的市统一标 `CityApprox` —— **展示侧应提示「参考」,分析侧应知其非权威**。关闭时(默认)严格只用 ip2region,缺就缺。
 
+### ASN(机房识别,可选)
+
+ASN 面回答的是**「这个 IP 是谁家的网 / 是不是机房」**,和归属地(在哪)**正交**——常用来识别「注册自机房 / 云 / Tor 出口」这类脚本 / 机器人信号。默认**关**,不加载 ASN 库、不查。
+
+启用两种方式:
+
+```go
+// A) 走 Feature:传 WithASNEnabled(true),Feature 按 GEOIP_ASN_PATH(空则内嵌库)装配
+app.AddFeature(geoip.NewFeature(geoip.WithASNEnabled(true)))
+
+// B) 裸用库:自己传 ASN 源
+r := geoip.New(
+    geoip.WithChina(geoip.EmbeddedIP2RegionSource()),
+    geoip.WithInternational(geoip.EmbeddedDBIPSource()),
+    geoip.WithASN(geoip.EmbeddedDBIPASNSource()), // 用完 Close() 删临时文件
+)
+```
+
+启用后 `Lookup` 会**对每个 IP(国内外都查)**补 `ASN` / `ASNOrg` / `IsHosting`:
+
+- `ASN` / `ASNOrg`:自治系统号 + 归属组织名(如 `15169` / `Google LLC`)。来自内嵌 **DB-IP ASN Lite**(CC-BY,schema 兼容 GeoLite2-ASN),与 DB-IP City 同源同许可。
+- `IsHosting`:**结论性**字段——`true` 表示该 IP 大概率来自数据中心 / 云 / 托管 / Tor 出口,而非住宅 / 移动宽带。由 `ASNOrg` 关键词**启发式**判定(命中云厂商 / 托管 / VPS / Tor 出口运营商等用词)。⚠️ **启发式非权威**(无免费权威 hosting 源):可能漏判小众机房、误判个别名字含关键词的运营商;够用不完美,关键词表在 `geoip.go` 里可随时增删。
+
+> `IsHosting` 只报**事实**(这个 IP 像不像机房),**不做价值判断**(要不要当机器人)。把它当风控证据的组合规则(如 `IsHosting && 非CN && 0激活`)属于业务侧,不在本库。
+
 ---
 
 ## 配置
@@ -74,6 +104,7 @@ type Record struct {
 |---|---|---|---|
 | `GEOIP_IP2REGION_PATH` | string | ❌(omitempty) | 国内库 `ip2region_v4.xdb` 路径。**不配 → 用内嵌库(开箱即用)**;配了 → 用该外挂文件**覆盖**内嵌库(便于线下更新);文件缺失 → 国内源降级为空 |
 | `GEOIP_DBIP_PATH` | string | ❌(omitempty) | 国外库 DB-IP City `mmdb` 路径。**不配 → 用内嵌库(开箱即用)**;配了 → 用该外挂文件**覆盖**内嵌库;文件缺失 → 国外源降级为空 |
+| `GEOIP_ASN_PATH` | string | ❌(omitempty) | ASN 库 DB-IP ASN `mmdb` 路径。**仅当 `WithASNEnabled(true)` 时才生效**;不配 → 用内嵌 ASN 库;配了 → 外挂**覆盖** |
 
 都可选(`,omitempty`,是加配置的正确姿势,见 [config.md](./config.md))。**零配置**下:两库都用内嵌,国内、国外 IP 都能正常解析。env 仅用于**外挂覆盖**内嵌库(如临时更新某库)。
 
