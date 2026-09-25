@@ -74,9 +74,10 @@ type Record struct {
 	// ── ASN 面(与归属地正交,仅当启用 ASN 源时填;回答「谁家的网 / 是不是机房」)──
 	ASN    uint   // 自治系统号(如 15169);0 = 未知/未启用/私网。
 	ASNOrg string // AS 归属组织名(如 "Google LLC"、"CHINA UNICOM China169 Backbone");"" = 未知。
-	// IsHosting 该 ASN 是否**机房/云/托管/Tor 出口**这类「非终端用户网络」——由 ASNOrg 关键词启发式判定。
+	// IsHosting 该 ASN 是否**机房/云/托管/Tor 出口**这类「非终端用户网络」——**只由 ASN 号**是否在内嵌权威清单
+	// (bad-asn-list,MIT,见 hosting_asn.go)里决定,不做组织名猜测。确定、可审计、可维护:结果 100% 由清单决定。
 	// 是**结论性**字段:true 表示这个 IP 大概率来自数据中心而非住宅/移动宽带,是识别脚本/机器人注册的硬信号之一。
-	// ⚠️ 启发式,非权威(无免费权威的 hosting 数据源):可能漏判小众机房、误判个别名字含关键词的运营商;够用不完美。
+	// ⚠️ 覆盖范围 = 清单范围:清单未收录的机房 ASN 会判 false(靠按 README 同步/补录清单扩覆盖,不靠名字兜底)。
 	IsHosting bool
 }
 
@@ -480,43 +481,13 @@ func (s *dbipASNSource) Close() error {
 	return err
 }
 
-// Lookup 查 IP 的 ASN + 组织名,并据组织名启发式判 IsHosting。查不到 → 零值 Record。
+// Lookup 查 IP 的 ASN + 组织名,并判 IsHosting(收口到 isHostingASN:仅看 ASN 号在不在权威清单里)。查不到 → 零值 Record。
 func (s *dbipASNSource) Lookup(ip string) Record {
 	var rec dbipASNRecord
 	if err := s.reader.Lookup(net.ParseIP(ip), &rec); err != nil {
 		return Record{}
 	}
-	return Record{ASN: rec.ASN, ASNOrg: rec.ASNOrg, IsHosting: looksLikeHosting(rec.ASNOrg)}
-}
-
-// hostingOrgKeywords 是判定「机房/云/托管/Tor 出口」的组织名关键词(小写子串匹配)。
-// 覆盖主流云厂商 + 通用托管词 + 已知 Tor 出口运营商用词。**刻意避开** backbone/telecom/mobile/broadband
-// 等骨干/终端运营商词,减少把住宅/移动宽带误判成机房。启发式、非权威,按需增删即可。
-var hostingOrgKeywords = []string{
-	// 通用托管/机房词
-	"hosting", "host", "cloud", "data center", "datacenter", "server", "vps", "dedicated",
-	"colo", "colocation", "virtual", "infrastructure", "networks solutions", "internet solutions",
-	// 主流云 / 托管厂商
-	"amazon", "aws", "azure", "microsoft", "google", "digitalocean", "digital ocean", "ovh",
-	"hetzner", "linode", "vultr", "leaseweb", "choopa", "contabo", "scaleway", "oracle",
-	"alibaba", "aliyun", "tencent", "huawei cloud", "ucloud", "m247", "datacamp", "g-core",
-	"gcore", "fastly", "akamai", "psychz", "quadranet", "hostwinds", "namecheap", "gigenet",
-	// 匿名/代理/Tor 相关用词(DFRI 等 Tor 出口运营商)
-	"vpn", "proxy", "tor ", "digitala fri", "frikt",
-}
-
-// looksLikeHosting 组织名(转小写)命中任一关键词即判为机房/托管类网络。org 空 → false。
-func looksLikeHosting(org string) bool {
-	if org == "" {
-		return false
-	}
-	l := strings.ToLower(org)
-	for _, kw := range hostingOrgKeywords {
-		if strings.Contains(l, kw) {
-			return true
-		}
-	}
-	return false
+	return Record{ASN: rec.ASN, ASNOrg: rec.ASNOrg, IsHosting: isHostingASN(rec.ASN)}
 }
 
 // ── aurora Feature 封装 ───────────────────────────────────────────────────────

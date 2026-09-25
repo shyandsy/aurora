@@ -191,24 +191,19 @@ func TestASNToggleAndMerge(t *testing.T) {
 	})
 }
 
-// TestLooksLikeHosting:机房/云/Tor 组织名判 true;住宅/骨干运营商判 false;空串 false。启发式钉住。
-func TestLooksLikeHosting(t *testing.T) {
-	hosting := []string{
-		"Google LLC", "Cloudflare, Inc.", "The Infrastructure Group B.V.",
-		"Foreningen for digitala fri- och rattigheter", // DFRI(Tor 出口)
-		"Amazon.com, Inc.", "DigitalOcean, LLC", "OVH SAS", "Hetzner Online GmbH",
+// TestIsHostingASN:IsHosting 只由 ASN 号是否在内嵌权威清单(bad-asn-list)里决定,不看组织名。
+//   - AS20473(Vultr/Choopa,组织名 "The Constant Company, LLC" 不含任何托管关键词)在清单里 → 判 hosting。
+//     这正是删掉名字启发式后仍能抓到的关键案例:靠号,不靠名。
+//   - AS4134(China Telecom 住宅骨干)不在清单 → 不判 hosting。
+//   - asn==0(未知/未启用/私网)→ 一律 false,不再有任何名字兜底。
+func TestIsHostingASN(t *testing.T) {
+	if !isHostingASN(20473) {
+		t.Error("AS20473(Vultr/Choopa)在 bad-asn-list 里,应判 hosting")
 	}
-	residential := []string{
-		"CHINA UNICOM China169 Backbone", "China Telecom", "Comcast Cable Communications", "",
+	if isHostingASN(4134) {
+		t.Error("AS4134(China Telecom 住宅骨干)不在清单,不该判 hosting")
 	}
-	for _, o := range hosting {
-		if !looksLikeHosting(o) {
-			t.Errorf("looksLikeHosting(%q) = false, want true", o)
-		}
-	}
-	for _, o := range residential {
-		if looksLikeHosting(o) {
-			t.Errorf("looksLikeHosting(%q) = true, want false", o)
-		}
+	if isHostingASN(0) {
+		t.Error("asn==0 应一律 false(无名字兜底)")
 	}
 }
