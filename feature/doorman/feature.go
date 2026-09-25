@@ -84,7 +84,7 @@ func WithActions(scope string, types ...string) Option {
 	}
 }
 
-type feature struct {
+type doormanFeature struct {
 	cfg      featureConfig
 	stop     chan struct{} // 关闭它 → 停掉后台清理 goroutine(Close 时)
 	stopOnce sync.Once
@@ -103,13 +103,13 @@ func NewFeature(opts ...Option) contracts.Features {
 			o(&fc)
 		}
 	}
-	return &feature{cfg: fc, stop: make(chan struct{})}
+	return &doormanFeature{cfg: fc, stop: make(chan struct{})}
 }
 
-func (f *feature) Name() string { return "doorman" }
+func (f *doormanFeature) Name() string { return "doorman" }
 
 // Close 停掉后台清理 goroutine(编译缓存随 GC,无需释放)。为满足 contracts.Features 接口。
-func (f *feature) Close() error {
+func (f *doormanFeature) Close() error {
 	f.stopOnce.Do(func() { close(f.stop) })
 	return nil
 }
@@ -124,7 +124,7 @@ type dbHolder struct {
 //     ⚠️ 不自己建表:三张 doorman_* 表由宿主服务的 goose 建(真相源 migrations/doorman_schema.sql,
 //     接入方复制进自己**跑 goose 的那个服务**的迁移目录)。
 //   - 传了 WithRuleSource:用业务自带存储(高级 override),此时不注入 Console。
-func (f *feature) Setup(app contracts.App) error {
+func (f *doormanFeature) Setup(app contracts.App) error {
 	reg := NewRegistry()
 	RegisterBuiltins(reg)
 	for _, c := range f.cfg.conds {
@@ -167,7 +167,7 @@ func (f *feature) Setup(app contracts.App) error {
 }
 
 // runPrune 后台定期清理 doorman_decision 里早于保留期的行,直到 Close 停止。best-effort:失败只记日志、继续。
-func (f *feature) runPrune(store *dbStore) {
+func (f *doormanFeature) runPrune(store *dbStore) {
 	prune := func() {
 		before := time.Now().Add(-f.cfg.retention)
 		n, err := store.pruneDecisions(before, pruneBatchSize)
