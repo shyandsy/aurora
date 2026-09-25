@@ -20,6 +20,8 @@ func InitDefaultApp() contracts.App {
 	a.AddFeature(feature.NewRedisFeature())
 	a.AddFeature(feature.NewJWTFeature())
 	a.AddFeature(feature.NewI18NFeature())
+	// tokenguard(token 会话有效性)是 opt-in,不在默认集:鉴权服务自行 app.AddFeature(
+	// tokenguard.NewTokenGuardFeature(jc.RefreshExpireOrDefault()))(须在 redis + jwt 之后)。纯 worker/非鉴权服务不必带。
 	// 发信不再是自动注册的 feature —— 见 feature/mail 包:app 用 mail.NewSMTP(...) 等按需构造 Mailer,
 	// 自己决定供应商/授权/凭据来源(env、DB、临时都行),不再从 env 焊死一个全局 EmailService。
 
