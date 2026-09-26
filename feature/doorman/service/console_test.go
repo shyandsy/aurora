@@ -187,8 +187,8 @@ func TestConsole_CRUD(t *testing.T) {
 func TestConsole_Kinds(t *testing.T) {
 	_, svc := newTestConsole()
 	k := svc.Kinds()
-	if len(k.Conditions) != 3 {
-		t.Fatalf("应有 3 条件类别,got %d", len(k.Conditions))
+	if len(k.Conditions) != 4 {
+		t.Fatalf("应有 4 条件类别,got %d", len(k.Conditions))
 	}
 	if len(k.RiskLevels) != 5 {
 		t.Fatalf("应有 5 个风险等级,got %d", len(k.RiskLevels))

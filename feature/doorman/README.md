@@ -11,7 +11,8 @@
 ## 一、核心概念
 
 - **Attempt**:一次请求的事实快照(UA/IP/国家/运营商/ASN/是否机房 + `Ext` 业务扩展袋)。业务填,doorman 只读、不采集。
-- **Condition**(条件插件,唯一扩展点):`Type / Compile(自解析+校验参数) / Fields(配置 schema)`。内置 `ua_match` / `asn_hosting` / `country_in`。
+- **Condition**(条件插件,唯一扩展点):`Type / Compile(自解析+校验参数) / Fields(配置 schema)`。内置 `ua_match` / `asn_hosting` / `country_in` / `rate_limit`。
+  - `rate_limit` 是**有状态**条件(某维度在时间窗内次数超阈值即命中),靠业务注入的 `Context.Store`(如 Redis)计数;没注入时它恒不命中(best-effort,不误伤)。配置:`by`(ip/asn/subject)+ `window`(如 `1h`)+ `max`(窗内允许次数)。
 - **Rule**:`{scope, 多个条件, combine(and/or), riskLevel, enabled}`;命中多条取**最高**等级。
 - **Doorman**:门面,`Assess(*Context) Assessment{Level, Matched}`。业务据 `Level` 自己决定处置。
 - **动作**:doorman 只存动作名字符串 + 类型(`friction` 减速器 / `terminal` 硬卡),不解释、不执行。
