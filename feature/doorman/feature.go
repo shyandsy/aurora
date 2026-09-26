@@ -5,6 +5,8 @@ import (
 	"time"
 
 	"github.com/shyandsy/aurora/contracts"
+	"github.com/shyandsy/aurora/feature/doorman/core"
+	"github.com/shyandsy/aurora/feature/doorman/service"
 	"github.com/shyandsy/aurora/logger"
 	"gorm.io/gorm"
 )
@@ -18,27 +20,26 @@ const (
 	pruneBatchSize           = 1000                // 每批删多少(分批不锁大表)
 )
 
-// ── aurora Feature 封装 ──
+// ── aurora Feature 装配 ──
 //
 // 把 doorman 作为一个 aurora Feature 接入:app.AddFeature(doorman.NewFeature(...)),
 // Setup 时装好注册表(内置中性插件 + 业务传入的插件)与看门人,并以 Doorman 接口注入 DI 容器,
-// 业务侧 `Doorman doorman.Doorman \`inject:""\`` 直接拿来用。
-//
-// 规则来源(RuleSource)由业务提供(通常是 DB 表);不传则一律放行(空来源),便于先接线后配规则。
+// 业务侧 `Doorman doorman.Doorman \`inject:""\`` 直接拿来用。规则来源默认走 DB 表(service 层)。
 
 type featureConfig struct {
-	src       RuleSource
-	ttl       time.Duration
-	conds     []Condition
+	src       RuleSource          // 规则来源;不传 = 用默认 DB 存储
+	ttl       time.Duration       // 编译/策略缓存热加载间隔
+	conds     []Condition         // 业务补充的条件插件(通用条件已内置)
 	actions   map[string][]string // (向后兼容)scope → 动作名清单;新接入用 scopes
-	scopes    []ScopeDef          // 业务注册的 scope 定义(标签 + 动作目录 + 动作类型),配置页数据驱动 + 保存校验 + 漏斗
+	scopes    []ScopeDef          // 业务注册的 scope 定义(标签 + 动作目录 + 动作类型)
 	retention time.Duration       // doorman_decision 保留期(<=0 关闭自动清理);默认 defaultDecisionRetention
 }
 
 // Option 配置项(功能选项模式)。
 type Option func(*featureConfig)
 
-// WithRuleSource 指定规则来源(业务的 DB 表实现)。不传 = 空来源(任何 scope 都判 none)。
+// WithRuleSource 指定规则来源(业务的 DB 表实现)。不传 = 用默认 DB 存储(推荐),此时还会注入 Console(配置页后端)。
+// 传了则用业务自带存储(高级 override),不注入 Console / 策略 / 流水。
 func WithRuleSource(s RuleSource) Option { return func(c *featureConfig) { c.src = s } }
 
 // WithTTL 指定编译缓存热加载间隔(默认 30s)。
@@ -94,7 +95,7 @@ type doormanFeature struct {
 //
 //	app.AddFeature(doorman.NewFeature())
 //	app.AddFeature(doorman.NewFeature(
-//	    doorman.WithCondition(customer.SomeBizCondition()), // 业务专属条件(可选)
+//	    doorman.WithScope("register", "注册", doorman.Action("email_verify", "要求邮件激活", doorman.ActionFriction)),
 //	))
 func NewFeature(opts ...Option) contracts.Features {
 	fc := featureConfig{retention: defaultDecisionRetention} // 默认开启 90 天保留;WithDecisionRetention 可覆盖/关闭
@@ -120,13 +121,13 @@ type dbHolder struct {
 }
 
 // Setup 装配注册表(内置 + 业务插件)+ 存储 + 看门人,注入 DI。
-//   - 默认(未传 WithRuleSource):**用 DB 存储**——注入 *gorm.DB + Console(配置页后端)。
+//   - 默认(未传 WithRuleSource):用 DB 存储 —— 注入 Doorman + Console(配置页后端),并起后台清理 goroutine。
 //     ⚠️ 不自己建表:三张 doorman_* 表由宿主服务的 goose 建(真相源 migrations/doorman_schema.sql,
 //     接入方复制进自己**跑 goose 的那个服务**的迁移目录)。
-//   - 传了 WithRuleSource:用业务自带存储(高级 override),此时不注入 Console。
+//   - 传了 WithRuleSource:用业务自带存储(高级 override),只注入 Doorman,不注入 Console。
 func (f *doormanFeature) Setup(app contracts.App) error {
-	reg := NewRegistry()
-	RegisterBuiltins(reg)
+	reg := core.NewRegistry()
+	core.RegisterBuiltins(reg)
 	for _, c := range f.cfg.conds {
 		reg.RegisterCondition(c)
 	}
@@ -137,40 +138,35 @@ func (f *doormanFeature) Setup(app contracts.App) error {
 		reg.RegisterScope(s.ID, s.Label, s.Actions)
 	}
 
-	src := f.cfg.src
-	var psrc PolicyStore     // 「风险→动作」策略来源;仅默认 DB 存储时有(override 自带存储时为 nil)
-	var rec decisionRecorder // 决策流水记录;仅默认 DB 存储时有
-	if src == nil {
-		var h dbHolder
-		if err := app.Resolve(&h); err != nil {
-			return err
-		}
-		store := NewDBStore(h.DB)
-		// 不在这里建表:doorman 是库不是服务,不自己 DDL。三张 doorman_* 表由**宿主服务的 goose**建
-		// (迁移真相源 migrations/doorman_schema.sql,接入方复制进自己跑 goose 的服务)。
-		// 表不存在会在首次读写时报错——那是"接入方漏了复制 goose 迁移",应当显式暴露,不该被 AutoMigrate 悄悄兜住。
-		src = store
-		psrc = store
-		rec = store
-		app.ProvideAs(newConsole(reg, store), (*Console)(nil)) // 配置页后端
-
-		// 决策流水保留:起后台 goroutine 定期清老数据(库自包含,不依赖外部 job)。
-		// 注意:doorman 若被多个服务(admin+customer)各自嵌入,会各起一个清理 goroutine 对同一张表清,
-		// DELETE 幂等、无害,只是略有重复;如只想让一处清,给其中一处 WithDecisionRetention(0) 关掉即可。
-		if f.cfg.retention > 0 {
-			go f.runPrune(store)
-		}
+	if f.cfg.src != nil {
+		// 高级 override:业务自带规则来源,不落 doorman 表(无 Console / 策略 / 流水)。
+		app.ProvideAs(service.NewWithSource(reg, f.cfg.src, f.cfg.ttl), (*Doorman)(nil))
+		return nil
 	}
 
-	app.ProvideAs(New(reg, src, psrc, rec, f.cfg.ttl), (*Doorman)(nil))
+	// 默认:DB 存储。表不存在会在首次读写时报错——那是"接入方漏了复制 goose 迁移",应显式暴露,不被 AutoMigrate 悄悄兜住。
+	var h dbHolder
+	if err := app.Resolve(&h); err != nil {
+		return err
+	}
+	d, con, pruner := service.NewWithStore(reg, h.DB, f.cfg.ttl)
+	app.ProvideAs(d, (*Doorman)(nil))
+	app.ProvideAs(con, (*Console)(nil)) // 配置页后端
+
+	// 决策流水保留:起后台 goroutine 定期清老数据(库自包含,不依赖外部 job)。
+	// 注意:doorman 若被多个服务(admin+customer)各自嵌入,会各起一个清理 goroutine 对同一张表清,
+	// DELETE 幂等、无害,只是略有重复;如只想让一处清,给其中一处 WithDecisionRetention(0) 关掉即可。
+	if f.cfg.retention > 0 {
+		go f.runPrune(pruner)
+	}
 	return nil
 }
 
-// runPrune 后台定期清理 doorman_decision 里早于保留期的行,直到 Close 停止。best-effort:失败只记日志、继续。
-func (f *doormanFeature) runPrune(store *dbStore) {
+// runPrune 后台定期清理早于保留期的决策流水,直到 Close 停止。best-effort:失败只记日志、继续。
+func (f *doormanFeature) runPrune(pruner service.Pruner) {
 	prune := func() {
 		before := time.Now().Add(-f.cfg.retention)
-		n, err := store.pruneDecisions(before, pruneBatchSize)
+		n, err := pruner(before, pruneBatchSize)
 		if err != nil {
 			logger.Errorf("doorman: 清理决策流水失败: %+v", err)
 		} else if n > 0 {

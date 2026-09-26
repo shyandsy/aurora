@@ -6,118 +6,113 @@
 //
 // 设计要点(详见 README.md):
 //   - 中性、与业务解耦:只读 Attempt 上的事实字段,不碰 geoip / 不采集 / 不认业务名 / 不含任何动作。
-//     业务负责把事实填进 Attempt(如 customer 调 geoip 填 ASN/IsHosting),scope 也由业务传字符串。
-//   - 一条规则 = 多个条件(且/或组合)→ 一个风险等级。条件(Condition)是唯一的可注册插件类别,
-//     自带配置(自己解析+校验参数)。加一类条件 = 实现接口 + 注册一行,引擎 / 存储契约 / DTO 都不动。
-//   - 一次判定过所有规则,命中的取**最高**风险等级;无优先级、无责任链、无短路。见 Assess。
-//   - 统计:doorman 只能给「评估了多少、各等级多少」;判定→后续结果的漏斗只有业务场景看得到,
-//     由场景自己记录(见 README.md 第三节「动作类型与漏斗」)。
+//   - 一条规则 = 多个条件(且/或组合)→ 一个风险等级。条件(Condition)是唯一的可注册插件类别,自带配置。
+//   - 一次判定过所有规则,命中的取**最高**风险等级;无优先级、无责任链、无短路。
 //
-// 本包是 aurora 框架层的通用 feature(aurora/feature/doorman),跨项目复用:严格中性,不认识任何业务名/scope/动作,
-// 业务经 Attempt(事实)/ scope 字符串 / 动作名 / 条件插件注入。接入见 README.md。
+// 本包是 aurora 框架层的通用 feature,跨项目复用:严格中性。分层:
+//   - 本文件(根包):对外类型别名 + 常量,唯一稳定 API 面(消费方只 import 本包写 doorman.XXX)。
+//   - feature.go:aurora Feature 装配(NewFeature + Options + Setup)。
+//   - core/:领域内核(风险等级、评估引擎、条件插件、注册表、Doorman 契约)。
+//   - service/:管理面 Console + 默认 DB 存储(实现 core 契约)。
+//   - controller/:管理 API(配置页后端)HTTP 层。
+//   - model/{entity,dto}:持久化实体 / 对外读写模型。
 package doorman
 
 import (
-	"context"
-	"time"
+	"github.com/shyandsy/aurora/feature/doorman/core"
+	"github.com/shyandsy/aurora/feature/doorman/model/dto"
+	"github.com/shyandsy/aurora/feature/doorman/service"
 )
 
-// RiskLevel 一次评估的风险等级(固定枚举,由低到高)。命中多条规则时取最高;无命中 = RiskNone。
-type RiskLevel string
+// ── 领域类型(re-export 自 core;消费方写 doorman.XXX,无需 import 子包) ──
+type (
+	// Doorman 门房:对外唯一入口(Assess / ActionFor / Record / MarkOutcome)。
+	Doorman = core.Doorman
+	// Context 一次评估的上下文(Scope + Attempt + Subject + Req/Store)。
+	Context = core.Context
+	// Attempt 一次请求的事实快照(评估输入,业务填)。
+	Attempt = core.Attempt
+	// Assessment 一次评估的结论(最高风险等级 + 命中规则)。
+	Assessment = core.Assessment
+	// MatchedRule 一条命中规则的摘要。
+	MatchedRule = core.MatchedRule
+	// RiskLevel 风险等级枚举(none/low/medium/high/critical)。
+	RiskLevel = core.RiskLevel
+	// Store 有状态条件所需的最小存储抽象(限流计数等;可 nil)。
+	Store = core.Store
+	// RequestView 原始请求只读视图(取 header / 表单字段)。
+	RequestView = core.RequestView
+	// Condition 条件类别插件(doorman 唯一扩展点)。
+	Condition = core.Condition
+	// Check 一条已配置好的条件判定。
+	Check = core.Check
+	// Rule 一条配置规则(多个条件 → 一个风险等级)。
+	Rule = core.Rule
+	// RuleCondition 规则里的一个条件项。
+	RuleCondition = core.RuleCondition
+	// RuleSource 规则来源契约(业务提供 / 默认 DB 存储实现)。
+	RuleSource = core.RuleSource
+	// PolicyStore 「风险→动作」策略只读来源。
+	PolicyStore = core.PolicyStore
+	// DecisionRecorder 决策流水记录契约。
+	DecisionRecorder = core.DecisionRecorder
+	// Decision 一次决策的领域快照(落流水用)。
+	Decision = core.Decision
+	// Registry 条件插件 + scope 定义注册表。
+	Registry = core.Registry
+	// ActionKind 动作类型(friction 进漏斗 / terminal 只记一笔)。
+	ActionKind = core.ActionKind
+	// ActionDef 一个动作的定义(名 + 标签 + 类型)。
+	ActionDef = core.ActionDef
+	// ScopeDef 一个 scope 的定义(id + 标签 + 动作目录)。
+	ScopeDef = core.ScopeDef
+	// Console 管理面(配置页后端:规则 / 策略 / 观测)。
+	Console = service.Console
+)
 
+// ── 对外读写模型(re-export 自 model/dto) ──
+type (
+	Field          = dto.Field
+	KindInfo       = dto.KindInfo
+	ConditionDTO   = dto.ConditionDTO
+	RuleDTO        = dto.RuleDTO
+	KindsDTO       = dto.KindsDTO
+	PolicyKindsDTO = dto.PolicyKindsDTO
+	ActionDTO      = dto.ActionDTO
+	ScopeDTO       = dto.ScopeDTO
+	StatsDTO       = dto.StatsDTO
+	FunnelDTO      = dto.FunnelDTO
+	DecisionDTO    = dto.DecisionDTO
+)
+
+// ── 常量 / 变量 re-export ──
 const (
-	RiskNone     RiskLevel = "none"     // 无风险 / 未命中
-	RiskLow      RiskLevel = "low"      // 低
-	RiskMedium   RiskLevel = "medium"   // 中
-	RiskHigh     RiskLevel = "high"     // 高
-	RiskCritical RiskLevel = "critical" // 极高
+	RiskNone     = core.RiskNone
+	RiskLow      = core.RiskLow
+	RiskMedium   = core.RiskMedium
+	RiskHigh     = core.RiskHigh
+	RiskCritical = core.RiskCritical
+
+	ActionTerminal = core.ActionTerminal
+	ActionFriction = core.ActionFriction
+
+	CombineAnd = core.CombineAnd
+	CombineOr  = core.CombineOr
+
+	FieldString     = core.FieldString
+	FieldStringList = core.FieldStringList
+	FieldInt        = core.FieldInt
+	FieldIntList    = core.FieldIntList
+	FieldDuration   = core.FieldDuration
+	FieldSelect     = core.FieldSelect
+
+	TypeUAMatch    = core.TypeUAMatch
+	TypeASNHosting = core.TypeASNHosting
+	TypeCountryIn  = core.TypeCountryIn
 )
 
-// riskRank 给各等级一个可比较的次序(取最高用)。未知等级视为 0(最低)。
-var riskRank = map[RiskLevel]int{RiskNone: 0, RiskLow: 1, RiskMedium: 2, RiskHigh: 3, RiskCritical: 4}
+// RiskLevels 全部合法等级(由低到高)。
+var RiskLevels = core.RiskLevels
 
-// RiskLevels 全部合法等级(由低到高),给配置页渲染下拉、给校验用。
-var RiskLevels = []RiskLevel{RiskNone, RiskLow, RiskMedium, RiskHigh, RiskCritical}
-
-// Rank 返回等级次序(越大越严重);未知等级 = 0。
-func (r RiskLevel) Rank() int { return riskRank[r] }
-
-// Valid 是否是已知合法等级。
-func (r RiskLevel) Valid() bool { _, ok := riskRank[r]; return ok }
-
-// MatchedRule 一条命中规则的摘要(给业务记日志 / 统计)。
-type MatchedRule struct {
-	Name  string    `json:"name"`
-	Level RiskLevel `json:"level"`
-}
-
-// Assessment 一次评估的结论:最高风险等级 + 命中的规则。doorman 不给动作——业务据 Level 自己决定。
-type Assessment struct {
-	Level   RiskLevel     // 命中规则中的最高等级;无命中 = RiskNone
-	Matched []MatchedRule // 命中的规则(审计 / 调试 / 统计);无命中为空
-}
-
-// Attempt 一次请求的事实快照(评估的输入)。核心字段固定 + Ext 扩展袋(不同场景事实不同)。
-// 由业务填,doorman 只读、不采集。
-type Attempt struct {
-	UA        string         // User-Agent 原文
-	IP        string         // 客户端 IP
-	Country   string         // ISO-3166 alpha-2(可空)
-	ISP       string         // 运营商(仅国内 geoip 有:电信/联通/移动…;可空)
-	ASN       uint           // 自治系统号(0=未知)
-	ASNOrg    string         // AS 归属组织名
-	IsHosting bool           // 是否机房 / 云 / 托管 / Tor 出口(来自 geoip ASN 面)
-	Channel   string         // 渠道(direct/organic/…)
-	Ext       map[string]any // 业务自定义事实(login 的失败次数、register 的邮箱域名…)
-}
-
-// Store 有状态条件(限流计数等)所需的最小存储抽象。业务注入实现(如 Redis)。
-// 纯函数条件(ua/asn/country)用不到它;可为 nil。
-type Store interface {
-	// Incr 对 key 计数并返回递增后的值;key 首次出现时落 window 作为 TTL。
-	Incr(ctx context.Context, key string, window time.Duration) (int64, error)
-}
-
-// RequestView 原始请求的只读视图(取 header / 表单字段),避免 doorman 直接依赖 gin/aurora。
-// 业务在接线处用 gin.Context 适配一个实现即可。
-type RequestView interface {
-	Header(name string) string
-	Field(name string) string // 表单 / JSON 字段
-}
-
-// Context 一次评估的全部上下文;每个条件插件都读它,也能用 Set/Get 在插件间传值。
-type Context struct {
-	Ctx     context.Context
-	Scope   string
-	Attempt Attempt
-	Req     RequestView
-	Store   Store
-	// Subject 业务给的**不透明关联键**(如 sha256(邮箱)):只在「判定后会有后续结果、需回填」的评估上设
-	// (如判要激活)。设了它,Record 会落库,供之后 MarkOutcome(scope, subject, outcome) 把结果对上号,
-	// 形成「判定→激活/放弃」漏斗。空 = 该次判定无后续(终态,如放行/拦截)。doorman 不解释它。
-	Subject string
-	scratch map[string]any
-}
-
-// Set 在插件间暂存一个值。
-func (c *Context) Set(k string, v any) {
-	if c.scratch == nil {
-		c.scratch = map[string]any{}
-	}
-	c.scratch[k] = v
-}
-
-// Get 取暂存值。
-func (c *Context) Get(k string) (any, bool) {
-	v, ok := c.scratch[k]
-	return v, ok
-}
-
-// Field 一个配置字段的描述(给配置页动态渲染表单;新类别自带自己的字段,前端不写死)。
-type Field struct {
-	Key      string   `json:"key"`
-	Type     string   `json:"type"` // 取值见 Field* 常量(FieldString / FieldStringList / …)
-	LabelKey string   `json:"labelKey"`
-	Required bool     `json:"required,omitempty"`
-	Options  []string `json:"options,omitempty"` // select 类型的候选
-}
+// ErrRuleNotFound 更新/删除不存在的规则(re-export,供 controller 判别)。
+var ErrRuleNotFound = service.ErrRuleNotFound

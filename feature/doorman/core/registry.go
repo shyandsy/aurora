@@ -1,8 +1,10 @@
-package doorman
+package core
 
 import (
 	"fmt"
 	"sort"
+
+	"github.com/shyandsy/aurora/feature/doorman/model/dto"
 )
 
 // ActionKind 动作类型:决定要不要追踪后续(漏斗)。doorman 只据它决定"这决策要不要回填结果",不解释动作含义。
@@ -190,17 +192,11 @@ func (r *Registry) Validate(rule Rule) error {
 	return err
 }
 
-// KindInfo 一个条件类别的元信息(类别名 + 配置字段),给配置页 UI 渲染下拉与动态表单。
-type KindInfo struct {
-	Type   string  `json:"type"`
-	Fields []Field `json:"fields"`
-}
-
-// ConditionKinds 列出所有已注册条件类别(按 Type 排序,稳定给前端)。
-func (r *Registry) ConditionKinds() []KindInfo {
-	out := make([]KindInfo, 0, len(r.conds))
+// ConditionKinds 列出所有已注册条件类别(按 Type 排序,稳定给前端)。返回对外元信息(dto.KindInfo)。
+func (r *Registry) ConditionKinds() []dto.KindInfo {
+	out := make([]dto.KindInfo, 0, len(r.conds))
 	for _, c := range r.conds {
-		out = append(out, KindInfo{Type: c.Type(), Fields: c.Fields()})
+		out = append(out, dto.KindInfo{Type: c.Type(), Fields: c.Fields()})
 	}
 	sort.Slice(out, func(i, j int) bool { return out[i].Type < out[j].Type })
 	return out

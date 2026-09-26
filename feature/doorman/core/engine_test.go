@@ -1,4 +1,4 @@
-package doorman
+package core
 
 import (
 	"context"
@@ -31,6 +31,27 @@ func cond(t, params string) RuleCondition { return RuleCondition{Type: t, Params
 func assess(reg *Registry, rules []Rule, a Attempt, req RequestView) Assessment {
 	compiled, _ := reg.Compile(rules, "register")
 	return Assess(ctxWith(a, req), compiled)
+}
+
+// ── Registry.Validate:类别存在 + 参数合法 + 风险等级/组合/条件数 ──
+func TestRegistry_Validate(t *testing.T) {
+	reg := newReg()
+	ok := Rule{RiskLevel: RiskCritical, Conditions: []RuleCondition{cond("ua_match", `{"patterns":["x"]}`)}}
+	if err := reg.Validate(ok); err != nil {
+		t.Fatalf("合法规则不该报错: %v", err)
+	}
+	cases := map[string]Rule{
+		"未知条件":   {RiskLevel: RiskHigh, Conditions: []RuleCondition{cond("nope", ``)}},
+		"未知等级":   {RiskLevel: RiskLevel("nope"), Conditions: []RuleCondition{cond("asn_hosting", ``)}},
+		"条件参数非法": {RiskLevel: RiskHigh, Conditions: []RuleCondition{cond("ua_match", `{"patterns":[]}`)}},
+		"无条件":    {RiskLevel: RiskHigh},
+		"组合非法":   {RiskLevel: RiskHigh, Combine: "xor", Conditions: []RuleCondition{cond("asn_hosting", ``)}},
+	}
+	for name, r := range cases {
+		if err := reg.Validate(r); err == nil {
+			t.Errorf("%s 应校验失败,但通过了", name)
+		}
+	}
 }
 
 // ── ua_match → critical:抓 Go-http-client / 空 UA;浏览器判 none ──

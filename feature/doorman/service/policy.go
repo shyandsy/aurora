@@ -1,17 +1,16 @@
-package doorman
+package service
 
-// 本文件是 Console 的**策略**面:「风险等级 → 动作」映射的读写 + 其 DTO。
+// 本文件是 Console 的**策略**面:「风险等级 → 动作」映射的读写。
 
-import "fmt"
+import (
+	"fmt"
 
-// PolicyKindsDTO 是「风险→动作」策略配置页所需的选项:风险等级枚举 + 该 scope 可选的动作名清单。
-type PolicyKindsDTO struct {
-	RiskLevels []RiskLevel `json:"riskLevels"`
-	Actions    []string    `json:"actions"` // 该 scope 登记的动作名(下拉候选);空 = 该 scope 没登记动作
-}
+	"github.com/shyandsy/aurora/feature/doorman/core"
+	"github.com/shyandsy/aurora/feature/doorman/model/dto"
+)
 
-func (a *console) PolicyKinds(scope string) PolicyKindsDTO {
-	return PolicyKindsDTO{RiskLevels: RiskLevels, Actions: a.reg.ActionsFor(scope)}
+func (a *console) PolicyKinds(scope string) dto.PolicyKindsDTO {
+	return dto.PolicyKindsDTO{RiskLevels: core.RiskLevelStrings(), Actions: a.reg.ActionsFor(scope)}
 }
 
 func (a *console) GetPolicy(scope string) (map[string]string, error) {
@@ -30,7 +29,7 @@ func (a *console) SetPolicy(scope string, mapping map[string]string) error {
 	}
 	clean := make(map[string]string, len(mapping))
 	for level, action := range mapping {
-		if !RiskLevel(level).Valid() {
+		if !core.RiskLevel(level).Valid() {
 			return fmt.Errorf("未知风险等级 %q", level)
 		}
 		if action == "" {

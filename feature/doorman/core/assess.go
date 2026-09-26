@@ -1,6 +1,9 @@
-package doorman
+package core
 
-import "encoding/json"
+import (
+	"encoding/json"
+	"strings"
+)
 
 // 条件组合方式。
 const (
@@ -69,4 +72,12 @@ func Assess(gctx *Context, rules []*compiledRule) Assessment {
 		}
 	}
 	return res
+}
+
+// normParams 把空参数归一成 JSON null,避免 json.Unmarshal 空串报错(插件按需自校验)。
+func normParams(s string) json.RawMessage {
+	if strings.TrimSpace(s) == "" {
+		return json.RawMessage("null")
+	}
+	return json.RawMessage(s)
 }

@@ -1,4 +1,4 @@
-package doorman
+package core
 
 import (
 	"strings"
@@ -6,36 +6,13 @@ import (
 	"time"
 )
 
-// RuleSource 规则来源契约(业务提供:通常是 DB 表 + 自己的读缓存)。doorman 不自带存储。
-type RuleSource interface {
-	// Rules 返回某 scope 下的全部规则(启用与否都可给,Compile 会过滤 enabled)。
-	Rules(scope string) ([]Rule, error)
-}
-
-// Doorman 门房:对外唯一入口。业务用它对一次请求做风险评估(在 handler 里手动调,或包成 middleware)。
-type Doorman interface {
-	// Assess 对一次请求跑该 scope 的规则,返回风险等级 + 命中规则。业务据 Assessment.Level 自己决定动作。
-	Assess(c *Context) Assessment
-	// ActionFor 查某 scope 某风险等级配置的**动作名**(来自「风险→动作」策略,后台可配)。
-	// ok=false 表示该等级没配策略(或没接策略存储)——业务应回退到自己的内置默认。
-	// doorman 只回传动作名字符串,不认识其含义、不执行动作。
-	ActionFor(scope string, level RiskLevel) (action string, ok bool)
-	// Record 记一次门禁决策流水(供统计 + 明细):从 Context 取事实(scope/UA/IP/ASN/国家/机房)+
-	// 评估结果(等级、命中规则)+ 业务最终选的动作名。best-effort:失败静默,绝不影响主流程;没接存储时 no-op。
-	// 若 Context.Subject 非空,会一并落库,供之后 MarkOutcome 回填结果(判定→结果漏斗)。
-	Record(c *Context, a Assessment, action string)
-	// MarkOutcome 给某 (scope, subject) 最近一条尚未回填的决策写上业务结果串(如注册激活成功时写 "activated")。
-	// subject 必须和当初 Record 时 Context.Subject 一致。doorman 不解释 outcome 值,只用它区分「已回填/未回填」。
-	// best-effort:失败静默;没接存储时 no-op。
-	MarkOutcome(scope, subject, outcome string)
-}
-
 // svc 是 Doorman 的实现:持有注册表 + 规则来源 + 策略来源,编译/策略结果按 scope 缓存并短 TTL 热加载。
+// 决策落库经 DecisionRecorder(领域契约),不认识 gorm 实体。
 type svc struct {
 	reg   *Registry
 	src   RuleSource
 	psrc  PolicyStore      // 「风险→动作」策略来源;可为 nil(ActionFor 一律 ok=false)
-	rec   decisionRecorder // 决策流水记录;可为 nil(Record 是 no-op)
+	rec   DecisionRecorder // 决策流水记录;可为 nil(Record 是 no-op)
 	ttl   time.Duration
 	mu    sync.RWMutex
 	cache map[string]cachedRules
@@ -57,7 +34,7 @@ type cachedPolicy struct {
 const defaultCacheTTL = 30 * time.Second
 
 // New 建门房。ttl<=0 时用 defaultCacheTTL。psrc / rec 可为 nil(无策略来源 → ActionFor 恒 ok=false;无记录器 → Record no-op)。
-func New(reg *Registry, src RuleSource, psrc PolicyStore, rec decisionRecorder, ttl time.Duration) Doorman {
+func New(reg *Registry, src RuleSource, psrc PolicyStore, rec DecisionRecorder, ttl time.Duration) Doorman {
 	if ttl <= 0 {
 		ttl = defaultCacheTTL
 	}
@@ -73,7 +50,7 @@ func (s *svc) Record(c *Context, a Assessment, action string) {
 	for _, m := range a.Matched {
 		names = append(names, m.Name)
 	}
-	_ = s.rec.recordDecision(&decisionRow{
+	_ = s.rec.Record(Decision{
 		Scope:      c.Scope,
 		RiskLevel:  string(a.Level),
 		Action:     action,
@@ -95,7 +72,7 @@ func (s *svc) MarkOutcome(scope, subject, outcome string) {
 	if s.rec == nil || scope == "" || subject == "" {
 		return
 	}
-	_ = s.rec.markOutcome(scope, subject, outcome)
+	_ = s.rec.MarkOutcome(scope, subject, outcome)
 }
 
 // ActionFor 见 Doorman。按 scope 缓存策略、短 TTL 热加载;读失败沿用旧缓存。

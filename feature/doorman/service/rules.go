@@ -1,47 +1,31 @@
-package doorman
+package service
 
-// 本文件是 Console 的**规则**面:规则增删改查 + 规则 DTO + DTO↔存储/引擎 映射。
+// 本文件是 Console 的**规则**面:规则增删改查 + DTO↔存储/引擎 映射。
 
 import (
 	"errors"
-	"time"
+
+	"github.com/shyandsy/aurora/feature/doorman/core"
+	"github.com/shyandsy/aurora/feature/doorman/model/dto"
+	"github.com/shyandsy/aurora/feature/doorman/model/entity"
 )
-
-// ConditionDTO 是规则里一个条件项的对外读写模型。params 是 JSON 对象(不是字符串)。
-type ConditionDTO struct {
-	Type   string `json:"type"`
-	Params any    `json:"params,omitempty"`
-}
-
-// RuleDTO 是规则的对外读写模型(admin API / 配置页用)。不含「动作」——动作在业务侧据 riskLevel 映射。
-type RuleDTO struct {
-	ID         int64          `json:"id"`
-	Scope      string         `json:"scope"`
-	Name       string         `json:"name"`
-	Conditions []ConditionDTO `json:"conditions"`
-	Combine    string         `json:"combine"`   // and / or
-	RiskLevel  string         `json:"riskLevel"` // none/low/medium/high/critical
-	Enabled    bool           `json:"enabled"`
-	Created    time.Time      `json:"created,omitempty"`
-	Modified   time.Time      `json:"modified,omitempty"`
-}
 
 // ErrRuleNotFound 更新/删除不存在的规则。
 var ErrRuleNotFound = errors.New("doorman: rule not found")
 
-func (a *console) ListRules(scope string) ([]RuleDTO, error) {
+func (a *console) ListRules(scope string) ([]dto.RuleDTO, error) {
 	rows, err := a.store.listRows(scope)
 	if err != nil {
 		return nil, err
 	}
-	out := make([]RuleDTO, 0, len(rows))
+	out := make([]dto.RuleDTO, 0, len(rows))
 	for _, r := range rows {
 		out = append(out, rowToDTO(r))
 	}
 	return out, nil
 }
 
-func (a *console) UpsertRule(in RuleDTO) (*RuleDTO, error) {
+func (a *console) UpsertRule(in dto.RuleDTO) (*dto.RuleDTO, error) {
 	// scope 必须已注册(否则是永不生效的幻影配置);再用运行时同一套校验条件/参数/风险等级/组合。挡在存库前。
 	if err := a.requireScope(in.Scope); err != nil {
 		return nil, err
@@ -63,8 +47,8 @@ func (a *console) UpsertRule(in RuleDTO) (*RuleDTO, error) {
 	if err := a.store.upsertRow(&row); err != nil {
 		return nil, err
 	}
-	dto := rowToDTO(row)
-	return &dto, nil
+	out := rowToDTO(row)
+	return &out, nil
 }
 
 func (a *console) DeleteRule(id int64) error {
@@ -80,34 +64,34 @@ func (a *console) DeleteRule(id int64) error {
 
 // ── DTO ↔ 存储/引擎 映射 ──
 
-// dtoConditions 把 ConditionDTO(params 是任意 JSON 对象)转成引擎用的 RuleCondition(params 是 RawMessage)。
-func dtoConditions(in []ConditionDTO) []RuleCondition {
-	out := make([]RuleCondition, 0, len(in))
+// dtoConditions 把 ConditionDTO(params 是任意 JSON 对象)转成引擎用的 core.RuleCondition(params 是 RawMessage)。
+func dtoConditions(in []dto.ConditionDTO) []core.RuleCondition {
+	out := make([]core.RuleCondition, 0, len(in))
 	for _, c := range in {
-		out = append(out, RuleCondition{Type: c.Type, Params: marshalAny(c.Params)})
+		out = append(out, core.RuleCondition{Type: c.Type, Params: marshalAny(c.Params)})
 	}
 	return out
 }
 
-func dtoToRule(d RuleDTO) Rule {
+func dtoToRule(d dto.RuleDTO) core.Rule {
 	combine := d.Combine
 	if combine == "" {
-		combine = CombineAnd
+		combine = core.CombineAnd
 	}
-	return Rule{
+	return core.Rule{
 		Name: d.Name, Enabled: d.Enabled, Scope: d.Scope,
 		Conditions: dtoConditions(d.Conditions),
 		Combine:    combine,
-		RiskLevel:  RiskLevel(d.RiskLevel),
+		RiskLevel:  core.RiskLevel(d.RiskLevel),
 	}
 }
 
-func dtoToRow(d RuleDTO) ruleRow {
+func dtoToRow(d dto.RuleDTO) entity.RuleRow {
 	combine := d.Combine
 	if combine == "" {
-		combine = CombineAnd
+		combine = core.CombineAnd
 	}
-	return ruleRow{
+	return entity.RuleRow{
 		ID: d.ID, Scope: d.Scope, Name: d.Name,
 		Conditions: marshalConditions(dtoConditions(d.Conditions)),
 		Combine:    combine,
@@ -116,13 +100,13 @@ func dtoToRow(d RuleDTO) ruleRow {
 	}
 }
 
-func rowToDTO(r ruleRow) RuleDTO {
+func rowToDTO(r entity.RuleRow) dto.RuleDTO {
 	conds := parseConditions(r.Conditions)
-	out := make([]ConditionDTO, 0, len(conds))
+	out := make([]dto.ConditionDTO, 0, len(conds))
 	for _, c := range conds {
-		out = append(out, ConditionDTO{Type: c.Type, Params: rawToAny(c.Params)})
+		out = append(out, dto.ConditionDTO{Type: c.Type, Params: rawToAny(c.Params)})
 	}
-	return RuleDTO{
+	return dto.RuleDTO{
 		ID: r.ID, Scope: r.Scope, Name: r.Name,
 		Conditions: out, Combine: r.Combine, RiskLevel: r.RiskLevel,
 		Enabled: r.Enabled, Created: r.Created, Modified: r.Modified,

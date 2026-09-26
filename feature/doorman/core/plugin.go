@@ -1,6 +1,10 @@
-package doorman
+package core
 
-import "encoding/json"
+import (
+	"encoding/json"
+
+	"github.com/shyandsy/aurora/feature/doorman/model/dto"
+)
 
 // Check 一条**已配置好**的条件判定:读 Context(含 Attempt 与 Store)→ 命中与否。
 type Check func(*Context) bool
@@ -10,5 +14,5 @@ type Check func(*Context) bool
 type Condition interface {
 	Type() string                                  // 类别唯一标识,如 "ua_match"
 	Compile(params json.RawMessage) (Check, error) // 解析 + 校验自己的参数 → 可执行 Check
-	Fields() []Field                               // 自己的配置字段(配置页表单);无配置返回 nil
+	Fields() []dto.Field                           // 自己的配置字段(配置页表单);无配置返回 nil
 }

@@ -1,9 +1,34 @@
-package doorman
+package core
 
 import (
 	"encoding/json"
 	"errors"
 	"strings"
+
+	"github.com/shyandsy/aurora/feature/doorman/model/dto"
+)
+
+// Field.Type 的取值:配置页据此渲染控件。集中定义,避免各插件散落魔法字符串。
+const (
+	FieldString     = "string"
+	FieldStringList = "string_list"
+	FieldInt        = "int"
+	FieldIntList    = "int_list"
+	FieldDuration   = "duration"
+	FieldSelect     = "select"
+)
+
+// 内置条件的类别标识。导出成常量:插件 Type()、业务配规则、配置页下拉都引它,不各写各的裸串。
+const (
+	TypeUAMatch    = "ua_match"    // 条件:UA 命中关键词
+	TypeASNHosting = "asn_hosting" // 条件:IP 属机房/云/Tor
+	TypeCountryIn  = "country_in"  // 条件:国家命中集合
+)
+
+// 内置条件配置字段的 key。同一个 key 既在 Fields() 声明、又是 Compile 里 JSON 的字段名,提成常量对齐。
+const (
+	keyPatterns  = "patterns"  // ua_match
+	keyCountries = "countries" // country_in
 )
 
 // RegisterBuiltins 注册**业务中性**的通用条件。业务可再补自己的(WithCondition)。
@@ -18,8 +43,8 @@ func RegisterBuiltins(reg *Registry) {
 type uaMatch struct{}
 
 func (uaMatch) Type() string { return TypeUAMatch }
-func (uaMatch) Fields() []Field {
-	return []Field{{Key: keyPatterns, Type: FieldStringList, LabelKey: "doorman.field.uaPatterns", Required: true}}
+func (uaMatch) Fields() []dto.Field {
+	return []dto.Field{{Key: keyPatterns, Type: FieldStringList, LabelKey: "doorman.field.uaPatterns", Required: true}}
 }
 func (uaMatch) Compile(raw json.RawMessage) (Check, error) {
 	var c struct {
@@ -55,8 +80,8 @@ func (uaMatch) Compile(raw json.RawMessage) (Check, error) {
 // ── 条件:asn_hosting —— IP 属机房/云/托管/Tor 出口(读 Attempt.IsHosting 一个 bool,无配置)。──
 type asnHosting struct{}
 
-func (asnHosting) Type() string    { return TypeASNHosting }
-func (asnHosting) Fields() []Field { return nil }
+func (asnHosting) Type() string        { return TypeASNHosting }
+func (asnHosting) Fields() []dto.Field { return nil }
 func (asnHosting) Compile(json.RawMessage) (Check, error) {
 	return func(g *Context) bool { return g.Attempt.IsHosting }, nil
 }
@@ -65,8 +90,8 @@ func (asnHosting) Compile(json.RawMessage) (Check, error) {
 type countryIn struct{}
 
 func (countryIn) Type() string { return TypeCountryIn }
-func (countryIn) Fields() []Field {
-	return []Field{{Key: keyCountries, Type: FieldStringList, LabelKey: "doorman.field.countries", Required: true}}
+func (countryIn) Fields() []dto.Field {
+	return []dto.Field{{Key: keyCountries, Type: FieldStringList, LabelKey: "doorman.field.countries", Required: true}}
 }
 func (countryIn) Compile(raw json.RawMessage) (Check, error) {
 	var c struct {

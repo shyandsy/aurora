@@ -71,7 +71,7 @@
 
 ## 四、扩展:加一个条件类型
 
-实现 `Condition` 接口(`Type` / `Compile` / `Fields`)+ `WithCondition` 注入即可;引擎、存储表、DTO、配置页全不动。内置中性条件见 `builtin.go`。
+实现 `Condition` 接口(`Type` / `Compile` / `Fields`)+ `WithCondition` 注入即可;引擎、存储表、DTO、配置页全不动。内置中性条件见 `core/builtin.go`。
 
 ---
 
