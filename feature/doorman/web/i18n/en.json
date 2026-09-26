@@ -1,0 +1,136 @@
+{
+  "doorman": {
+    "title": "Risk Control",
+    "subtitle": "Guard business operations by risk: rules assess a risk level, policy decides the action per level (schema-driven; condition types defined by the backend).",
+    "archNote": "Doorman only assesses a risk level and does not execute actions itself; the action implementations live on the business side. Which action each risk level triggers is configured below under “Risk → Action” (available actions are registered by the business).",
+    "scopeLabel": "Scope",
+    "refresh": "Refresh",
+    "common": {
+      "yes": "Enabled",
+      "no": "Disabled",
+      "loading": "Loading…",
+      "loadFailed": "Failed to load",
+      "timeout": "Request timed out. Please retry.",
+      "none": "(none)"
+    },
+    "list": {
+      "empty": "No rules for this scope yet",
+      "colName": "Name",
+      "colConditions": "Conditions",
+      "colRisk": "Risk level",
+      "colEnabled": "Status",
+      "colActions": "Actions"
+    },
+    "actions": {
+      "create": "New rule",
+      "edit": "Edit",
+      "delete": "Delete",
+      "enable": "Enable",
+      "disable": "Disable",
+      "save": "Save",
+      "saving": "Saving…",
+      "cancel": "Cancel",
+      "addItem": "Add",
+      "removeItem": "Remove",
+      "removeCondition": "Remove this condition"
+    },
+    "editor": {
+      "createTitle": "New rule",
+      "editTitle": "Edit rule",
+      "nameLabel": "Rule name",
+      "enabledLabel": "Enable this rule",
+      "conditionSection": "Conditions",
+      "riskSection": "Risk level when matched",
+      "riskHint": "This level is handed to the business side to decide the action (e.g. registration: critical→block, high/medium→require email verification, low/none→allow). Doorman only assesses; it does not act.",
+      "addCondition": "Add condition",
+      "selectPlaceholder": "Select…",
+      "noParams": "This condition needs no parameters"
+    },
+    "combine": {
+      "and": "All match (AND)",
+      "or": "Any match (OR)",
+      "andShort": "AND",
+      "orShort": "OR"
+    },
+    "risk": {
+      "none": "none",
+      "low": "low",
+      "medium": "medium",
+      "high": "high",
+      "critical": "critical"
+    },
+    "errors": {
+      "nameRequired": "Please enter a rule name",
+      "conditionsRequired": "Please add at least one condition",
+      "conditionTypeRequired": "Please select a condition type",
+      "fieldRequired": "This field is required",
+      "riskLevelRequired": "Please select a risk level",
+      "saveFailed": "Failed to save",
+      "deleteFailed": "Failed to delete",
+      "toggleFailed": "Failed to toggle enabled state"
+    },
+    "confirm": {
+      "deleteTitle": "Delete rule",
+      "deleteMessage": "Are you sure you want to delete this rule? This cannot be undone.",
+      "confirm": "Delete",
+      "cancel": "Cancel"
+    },
+    "field": {
+      "uaPatterns": "User-Agent keywords (substring match, case-insensitive)",
+      "countries": "Countries (ISO alpha-2)"
+    },
+    "kind": {
+      "ua_match": "User-Agent match",
+      "asn_hosting": "Hosting/datacenter IP",
+      "country_in": "Country match"
+    },
+    "policy": {
+      "title": "Risk level → Action",
+      "button": "Risk → Action policy",
+      "hint": "Doorman only assesses the risk level; here you decide which business action each level triggers. Leave “Default” to use the business built-in default.",
+      "save": "Save policy",
+      "saving": "Saving…",
+      "saved": "Saved",
+      "useDefault": "(default)"
+    },
+    "action": {
+      "allow": "Allow",
+      "block": "Block",
+      "email_verify": "Require email verification"
+    },
+    "scope": {
+      "register": "Register",
+      "login": "Login",
+      "reset_password": "Password reset"
+    },
+    "notWired": "This scope isn't wired to the backend yet (no actions registered). You can pre-configure rules here, but they won't take effect until it's integrated.",
+    "stats": {
+      "title": "Decision stats",
+      "window": "Last {{days}} days",
+      "total": "Total",
+      "byRisk": "Hits by risk level",
+      "byAction": "Count by action",
+      "funnel": "Decision → activation funnel"
+    },
+    "funnel": {
+      "challenged": "Asked to activate",
+      "resolved": "Activated",
+      "notActivated": "Not activated"
+    },
+    "log": {
+      "title": "Decision log",
+      "time": "Time",
+      "matched": "Matched rules",
+      "risk": "Risk",
+      "action": "Action",
+      "subject": "Subject",
+      "net": "UA / IP / Network",
+      "hosting": "hosting",
+      "entry": "Decision log",
+      "back": "Back to rules",
+      "empty": "No decisions yet",
+      "loadMore": "Load more",
+      "noMore": "No more"
+    }
+  }
+}

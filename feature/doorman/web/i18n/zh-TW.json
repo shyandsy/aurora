@@ -1,0 +1,136 @@
+{
+  "doorman": {
+    "title": "風控策略",
+    "subtitle": "依風險為業務操作把關:規則評出風險等級,策略決定各等級走什麼動作(schema 驅動,條件類型由後端定義)。",
+    "archNote": "門房只評估風險等級、本身不執行動作,動作的具體實作在業務側。至於「哪個風險等級走哪個動作」,就在下方「風險 → 動作」處設定(候選動作由業務登記)。",
+    "scopeLabel": "作用域",
+    "refresh": "重新整理",
+    "common": {
+      "yes": "已啟用",
+      "no": "已停用",
+      "loading": "載入中…",
+      "loadFailed": "載入失敗",
+      "timeout": "請求逾時,請重試",
+      "none": "(無)"
+    },
+    "list": {
+      "empty": "此作用域下暫無規則",
+      "colName": "規則名稱",
+      "colConditions": "命中條件",
+      "colRisk": "風險等級",
+      "colEnabled": "狀態",
+      "colActions": "操作"
+    },
+    "actions": {
+      "create": "新增規則",
+      "edit": "編輯",
+      "delete": "刪除",
+      "enable": "啟用",
+      "disable": "停用",
+      "save": "儲存",
+      "saving": "儲存中…",
+      "cancel": "取消",
+      "addItem": "新增",
+      "removeItem": "刪除",
+      "removeCondition": "刪除此條件"
+    },
+    "editor": {
+      "createTitle": "新增規則",
+      "editTitle": "編輯規則",
+      "nameLabel": "規則名稱",
+      "enabledLabel": "啟用此規則",
+      "conditionSection": "命中條件",
+      "riskSection": "命中後風險等級",
+      "riskHint": "此等級交給業務側決定動作(如註冊:critical→攔截、high/medium→要求郵件啟用、low/none→放行)。門房只判定,不執行。",
+      "addCondition": "新增條件",
+      "selectPlaceholder": "請選擇…",
+      "noParams": "此條件無需參數"
+    },
+    "combine": {
+      "and": "全部滿足 AND",
+      "or": "任一滿足 OR",
+      "andShort": "且",
+      "orShort": "或"
+    },
+    "risk": {
+      "none": "none 無",
+      "low": "low 低",
+      "medium": "medium 中",
+      "high": "high 高",
+      "critical": "critical 極高"
+    },
+    "errors": {
+      "nameRequired": "請填寫規則名稱",
+      "conditionsRequired": "請至少新增一個條件",
+      "conditionTypeRequired": "請選擇條件類別",
+      "fieldRequired": "此項為必填",
+      "riskLevelRequired": "請選擇風險等級",
+      "saveFailed": "儲存失敗",
+      "deleteFailed": "刪除失敗",
+      "toggleFailed": "切換啟用狀態失敗"
+    },
+    "confirm": {
+      "deleteTitle": "刪除規則",
+      "deleteMessage": "確定要刪除這條規則嗎?此操作無法復原。",
+      "confirm": "確定",
+      "cancel": "取消"
+    },
+    "field": {
+      "uaPatterns": "User-Agent 關鍵字(子字串比對,忽略大小寫)",
+      "countries": "國家/地區(ISO alpha-2)"
+    },
+    "kind": {
+      "ua_match": "User-Agent 比對",
+      "asn_hosting": "機房/託管 IP",
+      "country_in": "國家/地區命中"
+    },
+    "policy": {
+      "title": "風險等級 → 動作",
+      "button": "風險→動作策略",
+      "hint": "門房只評風險等級;這裡決定每個等級走哪個業務動作。留「預設」= 用業務內建預設。",
+      "save": "儲存策略",
+      "saving": "儲存中…",
+      "saved": "已儲存",
+      "useDefault": "(預設)"
+    },
+    "action": {
+      "allow": "放行",
+      "block": "直接攔截",
+      "email_verify": "要求郵件啟用"
+    },
+    "scope": {
+      "register": "註冊",
+      "login": "登入",
+      "reset_password": "找回密碼"
+    },
+    "notWired": "此場景尚未接入後端(還沒登記動作)——這裡可以先預配規則,但暫不生效,接入後自動生效。",
+    "stats": {
+      "title": "決策統計",
+      "window": "近 {{days}} 天",
+      "total": "總計",
+      "byRisk": "各風險等級命中數",
+      "byAction": "各動作數",
+      "funnel": "判定 → 啟用漏斗"
+    },
+    "funnel": {
+      "challenged": "判需啟用",
+      "resolved": "已啟用",
+      "notActivated": "未啟用"
+    },
+    "log": {
+      "title": "決策明細",
+      "time": "時間",
+      "matched": "命中規則",
+      "risk": "風險",
+      "action": "動作",
+      "subject": "標識",
+      "net": "UA / IP / 網路",
+      "hosting": "機房/雲",
+      "entry": "決策明細",
+      "back": "返回規則",
+      "empty": "暫無決策記錄",
+      "loadMore": "載入更多",
+      "noMore": "沒有更多了"
+    }
+  }
+}

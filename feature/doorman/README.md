@@ -57,7 +57,8 @@
    app.RegisterRoutes(doormanctl.Routes("/api/admin/v1/doorman", myAuthChain...))
    ```
 
-5. **挂配置页前端**(schema 驱动的组件,另发):宿主传后端 `apiBase`,组件从 `GET /scopes`、`/kinds`、`/rules`、`/policy` 自发现,渲染 tab / 条件表单 / 「风险→动作」下拉 / 统计漏斗 / 决策明细。
+5. **挂配置页前端**(schema 驱动的 Angular 组件,参考实现在 [`web/`](web/README.md),拷进你后台工程即用):
+   宿主传后端 `apiBase` + `scopes`,组件从 `GET /kinds`、`/scopes`、`/rules`、`/policy` 自发现,渲染 tab / 条件表单 / 「风险→动作」下拉 / 统计漏斗 / 决策明细。接线与「要改的两处」见 web/README.md。
 
 ---
 
