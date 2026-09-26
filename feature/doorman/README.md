@@ -3,8 +3,21 @@
 对某个业务操作(`scope`,如注册 / 登录 / 提现 / 某项敏感操作),按**可配规则**评估这次请求,输出**一个风险等级**(`none`/`low`/`medium`/`high`/`critical`)。doorman **不认识任何业务动作**——拦截 / 要求邮件激活 / 放行,都由**业务侧**据风险等级自己映射、自己执行。
 
 - **严格中性、可跨项目复用**:引擎只读 `Attempt` 上的事实字段,不碰采集、不认业务名/scope、**不含任何动作**。业务负责填 `Attempt`、传 `scope`、注册 scope/动作、(可选)加业务专属条件。
-- **电池全含**:自带存储 + 规则/策略管理 API + schema 驱动的配置页(前端组件另发)+ 自带 goose 迁移 + 决策流水自动保留清理。
+- **电池全含**:自带存储 + 规则/策略管理 API + **随包带的可复用前端组件**([`web/components/doorman/`](web/)) + 自带 goose 迁移 + 决策流水自动保留清理。
 - **可扩展**:加一类条件 = 实现接口 + 注册一行;引擎、存储表、DTO、配置页**全不动**。
+
+## 目录结构
+
+```
+feature/doorman/
+  doorman.go / feature.go   对外类型别名 + aurora Feature 装配(唯一稳定 API 面)
+  core/                     领域内核:风险等级、评估引擎、条件插件、注册表、Doorman 契约
+  service/                  管理面 Console + 默认 DB 存储(实现 core 契约,内部不导出)
+  model/{entity,dto}/       持久化实体 / 对外读写模型
+  controller/               管理 API(配置页后端)HTTP 层
+  migrations/               doorman_schema.sql(宿主复制进自己跑 goose 的服务)
+  web/components/doorman/   ★ 可复用前端组件(配置台 Angular 组件),拷进你后台工程即用 → web/README.md
+```
 
 ---
 

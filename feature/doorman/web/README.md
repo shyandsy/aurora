@@ -1,39 +1,29 @@
-# doorman 配置页(前端参考实现,拷贝即用)
+# doorman 前端组件(可复用,拷贝即用)
 
-doorman 后端 `controller` 暴露的管理 API 是 **schema 驱动** 的(`GET /kinds`、`/scopes` 把条件类别/字段/风险等级/动作目录全告诉前端),
-所以这套配置页**不写死任何条件类型或字段**——后端加条件插件、加 scope,前端零改动。
+这个 `web/` 目录放的是 doorman 的**可复用前端组件**——不是某个项目的页面,是**任何用 doorman 后端的项目都能拷走直接用**的东西。
+约定:一个组件一个目录,收在 `components/<组件名>/` 下。目前有:
 
-这是一份 **Angular 独立组件** 参考实现:一个 `DoormanConfigComponent`,挂进你后台任意位置,绑定 `apiBase` + `scope` 即可用。
-它不是 npm 包——**把 `web/` 整个目录拷进你的 Angular 工程**(比如 `src/app/features/doorman/`),按下面接线。
+- [`components/doorman/`](components/doorman/) —— **doorman 配置台**(`DoormanConfigComponent`):规则 CRUD / 风险→动作策略 / 统计漏斗 / 决策明细,一个 Angular 独立组件。
 
-## 里面有什么
+## 为什么能复用 / 复用的关键
 
-```
-web/
-  doorman-config.component.ts/html/css   ← 主组件(schema 驱动:规则 CRUD / 风险→动作策略 / 统计漏斗 / 决策明细)
-  index.ts                               ← 出口 barrel(export DoormanConfigComponent)
-  i18n/{index.ts,en,zh-CN,zh-TW}.json    ← 模块自带三语文案(启动时深合并进 ngx-translate,不覆盖宿主字典)
-  shared/
-    models/doorman.dto.ts                ← 与后端管理 API 逐字段对齐的数据契约(直接可用)
-    services/doorman-api.ts              ← 瘦 HTTP 访问层(见下「要改的两处」)
-    components/confirm-dialog/…          ← 删除确认弹窗(小组件,随包带,免得依赖你 app 的)
-    utils/date.util.ts                   ← 时间格式化(默认 UTC+8,改时区改这里)
-```
+doorman 后端 `controller` 暴露的管理 API 是 **schema 驱动**的:`GET /kinds` 告诉前端有哪些条件类别、每个类别有哪些字段;
+`GET /scopes` 告诉前端有哪些场景、每个场景有哪些动作。所以这个组件**不写死任何条件类型、字段、动作**——
+**后端加条件插件、加 scope,前端零改动**,靠 schema 动态渲染表单和下拉。这就是它能跨项目复用的根本。
 
-## 依赖(你的 Angular app 要有)
+复用它,你只做三件事(详见组件目录内注释):
 
-- Angular(standalone components;本组件用了 `input()`/`signal()`/`effect()`,需 **Angular 17+**)
-- `@ngx-translate/core`(文案走 ngx-translate;模块 i18n 会自动深合并进去)
-- `provideHttpClient`(组件级 `providers` 里 provide 了 `DoormanApi`,它 `inject(HttpClient)`)
+1. **拷目录**:把 `components/doorman/` 整个拷进你的 Angular 工程(如 `src/app/features/doorman/`)。组件自包含——
+   自带 i18n(三语,启动时深合并进 ngx-translate,不覆盖你的字典)、删除确认弹窗、时间格式化,不依赖你 app 的任何共享件。
+2. **改 `shared/services/doorman-api.ts` 顶部两处**(有 ⚠️ 注释):
+   - `TOKEN_STORAGE_KEY`:从 `localStorage` 读 access token 的 key(填你 app 的);若你的 HttpClient 已有 auth 拦截器统一加 `Authorization`,把 `getHeaders` 里读 token 那段删掉即可。
+   - `API_TIMEOUT_MS`:HTTP 超时(毫秒)。
+3. **挂组件**,绑 `apiBase` + `scopes`:
 
-## 接线
-
-1. **拷目录**:把 `web/` 拷成你工程里的一个 feature 目录,如 `src/app/features/doorman/`。
-2. **改 `shared/services/doorman-api.ts` 两处**(文件顶部有 ⚠️ 注释标着):
-   - `TOKEN_STORAGE_KEY`:从 `localStorage` 读 access token 的 key,填你 app 的。
-     **若你的 HttpClient 已有 auth 拦截器统一加 `Authorization`**,直接把 `getHeaders` 里读 token 那段删掉。
-   - `API_TIMEOUT_MS`:HTTP 超时(毫秒),按你 app 的统一值改。
-3. **挂组件**,绑定输入:
+   ```ts
+   import { DoormanConfigComponent } from './features/doorman'; // components/doorman/index.ts
+   // 页面组件 imports 里加 DoormanConfigComponent(standalone)
+   ```
 
    ```html
    <app-doorman-config
@@ -42,29 +32,23 @@ web/
    </app-doorman-config>
    ```
 
-   ```ts
-   import { DoormanConfigComponent } from './features/doorman';
-   // 在你的页面组件 imports 里加 DoormanConfigComponent(standalone)
-   ```
-
    输入项:
-   - `apiBase`(必填):后端 doorman 管理 API 基路径,对应你把 `doormanctl.Routes(prefix, …)` 挂的 `prefix`。
-   - `scopes`(顶部 tab 列表):要配的场景 id,如 `register`/`login`/`reset_password`;标签走 i18n key `doorman.scope.<id>`,没配就显示 id 原文。
-   - `scope`(单场景,可选):只配一个场景时用它替代 `scopes`。
+   - `apiBase`(必填):后端 doorman 管理 API 基路径 = 你把 `doormanctl.Routes(prefix, …)` 挂的 `prefix`。
+   - `scopes`:顶部 tab 的场景 id(如 `register`/`login`/`reset_password`),标签走 i18n key `doorman.scope.<id>`;必须和后端 `WithScope(id,…)` 注册的一致(后端权威,配了没注册的 scope 保存会被拒)。
+   - `scope`:只配一个场景时用它替代 `scopes`。
 
-   > 场景 id 必须和后端 `WithScope(id, …)` 注册的一致(后端是权威);配了后端没注册的 scope,保存会被拒。
+## 依赖(你的 Angular app 要有)
+
+- Angular 17+(用了 `input()`/`signal()`/`effect()` 的 standalone 组件)
+- `@ngx-translate/core`(文案走它;组件的 i18n 自动深合并进去)
+- `provideHttpClient`(组件 `providers` 里 provide 了 `DoormanApi`,内部 `inject(HttpClient)`)
 
 ## 权限边界(重要)
 
-这套是**管理 API**,只该挂在**后台**、且套你后台的鉴权(后端 `doormanctl.Routes(prefix, 你的鉴权中间件...)`)。
-**customer/对外端只调后端 `Assess`,绝不要暴露这套配置 API 或页面。**
-
-## i18n
-
-组件初始化时把 `i18n/` 里的三语文案**深合并**进 ngx-translate 现有字典(不整体替换,不覆盖你宿主的 key),
-并在语言切换后再合并一次。你只需保证 app 里有 ngx-translate。要加语言,往 `i18n/` 加一份 json 并在 `i18n/index.ts` 登记。
+这是**管理 API**,只该挂在**后台**、且套你后台的鉴权(后端 `doormanctl.Routes(prefix, 你的鉴权中间件...)`)。
+**customer / 对外端只调后端 `Assess`,绝不要暴露这套配置 API 或本组件。**
 
 ## 后端契约
 
-字段含义、各接口(`/kinds`、`/scopes`、`/rules`、`/policy`、`/stats`、`/decisions`)见上一层 [../README.md](../README.md) 与 `model/dto`。
-`shared/models/doorman.dto.ts` 就是照它逐字段写的,后端 DTO 变了这里要同步。
+字段含义、各接口(`/kinds`、`/scopes`、`/rules`、`/policy`、`/stats`、`/decisions`)见 [../README.md](../README.md) 与 `model/dto`;
+组件里 `shared/models/doorman.dto.ts` 就是照后端 DTO 逐字段写的,后端 DTO 变了这里要同步。
