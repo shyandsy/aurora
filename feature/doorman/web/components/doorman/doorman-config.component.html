@@ -1,0 +1,518 @@
+<div class="p-6 w-full">
+  <!-- Header:只留标题 + 副标题 -->
+  <div class="mb-3">
+    <h2 class="text-xl font-semibold text-gray-900">{{ 'doorman.title' | translate }}</h2>
+    <p class="text-sm text-gray-500 mt-1">{{ 'doorman.subtitle' | translate }}</p>
+  </div>
+
+  <!-- 作用域 tab + 该场景操作同一行:tab 靠左,「刷新 / 新增规则」靠右贴着 tab 栏(新增=给当前场景加规则,不占额外行) -->
+  <div class="border-b border-gray-200 mb-4 flex items-center justify-between gap-3 flex-wrap">
+    <nav class="-mb-px flex gap-6 flex-wrap">
+      @for (s of scopeList(); track s) {
+      <button type="button" (click)="selectScope(s)"
+        [class]="activeScope() === s
+          ? 'border-b-2 border-indigo-600 text-indigo-600 px-1 py-2.5 text-sm font-medium'
+          : 'border-b-2 border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300 px-1 py-2.5 text-sm font-medium'">
+        {{ scopeLabel(s) }}
+      </button>
+      }
+    </nav>
+    <div class="flex gap-2 pb-2">
+      @if (view() === 'rules') {
+        <button type="button" (click)="reload()"
+          class="px-3 py-1.5 text-sm font-medium text-gray-700 bg-gray-100 rounded-md hover:bg-gray-200 transition-colors">
+          {{ 'doorman.refresh' | translate }}
+        </button>
+      } @else {
+        <button type="button" (click)="backToRules()"
+          class="inline-flex items-center gap-1.5 px-3 py-1.5 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-md hover:bg-gray-50 transition-colors">
+          <span aria-hidden="true">←</span>{{ 'doorman.log.back' | translate }}
+        </button>
+        <button type="button" (click)="reload()"
+          class="px-3 py-1.5 text-sm font-medium text-gray-700 bg-gray-100 rounded-md hover:bg-gray-200 transition-colors">
+          {{ 'doorman.refresh' | translate }}
+        </button>
+      }
+    </div>
+  </div>
+
+  <!-- ===== 决策统计(近 N 天)===== 顶端常驻一份:规则视图 + 明细视图都展示(同一份数据)。 -->
+  @if (hasPolicyActions() && stats()) {
+  <div class="mb-4 bg-white shadow-sm rounded-lg overflow-hidden w-full">
+    <div class="px-4 py-3 border-b border-gray-200 flex items-center justify-between gap-2 flex-wrap">
+      <div class="flex items-center gap-2 flex-wrap">
+        <h3 class="text-sm font-semibold text-gray-900">{{ 'doorman.stats.title' | translate }}</h3>
+        <span class="text-xs text-gray-400">
+          {{ 'doorman.stats.window' | translate: { days: stats()!.sinceDays } }} · {{ 'doorman.stats.total' | translate }} {{ stats()!.total }}
+        </span>
+      </div>
+      @if (view() === 'rules') {
+      <button type="button" (click)="openDecisions()"
+        class="inline-flex items-center gap-1.5 px-3 py-1.5 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-md hover:bg-gray-50 transition-colors">
+        <span aria-hidden="true">📋</span>{{ 'doorman.log.entry' | translate }}
+      </button>
+      }
+    </div>
+    <div class="px-4 py-3 border-b border-gray-100">
+      <div class="text-xs text-gray-500 mb-2">{{ 'doorman.stats.byRisk' | translate }}</div>
+      <div class="flex flex-wrap gap-x-5 gap-y-2 text-sm tabular-nums">
+        @for (lv of riskLevels(); track lv) {
+        <span class="inline-flex items-center gap-1.5">
+          <span class="inline-flex px-2 py-0.5 rounded-full text-xs font-medium" [class]="riskPillClass(lv)">{{ riskLabel(lv) }}</span>
+          <b>{{ riskCount(lv) }}</b>
+        </span>
+        }
+      </div>
+    </div>
+    <div class="px-4 py-3">
+      <div class="text-xs text-gray-500 mb-2">{{ 'doorman.stats.byAction' | translate }}</div>
+      <div class="flex flex-wrap gap-x-5 gap-y-2 text-sm tabular-nums">
+        @for (act of policyKinds()!.actions; track act) {
+        <span class="inline-flex items-center gap-1.5">
+          <span class="text-gray-600">{{ actionLabel(act) }}</span>
+          <b>{{ actionCount(act) }}</b>
+        </span>
+        }
+      </div>
+    </div>
+    <!-- 判定→结果漏斗:判「要激活」→ 已激活 / 放弃 / 进行中(只在有判要激活的决策时显示) -->
+    @if (stats()!.funnel.challenged > 0) {
+    <div class="px-4 py-3 border-t border-gray-100">
+      <div class="text-xs text-gray-500 mb-2">{{ 'doorman.stats.funnel' | translate }}</div>
+      <div class="flex flex-wrap items-center gap-x-4 gap-y-2 text-sm tabular-nums">
+        <span class="inline-flex items-center gap-1.5">
+          <span class="text-gray-600">{{ 'doorman.funnel.challenged' | translate }}</span>
+          <b>{{ stats()!.funnel.challenged }}</b>
+        </span>
+        <span class="text-gray-300">→</span>
+        <span class="inline-flex items-center gap-1.5">
+          <span class="inline-flex px-2 py-0.5 rounded-full text-xs font-medium bg-green-100 text-green-800">{{ 'doorman.funnel.resolved' | translate }}</span>
+          <b>{{ stats()!.funnel.resolved }}</b>
+        </span>
+        <span class="inline-flex items-center gap-1.5">
+          <span class="inline-flex px-2 py-0.5 rounded-full text-xs font-medium bg-amber-100 text-amber-800">{{ 'doorman.funnel.notActivated' | translate }}</span>
+          <b>{{ stats()!.funnel.challenged - stats()!.funnel.resolved }}</b>
+        </span>
+      </div>
+    </div>
+    }
+  </div>
+  }
+
+  <!-- ===================== 视图:规则配置 ===================== -->
+  @if (view() === 'rules') {
+
+  <!-- 说明:已接入的场景显示架构说明(indigo);未接入的场景(没登记动作)显示「尚未接入」提示(琥珀) -->
+  @if (hasPolicyActions()) {
+  <div class="bg-indigo-50 border border-indigo-100 rounded-md px-4 py-2.5 mb-4 text-xs text-indigo-900">
+    {{ 'doorman.archNote' | translate }}
+  </div>
+  } @else {
+  <div class="bg-amber-50 border border-amber-200 rounded-md px-4 py-2.5 mb-4 text-xs text-amber-800">
+    {{ 'doorman.notWired' | translate }}
+  </div>
+  }
+
+  <!-- 规则操作行:风险→动作策略 + 新增规则,贴规则表上方(都是对本场景规则的配置动作) -->
+  <div class="flex justify-end gap-2 mb-3">
+    @if (hasPolicyActions()) {
+    <button type="button" (click)="openPolicyEditor()"
+      class="inline-flex items-center gap-1.5 px-3 py-1.5 text-sm font-medium text-indigo-700 bg-indigo-50 border border-indigo-200 rounded-md hover:bg-indigo-100 transition-colors">
+      <span aria-hidden="true">⚙</span>{{ 'doorman.policy.button' | translate }}
+    </button>
+    }
+    <button type="button" (click)="openCreate()" [disabled]="!apiBase() || !activeScope()"
+      class="px-4 py-1.5 text-sm font-medium text-white bg-indigo-600 rounded-md hover:bg-indigo-700 disabled:bg-indigo-300 disabled:cursor-not-allowed transition-colors">
+      {{ 'doorman.actions.create' | translate }}
+    </button>
+  </div>
+
+  <!-- List states -->
+  @if (loading()) {
+  <div class="flex justify-center items-center py-12">
+    <div class="text-gray-500">{{ 'doorman.common.loading' | translate }}</div>
+  </div>
+  } @else if (listError()) {
+  <div class="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded mb-4">
+    {{ listError() }}
+  </div>
+  } @else if (rules().length === 0) {
+  <div class="bg-gray-50 border border-gray-200 text-gray-700 px-4 py-3 rounded">
+    {{ 'doorman.list.empty' | translate }}
+  </div>
+  } @else {
+  <div class="bg-white shadow-sm rounded-lg overflow-hidden w-full">
+    <div class="overflow-x-auto">
+      <table class="w-full divide-y divide-gray-200">
+        <thead class="bg-gray-50">
+          <tr>
+            <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider w-1/5">
+              {{ 'doorman.list.colName' | translate }}
+            </th>
+            <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+              {{ 'doorman.list.colConditions' | translate }}
+            </th>
+            <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+              {{ 'doorman.list.colRisk' | translate }}
+            </th>
+            <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+              {{ 'doorman.list.colEnabled' | translate }}
+            </th>
+            <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+              {{ 'doorman.list.colActions' | translate }}
+            </th>
+          </tr>
+        </thead>
+        <tbody class="bg-white divide-y divide-gray-200">
+          @for (rule of rules(); track rule.id) {
+          <tr class="hover:bg-gray-50 align-top">
+            <td class="px-4 py-4 text-sm font-medium text-gray-900">{{ rule.name }}</td>
+            <td class="px-4 py-4 text-sm text-gray-700">
+              <div class="flex flex-wrap items-center gap-1.5">
+                @for (cond of rule.conditions; track $index) {
+                  @if ($index > 0) {
+                  <span class="text-xs font-bold text-indigo-600 px-0.5">{{ combineWord(rule.combine) }}</span>
+                  }
+                  <span class="inline-flex items-center gap-1 bg-gray-50 border border-gray-200 rounded px-2 py-1 text-xs">
+                    <span class="text-gray-500">{{ kindLabel(cond.type) }}</span>
+                    @if (summarizeParams(cond.params)) {
+                    <span class="text-gray-800 break-all">{{ summarizeParams(cond.params) }}</span>
+                    }
+                  </span>
+                }
+              </div>
+            </td>
+            <td class="px-4 py-4 whitespace-nowrap text-sm">
+              <span class="inline-flex px-2.5 py-1 rounded-full text-xs font-medium" [class]="riskPillClass(rule.riskLevel)">
+                {{ riskLabel(rule.riskLevel) }}
+              </span>
+            </td>
+            <td class="px-4 py-4 whitespace-nowrap text-sm">
+              <button type="button" (click)="toggleEnabled(rule)"
+                [class]="rule.enabled
+                  ? 'inline-flex items-center px-2.5 py-1 rounded-full text-xs font-medium bg-green-100 text-green-800 hover:bg-green-200'
+                  : 'inline-flex items-center px-2.5 py-1 rounded-full text-xs font-medium bg-gray-100 text-gray-600 hover:bg-gray-200'">
+                {{ rule.enabled ? ('doorman.common.yes' | translate) : ('doorman.common.no' | translate) }}
+              </button>
+            </td>
+            <td class="px-4 py-4 whitespace-nowrap text-sm font-medium">
+              <button type="button" (click)="openEdit(rule)" class="text-indigo-600 hover:text-indigo-900 mr-3">
+                {{ 'doorman.actions.edit' | translate }}
+              </button>
+              <button type="button" (click)="toggleEnabled(rule)" class="text-gray-600 hover:text-gray-900 mr-3">
+                {{ rule.enabled ? ('doorman.actions.disable' | translate) : ('doorman.actions.enable' | translate) }}
+              </button>
+              <button type="button" (click)="askDelete(rule)" class="text-red-600 hover:text-red-900">
+                {{ 'doorman.actions.delete' | translate }}
+              </button>
+            </td>
+          </tr>
+          }
+        </tbody>
+      </table>
+    </div>
+  </div>
+  }
+
+  } @else {
+  <!-- ===================== 视图:决策明细(可翻页)===================== 顶部统计已常驻上方;此处为逐条明细 + 加载更多。 -->
+  <div class="bg-white shadow-sm rounded-lg overflow-hidden w-full">
+    <div class="px-4 py-3 border-b border-gray-200">
+      <h3 class="text-sm font-semibold text-gray-900">{{ 'doorman.log.title' | translate }}</h3>
+    </div>
+    @if (decisions().length === 0 && !decisionsLoading()) {
+    <div class="px-4 py-10 text-center text-sm text-gray-500">{{ 'doorman.log.empty' | translate }}</div>
+    } @else {
+    <div class="overflow-x-auto">
+      <table class="w-full text-[13px]" style="min-width:820px">
+        <thead class="bg-gray-50">
+          <tr>
+            <th class="px-4 py-2.5 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">{{ 'doorman.log.time' | translate }}</th>
+            <th class="px-4 py-2.5 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">{{ 'doorman.log.subject' | translate }}</th>
+            <th class="px-4 py-2.5 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">{{ 'doorman.log.matched' | translate }}</th>
+            <th class="px-4 py-2.5 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">{{ 'doorman.log.risk' | translate }}</th>
+            <th class="px-4 py-2.5 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">{{ 'doorman.log.action' | translate }}</th>
+            <th class="px-4 py-2.5 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">{{ 'doorman.log.net' | translate }}</th>
+          </tr>
+        </thead>
+        <tbody class="divide-y divide-gray-100">
+          @for (d of decisions(); track d.id) {
+          <tr class="hover:bg-gray-50 align-top">
+            <td class="px-4 py-2.5 whitespace-nowrap text-gray-500 tabular-nums">{{ decisionTime(d.created) }}</td>
+            <td class="px-4 py-2.5 text-gray-700 break-all">{{ d.subject || '—' }}</td>
+            <td class="px-4 py-2.5 text-gray-700">{{ d.matched || '—' }}</td>
+            <td class="px-4 py-2.5 whitespace-nowrap">
+              <span class="inline-flex px-2 py-0.5 rounded-full text-xs font-medium" [class]="riskPillClass($any(d.riskLevel))">{{ d.riskLevel }}</span>
+            </td>
+            <td class="px-4 py-2.5 whitespace-nowrap text-gray-700">
+              {{ actionLabel(d.action) }}
+              @if (d.outcome) {
+              <span class="ml-1 inline-flex px-1.5 py-0.5 rounded-full text-[11px] font-medium bg-green-100 text-green-800">{{ 'doorman.funnel.resolved' | translate }}</span>
+              }
+            </td>
+            <td class="px-4 py-2.5 text-xs text-gray-500 font-mono break-all">
+              {{ decisionNet(d) }}
+              @if (d.isHosting) {
+              <span class="ml-1 text-red-600 font-sans">{{ 'doorman.log.hosting' | translate }}</span>
+              }
+            </td>
+          </tr>
+          }
+        </tbody>
+      </table>
+    </div>
+    <!-- 翻页:游标式「加载更多」(before = 当前最后一条 id)。 -->
+    <div class="px-4 py-3 border-t border-gray-100 flex justify-center">
+      @if (decisionsLoading()) {
+      <span class="text-sm text-gray-400">{{ 'doorman.common.loading' | translate }}</span>
+      } @else if (decisionsHasMore()) {
+      <button type="button" (click)="loadMoreDecisions()"
+        class="px-4 py-1.5 text-sm font-medium text-indigo-700 bg-indigo-50 border border-indigo-200 rounded-md hover:bg-indigo-100 transition-colors">
+        {{ 'doorman.log.loadMore' | translate }}
+      </button>
+      } @else {
+      <span class="text-xs text-gray-400">{{ 'doorman.log.noMore' | translate }}</span>
+      }
+    </div>
+    }
+  </div>
+  }
+</div>
+
+<!-- Editor modal -->
+@if (showEditor()) {
+<div class="fixed inset-0 bg-black/30 overflow-y-auto h-full w-full z-50" (click)="closeEditor()">
+  <div class="relative top-10 mx-auto p-5 border w-[720px] max-w-[95vw] max-h-[90vh] overflow-y-auto shadow-lg rounded-md bg-white"
+    (click)="$event.stopPropagation()">
+    <h3 class="text-lg font-medium text-gray-900 mb-4">
+      {{ (isEditMode ? 'doorman.editor.editTitle' : 'doorman.editor.createTitle') | translate }}
+    </h3>
+
+    <!-- Base fields -->
+    <div class="mb-4">
+      <label class="block text-sm font-medium text-gray-700 mb-1">
+        {{ 'doorman.editor.nameLabel' | translate }} <span class="text-red-500">*</span>
+      </label>
+      <input type="text" [(ngModel)]="editName" name="ruleName"
+        class="w-full sm:w-2/3 px-3 py-2 bg-white text-gray-900 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500" />
+    </div>
+
+    <label class="flex items-center gap-2 mb-6 cursor-pointer">
+      <input type="checkbox" [(ngModel)]="editEnabled" name="ruleEnabled"
+        class="rounded border-gray-300 text-indigo-600 focus:ring-indigo-500" />
+      <span class="text-sm text-gray-700">{{ 'doorman.editor.enabledLabel' | translate }}</span>
+    </label>
+
+    <!-- Conditions -->
+    <div class="border border-gray-200 rounded-md p-4 mb-4">
+      <div class="flex items-center justify-between mb-3 gap-3 flex-wrap">
+        <h4 class="text-sm font-semibold text-gray-800">{{ 'doorman.editor.conditionSection' | translate }}</h4>
+        <!-- AND / OR 组合方式 -->
+        <div class="inline-flex rounded-md border border-gray-300 overflow-hidden text-xs">
+          <button type="button" (click)="setCombine('and')"
+            [class]="editCombine === 'and'
+              ? 'px-3 py-1.5 font-medium bg-indigo-600 text-white'
+              : 'px-3 py-1.5 font-medium bg-white text-gray-600 hover:bg-gray-50'">
+            {{ 'doorman.combine.and' | translate }}
+          </button>
+          <button type="button" (click)="setCombine('or')"
+            [class]="editCombine === 'or'
+              ? 'px-3 py-1.5 font-medium bg-indigo-600 text-white'
+              : 'px-3 py-1.5 font-medium bg-white text-gray-600 hover:bg-gray-50'">
+            {{ 'doorman.combine.or' | translate }}
+          </button>
+        </div>
+      </div>
+
+      @for (cond of editConditions; track idx; let idx = $index) {
+        @if (idx > 0) {
+        <div class="flex items-center gap-2 py-1.5">
+          <span class="h-px flex-1 bg-gray-200"></span>
+          <span class="text-xs font-bold text-indigo-600 bg-indigo-50 border border-indigo-200 rounded px-2 py-0.5">{{ combineWord(editCombine) }}</span>
+          <span class="h-px flex-1 bg-gray-200"></span>
+        </div>
+        }
+        <div class="bg-gray-50 border border-gray-200 rounded-lg p-3 mb-2">
+          <div class="flex items-center gap-2 mb-2">
+            <select [(ngModel)]="cond.type" [name]="'condType_' + idx" (ngModelChange)="onConditionTypeChange(cond)"
+              class="text-sm font-medium text-gray-900 bg-white border border-gray-300 rounded-md px-2.5 py-1.5 focus:outline-none focus:ring-1 focus:ring-indigo-500 focus:border-indigo-500">
+              @for (k of conditions(); track k.type) {
+              <option [value]="k.type">{{ kindLabel(k.type) }}</option>
+              }
+            </select>
+            <span class="flex-1"></span>
+            <button type="button" (click)="removeCondition(idx)"
+              class="text-gray-400 hover:text-red-600 text-lg leading-none px-1.5 rounded"
+              [title]="'doorman.actions.removeCondition' | translate">×</button>
+          </div>
+          @if (fieldsForType(cond.type).length === 0) {
+          <p class="text-xs text-gray-400">{{ 'doorman.editor.noParams' | translate }}</p>
+          } @else {
+          <ng-container
+            *ngTemplateOutlet="fieldGroup; context: { fields: fieldsForType(cond.type), params: cond.params, prefix: idx }"></ng-container>
+          }
+        </div>
+      }
+
+      <button type="button" (click)="addCondition()"
+        class="mt-1 inline-flex items-center gap-1 px-3 py-1.5 text-sm font-medium text-indigo-600 border border-dashed border-gray-300 rounded-md hover:border-indigo-400 hover:bg-indigo-50 transition-colors">
+        + {{ 'doorman.editor.addCondition' | translate }}
+      </button>
+    </div>
+
+    <!-- Risk level -->
+    <div class="border border-gray-200 rounded-md p-4 mb-4">
+      <h4 class="text-sm font-semibold text-gray-800 mb-3">{{ 'doorman.editor.riskSection' | translate }}</h4>
+      <div class="grid grid-cols-5 gap-2">
+        @for (lv of riskLevels(); track lv) {
+        <button type="button" (click)="setRiskLevel(lv)"
+          [class]="'px-2 py-2.5 text-xs font-medium rounded-md border-2 ' + riskButtonClass(lv, editRiskLevel === lv)">
+          {{ riskLabel(lv) }}
+        </button>
+        }
+      </div>
+      <p class="text-xs text-gray-500 mt-2.5">{{ 'doorman.editor.riskHint' | translate }}</p>
+    </div>
+
+    @if (editorError()) {
+    <div class="mb-4 bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded">
+      {{ editorError() }}
+    </div>
+    }
+
+    <div class="flex justify-end gap-3 mt-6">
+      <button type="button" (click)="closeEditor()" [disabled]="submitting()"
+        class="px-4 py-2 text-sm font-medium text-gray-700 bg-gray-100 rounded-md hover:bg-gray-200 disabled:text-gray-400 disabled:cursor-not-allowed transition-colors">
+        {{ 'doorman.actions.cancel' | translate }}
+      </button>
+      <button type="button" (click)="save()" [disabled]="submitting()"
+        class="px-4 py-2 text-sm font-medium text-white bg-indigo-600 rounded-md hover:bg-indigo-700 disabled:bg-indigo-300 disabled:cursor-not-allowed transition-colors">
+        {{ (submitting() ? 'doorman.actions.saving' : 'doorman.actions.save') | translate }}
+      </button>
+    </div>
+  </div>
+</div>
+}
+
+<!-- Policy editor modal:风险等级 → 动作(该场景的一份独立配置)。取消丢弃改动,保存后关闭。 -->
+@if (showPolicyEditor()) {
+<div class="fixed inset-0 bg-black/30 overflow-y-auto h-full w-full z-50" (click)="closePolicyEditor()">
+  <div class="relative top-16 mx-auto p-5 border w-[560px] max-w-[95vw] max-h-[90vh] overflow-y-auto shadow-lg rounded-md bg-white"
+    (click)="$event.stopPropagation()">
+    <h3 class="text-lg font-medium text-gray-900">{{ 'doorman.policy.title' | translate }}</h3>
+    <p class="text-xs text-gray-500 mt-1 mb-4">{{ 'doorman.policy.hint' | translate }}</p>
+
+    @if (policyError()) {
+    <div class="mb-4 bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded text-sm">{{ policyError() }}</div>
+    }
+
+    <div class="border border-gray-200 rounded-md divide-y divide-gray-100">
+      @for (lv of policyKinds()!.riskLevels; track lv) {
+      <div class="flex items-center gap-3 px-4 py-3">
+        <span class="inline-flex px-2.5 py-1 rounded-full text-xs font-medium w-24 justify-center" [class]="riskPillClass(lv)">{{ riskLabel(lv) }}</span>
+        <span class="text-gray-400">→</span>
+        <select [ngModel]="policyActionFor(lv)" (ngModelChange)="setPolicyAction(lv, $event)" [name]="'policy_' + lv"
+          class="flex-1 text-sm text-gray-900 bg-white border border-gray-300 rounded-md px-2.5 py-1.5 focus:outline-none focus:ring-1 focus:ring-indigo-500 focus:border-indigo-500">
+          <option value="">{{ 'doorman.policy.useDefault' | translate }}</option>
+          @for (act of policyKinds()!.actions; track act) {
+          <option [value]="act">{{ actionLabel(act) }}</option>
+          }
+        </select>
+      </div>
+      }
+    </div>
+
+    <div class="flex justify-end gap-3 mt-6">
+      <button type="button" (click)="closePolicyEditor()" [disabled]="policySaving()"
+        class="px-4 py-2 text-sm font-medium text-gray-700 bg-gray-100 rounded-md hover:bg-gray-200 disabled:text-gray-400 disabled:cursor-not-allowed transition-colors">
+        {{ 'doorman.actions.cancel' | translate }}
+      </button>
+      <button type="button" (click)="savePolicy()" [disabled]="policySaving()"
+        class="px-4 py-2 text-sm font-medium text-white bg-indigo-600 rounded-md hover:bg-indigo-700 disabled:bg-indigo-300 disabled:cursor-not-allowed transition-colors">
+        {{ (policySaving() ? 'doorman.policy.saving' : 'doorman.policy.save') | translate }}
+      </button>
+    </div>
+  </div>
+</div>
+}
+
+<!-- Delete confirm -->
+<app-confirm-dialog [visible]="ruleToDelete() !== null"
+  [title]="'doorman.confirm.deleteTitle' | translate"
+  [message]="'doorman.confirm.deleteMessage' | translate"
+  [confirmText]="'doorman.confirm.confirm' | translate"
+  [cancelText]="'doorman.confirm.cancel' | translate"
+  (confirm)="confirmDelete()" (cancel)="cancelDelete()" />
+
+<!-- Reusable dynamic field group (schema-driven);prefix 保证多条件下 ngModel name 不撞车 -->
+<ng-template #fieldGroup let-fields="fields" let-params="params" let-prefix="prefix">
+  @for (field of fields; track field.key) {
+  <div class="mb-3">
+    <label class="block text-sm font-medium text-gray-700 mb-1">
+      {{ fieldLabel(field) }}
+      @if (field.required) { <span class="text-red-500">*</span> }
+    </label>
+
+    @switch (field.type) {
+      @case ('string_list') {
+        <div class="space-y-2">
+          @for (item of listItems(params, field.key); track idx; let idx = $index) {
+          <div class="flex gap-2">
+            <input type="text" [(ngModel)]="params[field.key][idx]" [name]="prefix + '_' + field.key + '_' + idx"
+              [placeholder]="field.placeholder || ''"
+              class="flex-1 px-3 py-2 bg-white text-gray-900 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500" />
+            <button type="button" (click)="removeListItem(params, field.key, idx)"
+              class="px-3 py-2 text-sm text-red-600 hover:text-red-800">
+              {{ 'doorman.actions.removeItem' | translate }}
+            </button>
+          </div>
+          }
+          <button type="button" (click)="addListItem(params, field)"
+            class="text-sm text-indigo-600 hover:text-indigo-800">
+            + {{ 'doorman.actions.addItem' | translate }}
+          </button>
+        </div>
+      }
+      @case ('int_list') {
+        <div class="space-y-2">
+          @for (item of listItems(params, field.key); track idx; let idx = $index) {
+          <div class="flex gap-2">
+            <input type="number" [(ngModel)]="params[field.key][idx]" [name]="prefix + '_' + field.key + '_' + idx"
+              [placeholder]="field.placeholder || ''"
+              class="flex-1 px-3 py-2 bg-white text-gray-900 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500" />
+            <button type="button" (click)="removeListItem(params, field.key, idx)"
+              class="px-3 py-2 text-sm text-red-600 hover:text-red-800">
+              {{ 'doorman.actions.removeItem' | translate }}
+            </button>
+          </div>
+          }
+          <button type="button" (click)="addListItem(params, field)"
+            class="text-sm text-indigo-600 hover:text-indigo-800">
+            + {{ 'doorman.actions.addItem' | translate }}
+          </button>
+        </div>
+      }
+      @case ('int') {
+        <input type="number" [(ngModel)]="params[field.key]" [name]="prefix + '_' + field.key"
+          [placeholder]="field.placeholder || ''"
+          class="w-full px-3 py-2 bg-white text-gray-900 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500" />
+      }
+      @case ('select') {
+        <select [(ngModel)]="params[field.key]" [name]="prefix + '_' + field.key"
+          class="w-full px-3 py-2 bg-white text-gray-900 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500">
+          <option value="">{{ 'doorman.editor.selectPlaceholder' | translate }}</option>
+          @for (opt of field.options || []; track optionValue(opt)) {
+          <option [value]="optionValue(opt)">{{ optionLabel(opt) }}</option>
+          }
+        </select>
+      }
+      @default {
+        <!-- string / duration / 未知类型:统一文本框 -->
+        <input type="text" [(ngModel)]="params[field.key]" [name]="prefix + '_' + field.key"
+          [placeholder]="field.placeholder || (field.type === 'duration' ? '1h' : '')"
+          class="w-full px-3 py-2 bg-white text-gray-900 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500" />
+      }
+    }
+  </div>
+  }
+</ng-template>
