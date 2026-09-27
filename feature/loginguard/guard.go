@@ -144,10 +144,18 @@ func (g *guard) RecordFailure(ctx context.Context, ip, account string) {
 	}
 }
 
-// RecordPending 密码已验对但登录**未完成**(如待 2FA):清失败计数(密码已被证明对,爆破计数停),
-// 但**不计入每小时成功数**(登录尚未真正完成)。
+// RecordPending 密码已验对但登录**未完成**(如待 2FA):只清**账号**失败计数(该账号密码已被证明对,
+// 其爆破计数停),但**保留 IP 失败计数**、也**不计入每小时成功数**(登录尚未真正完成)。
+//
+// 为什么不清 IP:IP 计数是跨账号聚合的,某账号密码对**不能**证明同 IP 对其它账号的猜测是善意的。
+// 若在此清 IP,持有任一有效密码者即可反复触发 pending 把 IP 失败计数归零(且 pending 不计每小时成功、
+// 不受 IPPerHour 约束 = 一个**不计量的重置原语**),从而绕过 IP 锁去喷射爆破其它账号——尤其在账号维度
+// 只计数不硬锁(AcctLockSeconds=0)的公网形态下,IP 锁是唯一拦截,清 IP 等于拆掉它。
 func (g *guard) RecordPending(ctx context.Context, ip, account string) {
-	g.clearFailures(ctx, ip, account)
+	if g == nil || g.redis == nil || account == "" { // fail-open;IP 不参与,故不看 ip
+		return
+	}
+	_, _ = g.redis.Delete(ctx, acctFailKey(account))
 }
 
 func (g *guard) RecordSuccess(ctx context.Context, ip, account string) {

@@ -21,7 +21,7 @@ type Guard interface {
     PrecheckIP(ctx, ip) Decision            // 中间件(handler 前,仅有 IP):被锁 / 超小时上限则 Blocked
     PrecheckAccount(ctx, account) Decision  // 拿到账号后:硬锁模式下被锁则 Blocked
     RecordFailure(ctx, ip, account)         // 权威判定点(密码错等)调用
-    RecordPending(ctx, ip, account)         // 密码对但登录未完成(如待 2FA):清失败,不计成功
+    RecordPending(ctx, ip, account)         // 密码对但登录未完成(如待 2FA):只清账号失败、保留 IP、不计成功
     RecordSuccess(ctx, ip, account)         // 登录成功:清失败 + 计入每小时成功数
 }
 ```
