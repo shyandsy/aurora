@@ -28,6 +28,10 @@ type RedisService interface {
 	HExists(ctx context.Context, key, field string) (bool, error)
 	HKeys(ctx context.Context, key string) ([]string, error)
 	Expire(ctx context.Context, key string, expiration time.Duration) error
+	// Eval 执行一段 Lua 脚本(Redis 单命令原子执行 KEYS/ARGV)。
+	// 用于需要"多步在服务端原子完成"的场景,如原子的 INCR+EXPIRE(避免 incr 与 expire 两条命令间的竞态)。
+	// 返回值为 Redis 原生返回(整数→int64、字符串→string、数组→[]interface{} 等),由调用方按脚本约定断言。
+	Eval(ctx context.Context, script string, keys []string, args ...interface{}) (interface{}, error)
 	// Distributed lock operations
 	// WithLock executes a function with a distributed lock
 	// It automatically acquires the lock, executes the function, and releases the lock
@@ -137,6 +141,11 @@ func (r *redisService) Incr(ctx context.Context, key string) (int64, error) {
 
 func (r *redisService) SetNX(ctx context.Context, key string, value interface{}, expiration time.Duration) (bool, error) {
 	return r.client.SetNX(ctx, key, value, expiration).Result()
+}
+
+// Eval 执行 Lua 脚本(服务端原子)。返回 Redis 原生结果,调用方按脚本约定断言(如整数为 int64)。
+func (r *redisService) Eval(ctx context.Context, script string, keys []string, args ...interface{}) (interface{}, error) {
+	return r.client.Eval(ctx, script, keys, args...).Result()
 }
 
 // HSet sets a field in a hash stored at key

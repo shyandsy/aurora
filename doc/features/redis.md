@@ -41,6 +41,7 @@ type someService struct {
 | HExists | `HExists(ctx, key, field) (bool, error)` | |
 | HKeys | `HKeys(ctx, key) ([]string, error)` | |
 | Expire | `Expire(ctx, key, expiration) error` | |
+| Eval | `Eval(ctx, script, keys, args...) (interface{}, error)` | 跑 Lua 脚本(服务端原子);用于原子 `INCR+EXPIRE` 等,返回值按脚本约定断言(整数→int64) |
 | WithLock | `WithLock(ctx, key, value, ttl, fn) error` | 见下 |
 
 > ⚠️ `Get` / `HGet` 把 "不存在" 和 "空值" 都返回成 `("", nil)` —— 判断存在性要用 `Exists`,别靠 `Get` 的错误。
