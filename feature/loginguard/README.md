@@ -28,6 +28,25 @@ type Guard interface {
 
 `Decision` 除 `Blocked`/`Reason` 外带 `IPFailRemaining` / `IPHourRemaining` / `AcctFailRemaining`,供调用方设「还剩几次」提示头(不影响放行)。
 
+## IP 预检中间件(可选,handler 前)
+
+框架直接提供 IP 维度的 gin 中间件,消费方一行挂上,无需各自重写:
+
+```go
+// 从 DI 解析 Guard(须在 loginguard feature 注册之后);未注册 → g==nil → fail-open 放行
+r.POST("/login", loginguard.IPPrecheckMiddleware(app), loginHandler)
+
+// 或用窄接口版(只依赖 Guard,便于测试 / 非 DI 场景):loginguard.IPPrecheckHandler(g)
+// 被拦默认 429 + 简短 JSON;要本地化文案 / 自有错误码信封:
+r.Use(loginguard.IPPrecheckMiddleware(app, loginguard.WithOnBlocked(func(c *gin.Context, d loginguard.Decision) {
+    c.JSON(http.StatusTooManyRequests, gin.H{"code": "login_locked"})
+})))
+```
+
+> ⚠️ **中间件不是防爆破的全部**:它只是 `PrecheckIP` 的**读锁一侧**——累加失败、触发上锁的**写锁**在登录流程的
+> `RecordFailure/RecordSuccess/RecordPending` 里。**光挂中间件、登录流程不调 record,等于门上装了锁却没人记账,
+> 永远锁不上。** 两半都接上才构成防护。账号维度也不在中间件里(此时还没账号),由服务层调 `PrecheckAccount`。
+
 ## 与「登录后」tokenguard 相反:fail-open
 
 Redis 不可用时,预检**一律放行**、记录**一律 no-op**。登录限流是**次级**防护,绝不能因 Redis 抖动把所有人
