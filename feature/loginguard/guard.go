@@ -45,7 +45,7 @@ type Guard interface {
 	// 记录侧只说**登录结局**(不说"清/加哪个计数"——那是本包的领域知识,藏在内部):
 	//   - RecordFailure 凭据失败:计失败,达阈值按策略锁 IP/账号;
 	//   - RecordSuccess 完成登录:清失败 + 计入每小时成功数;
-	//   - RecordPending 密码已验对但登录**未完成**(如待 2FA):清失败,但**不计成功**。
+	//   - RecordPending 密码已验对但登录**未完成**(如待 2FA):只清**账号**失败(保留 IP),不计成功。
 	RecordFailure(ctx context.Context, ip, account string)
 	RecordSuccess(ctx context.Context, ip, account string)
 	RecordPending(ctx context.Context, ip, account string)
@@ -168,7 +168,8 @@ func (g *guard) RecordSuccess(ctx context.Context, ip, account string) {
 	}
 }
 
-// clearFailures 清 IP/账号失败计数(RecordSuccess / RecordPending 共用的内部机制)。
+// clearFailures 清 IP/账号失败计数:仅 RecordSuccess(完成真登录)使用。
+// RecordPending **不**经此——它只清账号、须保留 IP(见 RecordPending 注释)。
 func (g *guard) clearFailures(ctx context.Context, ip, account string) {
 	if g == nil || g.redis == nil {
 		return
