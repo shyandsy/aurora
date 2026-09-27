@@ -171,21 +171,46 @@ func TestRecordSuccessClearsFailures(t *testing.T) {
 	}
 }
 
-// TestRecordPending 密码对但未完成(如待 2FA):清失败,但不计每小时成功(登录未真正完成)。
+// TestRecordPending 密码对但未完成(如待 2FA):只清**账号**失败计数,**保留 IP**,且不计每小时成功。
 func TestRecordPending(t *testing.T) {
 	ctx := context.Background()
 	r := newFake()
 	g := newG(r, hardLockPolicy())
 	g.RecordFailure(ctx, ip, acct)
 	g.RecordPending(ctx, ip, acct)
-	if _, ok := r.m[ipFailKey(ip)]; ok {
-		t.Fatal("pending 应清 IP 失败计数")
+	if _, ok := r.m[ipFailKey(ip)]; !ok {
+		t.Fatal("pending 必须**保留** IP 失败计数(IP 跨账号聚合,某账号密码对不证明同 IP 善意)")
 	}
 	if _, ok := r.m[acctFailKey(acct)]; ok {
-		t.Fatal("pending 应清账号失败计数")
+		t.Fatal("pending 应清账号失败计数(该账号密码已被证明对)")
 	}
 	if _, ok := r.m[ipHourKey(ip)]; ok {
 		t.Fatal("pending 不该计入每小时成功数(登录未完成)")
+	}
+}
+
+// TestPendingCannotResetIPLock 回归:攻击者持有账号 A 的有效密码,反复触发 pending,
+// 不得借此把 IP 失败计数归零、绕过 IP 锁去喷射爆破其它账号。pending 前的 IP 锁必须岿然不动。
+func TestPendingCannotResetIPLock(t *testing.T) {
+	ctx := context.Background()
+	r := newFake()
+	g := newG(r, hardLockPolicy()) // IPFailLimit=2
+	// 攻击者从同一 IP 喷射爆破(对不同账号或空账号),触到 IP 锁:
+	g.RecordFailure(ctx, ip, "victim1")
+	g.RecordFailure(ctx, ip, "victim2")
+	g.RecordFailure(ctx, ip, "victim3") // 3 > 2 → 锁 IP
+	if d := g.PrecheckIP(ctx, ip); !d.Blocked {
+		t.Fatal("前置条件:IP 应已被锁")
+	}
+	// 攻击者用自己账号 A 的正确密码反复触发 pending(不计每小时成功、可无限次):
+	for i := 0; i < 5; i++ {
+		g.RecordPending(ctx, ip, "attacker-A")
+	}
+	if d := g.PrecheckIP(ctx, ip); !d.Blocked || d.Reason != "ip_locked" {
+		t.Fatalf("pending 绝不能重置 IP 锁,IP 仍须锁定: %+v", d)
+	}
+	if _, ok := r.m[ipFailKey(ip)]; !ok {
+		t.Fatal("IP 失败计数不该被 pending 清掉")
 	}
 }
 
