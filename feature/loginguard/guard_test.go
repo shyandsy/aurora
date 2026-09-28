@@ -6,10 +6,15 @@ import (
 	"strconv"
 	"testing"
 	"time"
+
+	auroraFeature "github.com/shyandsy/aurora/feature"
+	"github.com/shyandsy/aurora/feature/ratelimit"
 )
 
-// fakeRedis 内存版 redisOps。failAll=true 时所有操作报错,用于验证 fail-open。
+// fakeRedis 内存版假 redis。内嵌 RedisService(契约真源),只实现 loginguard 用到的几个方法;
+// 其余方法为 nil 接口,单测不会调到。failAll=true 时所有操作报错,用于验证 fail-open。
 type fakeRedis struct {
+	auroraFeature.RedisService
 	m       map[string]string
 	failAll bool
 }
@@ -24,20 +29,18 @@ func (f *fakeRedis) Get(_ context.Context, k string) (string, error) {
 	}
 	return f.m[k], nil
 }
-func (f *fakeRedis) Incr(_ context.Context, k string) (int64, error) {
+
+// Eval 模拟底层 ratelimit 引擎的 incr 脚本(INCR + 首次 PEXPIRE):对 keys[0] 自增;TTL 不追踪
+// (单测不验过期,真 TTL 语义见 guard_miniredis_test.go)。loginguard 自己已不再有计数脚本。
+func (f *fakeRedis) Eval(_ context.Context, _ string, keys []string, _ ...interface{}) (interface{}, error) {
 	if f.failAll {
-		return 0, errDown
+		return nil, errDown
 	}
+	k := keys[0]
 	n, _ := strconv.ParseInt(f.m[k], 10, 64)
 	n++
 	f.m[k] = strconv.FormatInt(n, 10)
 	return n, nil
-}
-func (f *fakeRedis) Expire(_ context.Context, _ string, _ time.Duration) error {
-	if f.failAll {
-		return errDown
-	}
-	return nil
 }
 func (f *fakeRedis) Exists(_ context.Context, k string) (bool, error) {
 	if f.failAll {
@@ -88,7 +91,11 @@ func countOnlyPolicy() LoginPolicy { // homeserver 公网:账号只计数
 	return p
 }
 
-func newG(r redisOps, p LoginPolicy) *guard { return newGuard(r, StaticPolicy(p)) }
+// newG 用假 redis 建一个 ratelimit 引擎(namespace="test"),再包成 guard —— 走真实接入路径(引擎+策略适配)。
+func newG(r auroraFeature.RedisService, p LoginPolicy) *guard {
+	prov := StaticPolicy(p)
+	return newGuard(ratelimit.NewEngine(r, "test", policyLimits{p: prov}), prov)
+}
 
 func TestDefaultPolicyValid(t *testing.T) {
 	if !DefaultPolicy().Valid() {
@@ -133,14 +140,13 @@ func TestAccountCountOnly(t *testing.T) {
 	for i := 0; i < 5; i++ {
 		g.RecordFailure(ctx, ip, acct)
 	}
-	if d := g.PrecheckAccount(ctx, acct); d.Blocked {
+	// count-only:超阈值也绝不锁(Blocked 恒 false),但仍在计数(remaining 被打到 0)。
+	d := g.PrecheckAccount(ctx, acct)
+	if d.Blocked {
 		t.Fatalf("count-only 模式账号绝不该被锁: %+v", d)
 	}
-	if _, locked := r.m[acctLockKey(acct)]; locked {
-		t.Fatal("count-only 模式不该写账号锁 key")
-	}
-	if _, counted := r.m[acctFailKey(acct)]; !counted {
-		t.Fatal("count-only 模式仍应计数(供提示/监控)")
+	if d.AcctFailRemaining != 0 {
+		t.Fatalf("count-only 模式仍应计数(超阈值后 remaining=0),got %d", d.AcctFailRemaining)
 	}
 }
 
@@ -160,14 +166,15 @@ func TestIPHourCap(t *testing.T) {
 func TestRecordSuccessClearsFailures(t *testing.T) {
 	ctx := context.Background()
 	r := newFake()
-	g := newG(r, hardLockPolicy())
+	g := newG(r, hardLockPolicy()) // IPFailLimit=2, AcctFailLimit=2
 	g.RecordFailure(ctx, ip, acct)
 	g.RecordSuccess(ctx, ip, acct)
-	if _, ok := r.m[ipFailKey(ip)]; ok {
-		t.Fatal("成功后应清 IP 失败计数")
+	// 清干净 → remaining 恢复满额。
+	if d := g.PrecheckIP(ctx, ip); d.IPFailRemaining != 2 {
+		t.Fatalf("成功后应清 IP 失败计数(remaining 回满 2),got %d", d.IPFailRemaining)
 	}
-	if _, ok := r.m[acctFailKey(acct)]; ok {
-		t.Fatal("成功后应清账号失败计数")
+	if d := g.PrecheckAccount(ctx, acct); d.AcctFailRemaining != 2 {
+		t.Fatalf("成功后应清账号失败计数(remaining 回满 2),got %d", d.AcctFailRemaining)
 	}
 }
 
@@ -175,17 +182,20 @@ func TestRecordSuccessClearsFailures(t *testing.T) {
 func TestRecordPending(t *testing.T) {
 	ctx := context.Background()
 	r := newFake()
-	g := newG(r, hardLockPolicy())
+	p := hardLockPolicy() // IPFailLimit=2, AcctFailLimit=2
+	p.IPPerHour = 5       // 开每小时上限,便于断言 pending 不计成功
+	g := newG(r, p)
 	g.RecordFailure(ctx, ip, acct)
 	g.RecordPending(ctx, ip, acct)
-	if _, ok := r.m[ipFailKey(ip)]; !ok {
-		t.Fatal("pending 必须**保留** IP 失败计数(IP 跨账号聚合,某账号密码对不证明同 IP 善意)")
+	di := g.PrecheckIP(ctx, ip)
+	if di.IPFailRemaining != 1 {
+		t.Fatalf("pending 必须**保留** IP 失败计数(仍记 1 次,remaining=1),got %d", di.IPFailRemaining)
 	}
-	if _, ok := r.m[acctFailKey(acct)]; ok {
-		t.Fatal("pending 应清账号失败计数(该账号密码已被证明对)")
+	if di.IPHourRemaining != 5 {
+		t.Fatalf("pending 不该计入每小时成功数(remaining 仍满 5),got %d", di.IPHourRemaining)
 	}
-	if _, ok := r.m[ipHourKey(ip)]; ok {
-		t.Fatal("pending 不该计入每小时成功数(登录未完成)")
+	if d := g.PrecheckAccount(ctx, acct); d.AcctFailRemaining != 2 {
+		t.Fatalf("pending 应清账号失败计数(remaining 回满 2),got %d", d.AcctFailRemaining)
 	}
 }
 
@@ -208,9 +218,6 @@ func TestPendingCannotResetIPLock(t *testing.T) {
 	}
 	if d := g.PrecheckIP(ctx, ip); !d.Blocked || d.Reason != "ip_locked" {
 		t.Fatalf("pending 绝不能重置 IP 锁,IP 仍须锁定: %+v", d)
-	}
-	if _, ok := r.m[ipFailKey(ip)]; !ok {
-		t.Fatal("IP 失败计数不该被 pending 清掉")
 	}
 }
 

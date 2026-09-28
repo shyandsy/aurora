@@ -1,30 +1,36 @@
 // Package loginguard 是 aurora 防护三件套里的「登录前」:登录暴力破解防护 —— 按 IP + 按账号的
-// 失败计数、短期锁定、成功清理。是限流/锁定策略与 Redis key 的单一真源。
+// 失败计数、短期锁定、成功清理。它是**登录领域的外壳**:懂登录语义(账号 vs IP、待 2FA、成功/失败),
+// 对外只暴露 Guard;**计数机制不自己实现,建在 ratelimit 引擎上**(全体系只有一份计数地基)。
 //
 // 与「登录后」的 tokenguard 相反,loginguard 全程 **fail-open**:Redis 不可用时预检一律放行、记录一律
 // no-op —— 登录限流是**次级**防护,绝不能因 Redis 抖动把所有人锁在登录之外(可用性优先)。而 tokenguard
-// 的撤销/IP 是**主级**安全控制,故 fail-close。两者哲学相反,都是刻意的。
-//
-// 对外只暴露 Guard 接口 + LoginPolicy/Provider + NewLoginGuardFeature;key 格式、计数原语全不导出。
+// 的撤销/IP 是**主级**安全控制,故 fail-close。两者哲学相反,都是刻意的。(fail-open 由 ratelimit 引擎兜。)
 //
 // # 一套代码,三种产品形态(靠 config,不靠分支)
 //
 //   - deploy user / homeserver user:静态默认(StaticPolicy),阈值编译期定;
 //   - homeserver customer:运行时可调(provider 包住其 SystemSettingService,内存缓存不碰 DB 热路径);
-//   - 账号锁 vs 只计数:由 AcctLockSeconds 编码(见 LoginPolicy),不设额外开关;
-//   - 账号标识明文 or 哈希:由**调用方**传入的 account 决定(deploy 传明文便于 redis 手动解锁;
+//   - 账号锁 vs 只计数:由 AcctLockSeconds 编码(见 LoginPolicy),不设额外开关(=0 → 账号桶只计数不上锁);
+//   - 账号标识明文 or 哈希:由**调用方**传入的 account 决定(deploy 传明文便于运维解锁;
 //     homeserver 传 email 哈希不落客户明文)。loginguard 不掺和。
 package loginguard
 
 import (
 	"context"
-	"strconv"
 	"time"
 
-	"github.com/shyandsy/aurora/logger"
+	"github.com/shyandsy/aurora/feature/ratelimit"
 )
 
 // (阈值策略 LoginPolicy / LoginPolicyProvider / StaticPolicy 见 policy.go。)
+
+// 登录用的三个桶(声明在 ratelimit 引擎上,形状由句柄承载):IP 失败锁、IP 每小时成功上限、账号失败锁。
+// 维度名即 key 维度;账号桶是否真上锁由阈值(AcctLockSeconds)决定,不体现在桶形状里。
+var (
+	bucketIPFail   = ratelimit.NewFailLockBucket("login_ip_fail", "ip")
+	bucketIPHour   = ratelimit.NewCountBucket("login_ip_hour", "ip")
+	bucketAcctFail = ratelimit.NewFailLockBucket("login_acct_fail", "account")
+)
 
 // Decision 预检结论。Blocked 决定是否放行;Remaining* 仅供调用方设「还剩几次」提示头,不影响放行。
 type Decision struct {
@@ -51,33 +57,36 @@ type Guard interface {
 	RecordPending(ctx context.Context, ip, account string)
 }
 
-// redisOps 是 loginguard 所需的最小 Redis 能力(aurora RedisService 天然满足;单测用内存假实现)。
-type redisOps interface {
-	Get(ctx context.Context, key string) (string, error)
-	Incr(ctx context.Context, key string) (int64, error)
-	Expire(ctx context.Context, key string, ttl time.Duration) error
-	Exists(ctx context.Context, key string) (bool, error)
-	Delete(ctx context.Context, keys ...string) (int64, error)
-	SetNX(ctx context.Context, key string, value interface{}, ttl time.Duration) (bool, error)
-}
-
+// guard 持有一个 ratelimit 引擎(计数地基)+ 策略来源(读阈值/模式标志)。计数、key、TTL、原子性全由引擎负责。
 type guard struct {
-	redis    redisOps
+	engine   ratelimit.Service
 	provider LoginPolicyProvider
 }
 
-func newGuard(redis redisOps, provider LoginPolicyProvider) *guard {
-	return &guard{redis: redis, provider: provider}
+func newGuard(engine ratelimit.Service, provider LoginPolicyProvider) *guard {
+	return &guard{engine: engine, provider: provider}
 }
 
 func (g *guard) policy() LoginPolicy { return g.provider.LoginPolicy() }
 
-// ---- key 收口(不导出)----
-func ipFailKey(ip string) string  { return "rate_limit:login:ip:" + ip + ":fail" }
-func ipLockKey(ip string) string  { return "rate_limit:login:ip:" + ip + ":lock" }
-func ipHourKey(ip string) string  { return "rate_limit:login:ip:" + ip + ":hour" }
-func acctFailKey(a string) string { return "rate_limit:login:acct:" + a + ":fail" }
-func acctLockKey(a string) string { return "rate_limit:login:acct:" + a + ":lock" }
+// policyLimits 把 LoginPolicy 适配成 ratelimit.LimitsProvider:引擎按桶名问阈值时,现算自当前策略
+// (策略可运行时可调;适配器无状态,读的是 provider 的当前值)。窗口对 IP/账号失败桶复用 IPWindowSeconds。
+type policyLimits struct{ p LoginPolicyProvider }
+
+func (pl policyLimits) Limits(bucket string) ratelimit.Limits {
+	pol := pl.p.LoginPolicy()
+	win := time.Duration(pol.IPWindowSeconds) * time.Second
+	switch bucket {
+	case "login_ip_fail":
+		return ratelimit.Limits{Window: win, Limit: pol.IPFailLimit, LockSeconds: pol.IPLockSeconds}
+	case "login_ip_hour":
+		return ratelimit.Limits{Window: time.Hour, Limit: pol.IPPerHour}
+	case "login_acct_fail":
+		// AcctLockSeconds=0 → LockSeconds=0 → 引擎只计数不上锁(公网 count-only,防 DoS 锁他人)。
+		return ratelimit.Limits{Window: win, Limit: pol.AcctFailLimit, LockSeconds: pol.AcctLockSeconds}
+	}
+	return ratelimit.Limits{}
+}
 
 func remaining(limit, used int64) int {
 	if limit <= 0 {
@@ -90,57 +99,55 @@ func remaining(limit, used int64) int {
 }
 
 func (g *guard) PrecheckIP(ctx context.Context, ip string) Decision {
-	if g == nil || g.redis == nil || ip == "" { // fail-open
+	if g == nil || g.engine == nil || ip == "" { // fail-open
 		return Decision{}
 	}
 	p := g.policy()
+	dims := map[string]string{"ip": ip}
 	if p.IPFailLimit > 0 {
-		if locked, err := g.redis.Exists(ctx, ipLockKey(ip)); err == nil && locked {
+		if locked, _ := g.engine.Locked(ctx, bucketIPFail, dims); locked {
 			return Decision{Blocked: true, Reason: "ip_locked"}
 		}
 	}
-	hour := g.count(ctx, ipHourKey(ip))
-	if p.IPPerHour > 0 && hour >= int64(p.IPPerHour) {
+	hour := g.engine.Peek(ctx, bucketIPHour, dims)
+	if p.IPPerHour > 0 && hour.Count >= int64(p.IPPerHour) {
 		return Decision{Blocked: true, Reason: "ip_hour_cap"}
 	}
 	return Decision{
-		IPFailRemaining: remaining(int64(p.IPFailLimit), g.count(ctx, ipFailKey(ip))),
-		IPHourRemaining: remaining(int64(p.IPPerHour), hour),
+		IPFailRemaining: remaining(int64(p.IPFailLimit), g.engine.PeekFail(ctx, bucketIPFail, dims).Count),
+		IPHourRemaining: remaining(int64(p.IPPerHour), hour.Count),
 	}
 }
 
 func (g *guard) PrecheckAccount(ctx context.Context, account string) Decision {
-	if g == nil || g.redis == nil || account == "" { // fail-open
+	if g == nil || g.engine == nil || account == "" { // fail-open
 		return Decision{}
 	}
 	p := g.policy()
 	if p.AcctFailLimit <= 0 { // 账号维度关闭
 		return Decision{}
 	}
+	dims := map[string]string{"account": account}
 	if p.AcctLockSeconds > 0 { // 仅硬锁模式才有锁可查
-		if locked, err := g.redis.Exists(ctx, acctLockKey(account)); err == nil && locked {
+		if locked, _ := g.engine.Locked(ctx, bucketAcctFail, dims); locked {
 			return Decision{Blocked: true, Reason: "acct_locked"}
 		}
 	}
-	return Decision{AcctFailRemaining: remaining(int64(p.AcctFailLimit), g.count(ctx, acctFailKey(account)))}
+	return Decision{AcctFailRemaining: remaining(int64(p.AcctFailLimit), g.engine.PeekFail(ctx, bucketAcctFail, dims).Count)}
 }
 
 func (g *guard) RecordFailure(ctx context.Context, ip, account string) {
-	if g == nil || g.redis == nil { // fail-open
+	if g == nil || g.engine == nil { // fail-open
 		return
 	}
 	p := g.policy()
-	window := time.Duration(p.IPWindowSeconds) * time.Second
 	if ip != "" && p.IPFailLimit > 0 {
-		if c := g.incr(ctx, ipFailKey(ip), window); c > int64(p.IPFailLimit) && p.IPLockSeconds > 0 {
-			_, _ = g.redis.SetNX(ctx, ipLockKey(ip), "1", time.Duration(p.IPLockSeconds)*time.Second)
-		}
+		// 超阈值且 IPLockSeconds>0 时,引擎自动上 IP 锁。
+		g.engine.Fail(ctx, bucketIPFail, map[string]string{"ip": ip})
 	}
 	if account != "" && p.AcctFailLimit > 0 {
-		// 账号维度:始终计数(供提示/监控);仅 AcctLockSeconds>0 才上锁(否则 count-only,防 DoS 锁他人)。
-		if c := g.incr(ctx, acctFailKey(account), window); c > int64(p.AcctFailLimit) && p.AcctLockSeconds > 0 {
-			_, _ = g.redis.SetNX(ctx, acctLockKey(account), "1", time.Duration(p.AcctLockSeconds)*time.Second)
-		}
+		// 账号维度:始终计数(供提示/监控);AcctLockSeconds=0 时引擎只计数不锁(count-only)。
+		g.engine.Fail(ctx, bucketAcctFail, map[string]string{"account": account})
 	}
 }
 
@@ -152,54 +159,23 @@ func (g *guard) RecordFailure(ctx context.Context, ip, account string) {
 // 不受 IPPerHour 约束 = 一个**不计量的重置原语**),从而绕过 IP 锁去喷射爆破其它账号——尤其在账号维度
 // 只计数不硬锁(AcctLockSeconds=0)的公网形态下,IP 锁是唯一拦截,清 IP 等于拆掉它。
 func (g *guard) RecordPending(ctx context.Context, ip, account string) {
-	if g == nil || g.redis == nil || account == "" { // fail-open;IP 不参与,故不看 ip
+	if g == nil || g.engine == nil || account == "" { // fail-open;IP 不参与,故不看 ip
 		return
 	}
-	_, _ = g.redis.Delete(ctx, acctFailKey(account))
+	g.engine.ClearFail(ctx, bucketAcctFail, map[string]string{"account": account})
 }
 
 func (g *guard) RecordSuccess(ctx context.Context, ip, account string) {
-	if g == nil || g.redis == nil {
-		return
-	}
-	g.clearFailures(ctx, ip, account)
-	if ip != "" && g.policy().IPPerHour > 0 {
-		g.incr(ctx, ipHourKey(ip), time.Hour)
-	}
-}
-
-// clearFailures 清 IP/账号失败计数:仅 RecordSuccess(完成真登录)使用。
-// RecordPending **不**经此——它只清账号、须保留 IP(见 RecordPending 注释)。
-func (g *guard) clearFailures(ctx context.Context, ip, account string) {
-	if g == nil || g.redis == nil {
+	if g == nil || g.engine == nil {
 		return
 	}
 	if ip != "" {
-		_, _ = g.redis.Delete(ctx, ipFailKey(ip))
+		g.engine.ClearFail(ctx, bucketIPFail, map[string]string{"ip": ip})
 	}
 	if account != "" {
-		_, _ = g.redis.Delete(ctx, acctFailKey(account))
+		g.engine.ClearFail(ctx, bucketAcctFail, map[string]string{"account": account})
 	}
-}
-
-// incr 自增并在首次创建时设 TTL。fail-open:出错记日志、返回 0(不触发锁)。
-func (g *guard) incr(ctx context.Context, key string, ttl time.Duration) int64 {
-	c, err := g.redis.Incr(ctx, key)
-	if err != nil {
-		logger.Errorf("loginguard: incr %s 失败(fail-open): %v", key, err)
-		return 0
+	if ip != "" && g.policy().IPPerHour > 0 {
+		g.engine.Hit(ctx, bucketIPHour, map[string]string{"ip": ip}) // 计一次每小时成功
 	}
-	if c == 1 && ttl > 0 {
-		_ = g.redis.Expire(ctx, key, ttl)
-	}
-	return c
-}
-
-func (g *guard) count(ctx context.Context, key string) int64 {
-	v, err := g.redis.Get(ctx, key)
-	if err != nil || v == "" {
-		return 0
-	}
-	n, _ := strconv.ParseInt(v, 10, 64)
-	return n
 }

@@ -6,6 +6,17 @@ filippo.io/edwards25519/field
 ## explicit; go 1.18
 github.com/BurntSushi/toml
 github.com/BurntSushi/toml/internal
+# github.com/alicebob/miniredis/v2 v2.39.0
+## explicit; go 1.17
+github.com/alicebob/miniredis/v2
+github.com/alicebob/miniredis/v2/fpconv
+github.com/alicebob/miniredis/v2/geohash
+github.com/alicebob/miniredis/v2/gopher-json
+github.com/alicebob/miniredis/v2/hyperloglog
+github.com/alicebob/miniredis/v2/metro
+github.com/alicebob/miniredis/v2/proto
+github.com/alicebob/miniredis/v2/server
+github.com/alicebob/miniredis/v2/size
 # github.com/bytedance/sonic v1.14.0
 ## explicit; go 1.17
 github.com/bytedance/sonic
@@ -262,6 +273,12 @@ github.com/twitchyliquid64/golang-asm/unsafeheader
 # github.com/ugorji/go/codec v1.3.0
 ## explicit; go 1.21
 github.com/ugorji/go/codec
+# github.com/yuin/gopher-lua v1.1.1
+## explicit; go 1.17
+github.com/yuin/gopher-lua
+github.com/yuin/gopher-lua/ast
+github.com/yuin/gopher-lua/parse
+github.com/yuin/gopher-lua/pm
 # go.uber.org/mock v0.5.0
 ## explicit; go 1.22
 go.uber.org/mock/mockgen

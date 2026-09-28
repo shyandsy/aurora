@@ -4,6 +4,7 @@ go 1.24.0
 
 require (
 	github.com/BurntSushi/toml v1.5.0
+	github.com/alicebob/miniredis/v2 v2.39.0
 	github.com/gin-contrib/cors v1.7.2
 	github.com/gin-gonic/gin v1.11.0
 	github.com/go-redis/redis/v8 v8.11.5
@@ -59,6 +60,7 @@ require (
 	github.com/sethvargo/go-retry v0.2.4 // indirect
 	github.com/twitchyliquid64/golang-asm v0.15.1 // indirect
 	github.com/ugorji/go/codec v1.3.0 // indirect
+	github.com/yuin/gopher-lua v1.1.1 // indirect
 	go.uber.org/mock v0.5.0 // indirect
 	go.uber.org/multierr v1.11.0 // indirect
 	golang.org/x/arch v0.20.0 // indirect

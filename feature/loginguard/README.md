@@ -1,15 +1,15 @@
 # loginguard — 登录暴力破解防护(aurora feature,防护三件套之「登录前」)
 
-按 **IP + 账号** 维度做登录失败计数、短期锁定、成功清理。是限流/锁定策略与 Redis key 的单一真源。
+按 **IP + 账号** 维度做登录失败计数、短期锁定、成功清理。**计数机制建在 [ratelimit](../ratelimit/README.md) 引擎上**(经 `ratelimit.NewEngine`:声明 3 个登录桶 + 用 `LoginPolicy` 适配阈值),loginguard 只封登录领域语义(账号 vs IP、待 2FA、成功/失败)、不自己碰 Redis key —— 全体系只有一份计数实现。
 
 ## 对外只有一个契约:`Guard`
 
 opt-in feature(不在 bootstrap 默认集,只有**处理登录**的服务需要)。登录服务注册一行,注入即用:
 
 ```go
-// service main:redis 与 LoginPolicyProvider 都经 DI —— 先 ProvideAs provider,再 AddFeature(无参)。
+// service main:redis 与 LoginPolicyProvider 都经 DI —— 先 ProvideAs provider,再 AddFeature(namespace 必填)。
 app.ProvideAs(loginguard.StaticPolicy(loginguard.DefaultPolicy()), (*loginguard.LoginPolicyProvider)(nil))
-app.AddFeature(loginguard.NewLoginGuardFeature())           // 须在 redis + 上面的 provider 之后
+app.AddFeature(loginguard.NewLoginGuardFeature("user"))     // "user"=namespace(引擎 key 前缀);须在 redis + 上面的 provider 之后
 
 type userService struct {
     LoginGuard loginguard.Guard `inject:""`
