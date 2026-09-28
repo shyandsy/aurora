@@ -146,6 +146,26 @@ func TestAccountHardLock(t *testing.T) {
 	}
 }
 
+// TestUnlock 锁后强制解锁:PrecheckIP 被锁时带 RetryAfter>0;Unlock 后 IP 与账号都不再锁。
+func TestUnlock(t *testing.T) {
+	ctx := context.Background()
+	r := newFake()
+	g := newG(r, hardLockPolicy()) // IPFailLimit=2, AcctFailLimit=2, AcctLockSeconds=900
+	for i := 0; i < 3; i++ {       // 3 > 2 → 锁 IP + 账号
+		g.RecordFailure(ctx, ip, acct)
+	}
+	if d := g.PrecheckIP(ctx, ip); !d.Blocked || d.RetryAfter <= 0 {
+		t.Fatalf("锁后应 Blocked + RetryAfter>0,got %+v", d)
+	}
+	g.Unlock(ctx, ip, acct)
+	if d := g.PrecheckIP(ctx, ip); d.Blocked {
+		t.Fatalf("Unlock 后 IP 不该再锁: %+v", d)
+	}
+	if d := g.PrecheckAccount(ctx, acct); d.Blocked {
+		t.Fatalf("Unlock 后账号不该再锁: %+v", d)
+	}
+}
+
 func TestAccountCountOnly(t *testing.T) {
 	ctx := context.Background()
 	r := newFake()
