@@ -21,6 +21,33 @@ A lightweight, modular web framework for Go, built on top of Gin with dependency
 - 🌏 **GeoIP**: Offline IP→location (country/province/city/ISP) with embedded ip2region (CN) + DB-IP (international) databases — zero-config, self-contained, no network at build or runtime. Optional ASN面 (`WithASNEnabled`) adds ASN / AS-org / a heuristic hosting flag (embedded DB-IP ASN Lite) for spotting datacenter/cloud/Tor registrations
 - 📊 **Structured Logging**: Built-in logger with log levels (Error, Info, Debug) and environment-based configuration
 
+## Capabilities — 按"怎么消费"分组
+
+一眼看清框架里有什么、每样**怎么拿来用**(标签即消费方式)。深度细节全在 **[doc/](doc/README.md)**。
+
+**🔌 直接用的 Feature**（`app.AddFeature(...)` + 结构体 `inject:""`）:
+`server` · `gorm` · `redis` · `jwt` · `i18n` · `geoip` · `migration` · `bizerr`/`logger` · `ratelimit`（计数地基）· `loginguard`（登录前防护）· `tokenguard`（登录后会话）
+
+**🖥️ 带前端的 Feature**（后端 `AddFeature` + **把 `feature/<x>/web/` 组件拷进你的前端**）:
+`doorman`（门房/风险评估器,自带 schema 驱动的配置台前端）
+
+**📦 库(非 Feature)**（不走 AddFeature,自己 `New(...)`）:
+`mail`（发信)
+
+**🏗️ 脚手架/约定**（照着搭 / fork,不是拿来注入）:
+`bootstrap.InitDefaultApp` · 分层结构 controller/service/datalayer/model · 以 `sample/full_showcase` 为骨架 → 见 [doc/building](doc/building/)
+
+**🧩 体系专题**（多个 Feature 组合成的系统）:
+**防护体系** = `ratelimit`+`loginguard`+`doorman`+`tokenguard` → 见 [doc/topics/security-suite](doc/topics/security-suite.md)
+
+## Documentation
+
+- **[doc/README.md](doc/README.md)** —— 深文档索引(按消费方式分组的全量能力总览)。**要系统了解框架,从这里进。**
+- **[doc/architecture.md](doc/architecture.md)** —— App / Feature / DI / 生命周期。**先读这篇。**
+- **[doc/topics/security-suite.md](doc/topics/security-suite.md)** —— 防护体系(限流/登录/会话/风险)总设计。
+- **[doc/building/](doc/building/)** —— 怎么用框架搭一个服务(脚手架/分层/fork)。
+- 单点 Feature 参考:[doc/features/](doc/features/)。
+
 ## Installation
 
 ```bash
