@@ -31,14 +31,17 @@ A lightweight, modular web framework for Go, built on top of Gin with dependency
 **🖥️ 带前端的 Feature**（后端 `AddFeature` + **把 `feature/<x>/web/` 组件拷进你的前端**）:
 `doorman`（门房/风险评估器,自带 schema 驱动的配置台前端）
 
-**📦 库(非 Feature)**（不走 AddFeature,自己 `New(...)`）:
-`mail`（发信)
+**📦 库(非 Feature)**（不走 AddFeature,直接 import 用函数/类型）:
+`mail`（发信)· `middleware`（JWT 鉴权中间件 + rolefeature）· `encryption`（AES-256-GCM 凭据加解密,密钥调用方注入)· `types`（业务无关通用类型:JSON 列 / 分页 DTO / 状态枚举)
 
 **🏗️ 脚手架/约定**（照着搭 / fork,不是拿来注入）:
 `bootstrap.InitDefaultApp` · 分层结构 controller/service/datalayer/model · 以 `sample/full_showcase` 为骨架 → 见 [doc/building](doc/building/)
 
 **🧩 体系专题**（多个 Feature 组合成的系统）:
 **防护体系** = `ratelimit`+`loginguard`+`doorman`+`tokenguard` → 见 [doc/topics/security-suite](doc/topics/security-suite.md)
+
+**🧱 可挂载服务模块**（`modules/`，一整套后端服务：`app.AddFeature(x.NewFeature(cfg))` + `app.RegisterRoutes(x.Routes(app))` 就有整套,项目差异只走 `Config`）:
+`modules/user`（后台账号中心:账号/RBAC/登录/2FA/会话/微服务 token/登录防护/被锁管理/gate）→ 见 [modules/README.md](modules/README.md)
 
 ## Documentation
 
