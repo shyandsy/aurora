@@ -13,7 +13,7 @@ require (
 	github.com/nicksnyder/go-i18n/v2 v2.6.0
 	github.com/oschwald/maxminddb-golang v1.13.0
 	github.com/pressly/goose/v3 v3.19.1
-	github.com/shyandsy/di v0.0.0-20251202143649-30157b62e71a
+	github.com/shyandsy/di v0.0.0-20260928170817-b65a1533cfd6
 	golang.org/x/text v0.31.0
 	gopkg.in/mail.v2 v2.3.1
 	gopkg.in/yaml.v3 v3.0.1

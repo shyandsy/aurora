@@ -46,11 +46,20 @@ func (c *container) ProvideAs(object interface{}, targetType interface{}) error 
 	if targetTp == nil {
 		return errors.New("target cannot be nil")
 	}
-	if reflect.ValueOf(object).IsNil() {
-		return errors.New("object value cannot be nil")
-	}
+	// Validate object's kind BEFORE reflect.Value.IsNil(): IsNil panics on kinds that can't
+	// be nil (struct, int, ...). If a caller passes a struct VALUE (e.g. a provider helper
+	// returning `foo{}` instead of `&foo{}`), the old order hit IsNil first and crashed with
+	// "reflect: call of reflect.Value.IsNil on struct Value" — a hard panic at registration,
+	// with no compile error. Checking kind first turns that into this clean, returnable error.
+	// Thanks to `||` short-circuit, objectTp.Elem() is never evaluated for a non-pointer, so
+	// this check itself never panics.
 	if (objectTp.Kind() != reflect.Pointer || objectTp.Elem().Kind() != reflect.Struct) && objectTp.Kind() != reflect.Func {
 		return errors.New("object must be pointer of struct or function")
+	}
+	// Object is now guaranteed to be a Pointer or a Func — both are nilable, so IsNil is safe
+	// and still catches a typed-nil pointer/func (e.g. (*Cat)(nil)).
+	if reflect.ValueOf(object).IsNil() {
+		return errors.New("object value cannot be nil")
 	}
 	if targetTp.Kind() != reflect.Pointer || (targetTp.Elem().Kind() != reflect.Interface && targetTp.Elem().Kind() != reflect.Struct) {
 		return errors.New("target must be pointer of interface")

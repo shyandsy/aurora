@@ -248,7 +248,7 @@ github.com/quic-go/quic-go/quicvarint
 # github.com/sethvargo/go-retry v0.2.4
 ## explicit; go 1.16
 github.com/sethvargo/go-retry
-# github.com/shyandsy/di v0.0.0-20251202143649-30157b62e71a
+# github.com/shyandsy/di v0.0.0-20260928170817-b65a1533cfd6
 ## explicit; go 1.20
 github.com/shyandsy/di
 # github.com/twitchyliquid64/golang-asm v0.15.1
