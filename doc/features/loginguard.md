@@ -17,6 +17,7 @@ type Guard interface {
     RecordFailure(ctx, ip, account)         // 凭据失败(密码错等)权威判定点调用
     RecordPending(ctx, ip, account)         // 密码对但未完成(如待 2FA):只清账号失败、保留 IP、不计成功
     RecordSuccess(ctx, ip, account)         // 完成登录:清失败 + 计每小时成功数
+    Unlock(ctx, ip, account)                // 运维强制解锁:清失败计数 + 锁(比 RecordSuccess 多清锁 key)
 }
 ```
 

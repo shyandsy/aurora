@@ -40,6 +40,8 @@ type Decision struct {
 	IPFailRemaining   int
 	IPHourRemaining   int
 	AcctFailRemaining int
+	// RetryAfter 被锁/超限时建议等待的秒数(供 Retry-After 头);未拦时为 0。
+	RetryAfter int64
 }
 
 // Guard 登录暴力破解防护(DI 注入用接口)。IP 维度在 handler 前(中间件,仅有 IP)预检;账号维度在拿到
@@ -55,6 +57,10 @@ type Guard interface {
 	RecordFailure(ctx context.Context, ip, account string)
 	RecordSuccess(ctx context.Context, ip, account string)
 	RecordPending(ctx context.Context, ip, account string)
+
+	// Unlock 运维强制解锁:清掉给定 IP 与账号的失败计数 + 锁(供后台"被锁列表"的解锁按钮)。
+	// 传空串则跳过该维度。与 RecordSuccess 不同:Unlock 连锁 key 一起清(RecordSuccess 只清失败计数)。
+	Unlock(ctx context.Context, ip, account string)
 }
 
 // guard 持有一个 ratelimit 引擎(计数地基)+ 策略来源(读阈值/模式标志)。计数、key、TTL、原子性全由引擎负责。
@@ -105,13 +111,13 @@ func (g *guard) PrecheckIP(ctx context.Context, ip string) Decision {
 	p := g.policy()
 	dims := map[string]string{"ip": ip}
 	if p.IPFailLimit > 0 {
-		if locked, _ := g.engine.Locked(ctx, bucketIPFail, dims); locked {
-			return Decision{Blocked: true, Reason: "ip_locked"}
+		if locked, ra := g.engine.Locked(ctx, bucketIPFail, dims); locked {
+			return Decision{Blocked: true, Reason: "ip_locked", RetryAfter: ra}
 		}
 	}
 	hour := g.engine.Peek(ctx, bucketIPHour, dims)
 	if p.IPPerHour > 0 && hour.Count >= int64(p.IPPerHour) {
-		return Decision{Blocked: true, Reason: "ip_hour_cap"}
+		return Decision{Blocked: true, Reason: "ip_hour_cap", RetryAfter: hour.RetryAfter}
 	}
 	return Decision{
 		IPFailRemaining: remaining(int64(p.IPFailLimit), g.engine.PeekFail(ctx, bucketIPFail, dims).Count),
@@ -129,8 +135,8 @@ func (g *guard) PrecheckAccount(ctx context.Context, account string) Decision {
 	}
 	dims := map[string]string{"account": account}
 	if p.AcctLockSeconds > 0 { // 仅硬锁模式才有锁可查
-		if locked, _ := g.engine.Locked(ctx, bucketAcctFail, dims); locked {
-			return Decision{Blocked: true, Reason: "acct_locked"}
+		if locked, ra := g.engine.Locked(ctx, bucketAcctFail, dims); locked {
+			return Decision{Blocked: true, Reason: "acct_locked", RetryAfter: ra}
 		}
 	}
 	return Decision{AcctFailRemaining: remaining(int64(p.AcctFailLimit), g.engine.PeekFail(ctx, bucketAcctFail, dims).Count)}
@@ -177,5 +183,19 @@ func (g *guard) RecordSuccess(ctx context.Context, ip, account string) {
 	}
 	if ip != "" && g.policy().IPPerHour > 0 {
 		g.engine.Hit(ctx, bucketIPHour, map[string]string{"ip": ip}) // 计一次每小时成功
+	}
+}
+
+// Unlock 运维强制解锁:清 IP 与账号的失败计数 + 锁(Unlock 连锁一起清,区别于 RecordSuccess 只清失败计数)。
+// 传空串跳过该维度。每小时成功计数(IPPerHour)不动——那是滑动配额、不是"锁",不该被解锁抹掉。
+func (g *guard) Unlock(ctx context.Context, ip, account string) {
+	if g == nil || g.engine == nil {
+		return
+	}
+	if ip != "" {
+		g.engine.Unlock(ctx, bucketIPFail, map[string]string{"ip": ip})
+	}
+	if account != "" {
+		g.engine.Unlock(ctx, bucketAcctFail, map[string]string{"account": account})
 	}
 }

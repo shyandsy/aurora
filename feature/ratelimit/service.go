@@ -27,6 +27,8 @@ type Service interface {
 	PeekFail(ctx context.Context, b FailLockBucket, dims map[string]string) Outcome
 	// ClearFail 失败锁桶:清失败计数(如登录成功)。
 	ClearFail(ctx context.Context, b FailLockBucket, dims map[string]string)
+	// Unlock 失败锁桶:一把清掉失败计数 + 锁(供运维强制解锁;比 ClearFail 多清 lock key)。
+	Unlock(ctx context.Context, b FailLockBucket, dims map[string]string)
 	// Cooldown 冷却桶:gap 内重复 → ok=false。
 	Cooldown(ctx context.Context, b CooldownBucket, dims map[string]string) (ok bool, retryAfter int64)
 }
@@ -90,6 +92,11 @@ func (s *service) PeekFail(ctx context.Context, b FailLockBucket, dims map[strin
 
 func (s *service) ClearFail(ctx context.Context, b FailLockBucket, dims map[string]string) {
 	s.lim.Clear(ctx, keyBase(s.ns, b.d, dims)+failSuffix)
+}
+
+func (s *service) Unlock(ctx context.Context, b FailLockBucket, dims map[string]string) {
+	base := keyBase(s.ns, b.d, dims)
+	s.lim.Clear(ctx, base+failSuffix, base+lockSuffix) // 失败计数 + 锁一并清
 }
 
 func (s *service) Cooldown(ctx context.Context, b CooldownBucket, dims map[string]string) (bool, int64) {
