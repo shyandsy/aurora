@@ -1,0 +1,115 @@
+auth.login_failed:
+  id: auth.login_failed
+  other: 登录失败，用户名或密码错误
+
+auth.login_rate_limited:
+  id: auth.login_rate_limited
+  other: 登录尝试过于频繁，请稍后再试
+
+auth.logout_success:
+  id: auth.logout_success
+  other: 退出成功
+
+auth.refresh_token_invalid:
+  id: auth.refresh_token_invalid
+  other: refresh token 无效或已过期
+
+auth.refresh_token_required:
+  id: auth.refresh_token_required
+  other: 缺少 refresh token
+
+auth.session_revoked:
+  id: auth.session_revoked
+  other: 已撤销
+
+auth.totp_already_enabled:
+  id: auth.totp_already_enabled
+  other: "两步验证已启用,请先关闭再重新绑定"
+
+auth.totp_backend_unavailable:
+  id: auth.totp_backend_unavailable
+  other: "验证服务暂时不可用,请稍后重试"
+
+auth.totp_invalid:
+  id: auth.totp_invalid
+  other: "验证码不正确"
+
+auth.totp_locked:
+  id: auth.totp_locked
+  other: "验证码错误次数过多,请稍后再试"
+
+auth.totp_not_setup:
+  id: auth.totp_not_setup
+  other: "尚未开始绑定两步验证"
+
+auth.totp_pending_invalid:
+  id: auth.totp_pending_invalid
+  other: "登录会话已失效,请重新登录"
+
+auth.unauthorized:
+  id: auth.unauthorized
+  other: 未授权
+
+error.bad_request:
+  id: error.bad_request
+  other: 请求参数错误
+
+error.internal_server:
+  id: error.internal_server
+  other: 服务器内部错误
+
+error.invalid_status:
+  id: error.invalid_status
+  other: 状态值无效
+
+feature.not_found:
+  id: feature.not_found
+  other: 功能不存在
+
+role.name_exists:
+  id: role.name_exists
+  other: 角色名称已存在
+
+role.not_found:
+  id: role.not_found
+  other: 角色不存在
+
+rolefeature.exists:
+  id: rolefeature.exists
+  other: 角色功能关联已存在
+
+rolefeature.not_found:
+  id: rolefeature.not_found
+  other: 角色功能关联不存在
+
+user.cannot_delete_self:
+  id: user.cannot_delete_self
+  other: 不能删除自己
+
+user.email_exists:
+  id: user.email_exists
+  other: 邮箱已存在
+
+user.email_required:
+  id: user.email_required
+  other: 邮箱是必填项
+
+user.invalid_email:
+  id: user.invalid_email
+  other: 邮箱格式无效
+
+user.not_found:
+  id: user.not_found
+  other: 用户不存在
+
+user.password_invalid:
+  id: user.password_invalid
+  other: 密码长度必须在 6 到 30 个字符之间
+
+user.password_required:
+  id: user.password_required
+  other: 密码是必填项
+
+register.too_many_attempts:
+  id: register.too_many_attempts
+  other: 尝试过于频繁，请稍后再试

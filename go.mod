@@ -9,11 +9,14 @@ require (
 	github.com/gin-gonic/gin v1.11.0
 	github.com/go-redis/redis/v8 v8.11.5
 	github.com/golang-jwt/jwt/v5 v5.2.1
+	github.com/jinzhu/copier v0.4.0
 	github.com/lionsoul2014/ip2region/binding/golang v0.0.0-20260901011515-c1a1fc7d5941
 	github.com/nicksnyder/go-i18n/v2 v2.6.0
 	github.com/oschwald/maxminddb-golang v1.13.0
+	github.com/pquerna/otp v1.5.0
 	github.com/pressly/goose/v3 v3.19.1
 	github.com/shyandsy/di v0.0.0-20260928170817-b65a1533cfd6
+	golang.org/x/crypto v0.43.0
 	golang.org/x/text v0.31.0
 	gopkg.in/mail.v2 v2.3.1
 	gopkg.in/yaml.v3 v3.0.1
@@ -25,6 +28,7 @@ require (
 
 require (
 	filippo.io/edwards25519 v1.1.0 // indirect
+	github.com/boombuler/barcode v1.0.1-0.20190219062509-6c824513bacc // indirect
 	github.com/bytedance/sonic v1.14.0 // indirect
 	github.com/bytedance/sonic/loader v0.3.0 // indirect
 	github.com/cespare/xxhash/v2 v2.2.0 // indirect
@@ -64,7 +68,6 @@ require (
 	go.uber.org/mock v0.5.0 // indirect
 	go.uber.org/multierr v1.11.0 // indirect
 	golang.org/x/arch v0.20.0 // indirect
-	golang.org/x/crypto v0.43.0 // indirect
 	golang.org/x/mod v0.29.0 // indirect
 	golang.org/x/net v0.46.0 // indirect
 	golang.org/x/sync v0.18.0 // indirect
