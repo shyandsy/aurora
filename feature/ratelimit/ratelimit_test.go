@@ -4,12 +4,25 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"reflect"
 	"strings"
 	"testing"
 	"time"
 
 	auroraFeature "github.com/shyandsy/aurora/feature"
 )
+
+// TestStaticLimits_NilableForProvideAs 锁住:StaticLimits 必须返回可空(指针)。
+// di.ProvideAs 注册实例时 reflect.ValueOf(x).IsNil();结构体值会 panic → 装配即崩(build 不报、上线才炸)。
+func TestStaticLimits_NilableForProvideAs(t *testing.T) {
+	v := reflect.ValueOf(StaticLimits(map[string]Limits{}))
+	if v.Kind() != reflect.Ptr {
+		t.Fatalf("StaticLimits 必须返回指针(可空),否则 di.ProvideAs 会 panic;got kind %v", v.Kind())
+	}
+	if v.IsNil() {
+		t.Fatal("StaticLimits 返回不该为 nil")
+	}
+}
 
 // ── 内存假 Redis:内嵌 RedisService(契约真源),只实现本包用到的 Get/Delete/SetNX/Eval;
 // 其余方法为 nil 接口,单测不会调到。failMode 下全报错,测 fail-open。──
