@@ -57,7 +57,9 @@ type LoginPolicyProvider interface {
 }
 
 // StaticPolicy 把一份固定策略封成 provider(阈值编译期定、不在线调的产品用)。
-func StaticPolicy(p LoginPolicy) LoginPolicyProvider { return staticProvider{p} }
+// 返回**指针**(不是结构体值):di.ProvideAs 注册时会 reflect.IsNil 校验实例,结构体值会 panic;
+// 指针可空,才能安全 ProvideAs((*LoginPolicyProvider)(nil))。build 不报、上线才炸的雷,别改回值。
+func StaticPolicy(p LoginPolicy) LoginPolicyProvider { return &staticProvider{p} }
 
 type staticProvider struct{ p LoginPolicy }
 

@@ -3,6 +3,7 @@ package loginguard
 import (
 	"context"
 	"errors"
+	"reflect"
 	"strconv"
 	"testing"
 	"time"
@@ -10,6 +11,18 @@ import (
 	auroraFeature "github.com/shyandsy/aurora/feature"
 	"github.com/shyandsy/aurora/feature/ratelimit"
 )
+
+// TestStaticPolicy_NilableForProvideAs 锁住:StaticPolicy 必须返回可空(指针)。
+// di.ProvideAs 注册实例时 reflect.ValueOf(x).IsNil();结构体值会 panic → 装配即崩(build 不报、上线才炸)。
+func TestStaticPolicy_NilableForProvideAs(t *testing.T) {
+	v := reflect.ValueOf(StaticPolicy(DefaultPolicy()))
+	if v.Kind() != reflect.Ptr {
+		t.Fatalf("StaticPolicy 必须返回指针(可空),否则 di.ProvideAs 会 panic;got kind %v", v.Kind())
+	}
+	if v.IsNil() { // 不该 panic、不该为 nil
+		t.Fatal("StaticPolicy 返回不该为 nil")
+	}
+}
 
 // fakeRedis 内存版假 redis。内嵌 RedisService(契约真源),只实现 loginguard 用到的几个方法;
 // 其余方法为 nil 接口,单测不会调到。failAll=true 时所有操作报错,用于验证 fail-open。

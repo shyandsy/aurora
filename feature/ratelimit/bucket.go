@@ -72,7 +72,9 @@ type LimitsProvider interface {
 }
 
 // StaticLimits 把一份固定阈值表封成 LimitsProvider(阈值编译期定、不在线调的项目/桶用)。
-func StaticLimits(m map[string]Limits) LimitsProvider { return staticLimitsProvider{m: m} }
+// 返回**指针**(不是结构体值):di.ProvideAs 注册时会 reflect.IsNil 校验实例,结构体值会 panic;
+// 指针可空,才能安全 ProvideAs((*LimitsProvider)(nil))。build 不报、上线才炸的雷,别改回值。
+func StaticLimits(m map[string]Limits) LimitsProvider { return &staticLimitsProvider{m: m} }
 
 type staticLimitsProvider struct{ m map[string]Limits }
 
