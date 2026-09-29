@@ -211,3 +211,13 @@ func TestService_FailOpen(t *testing.T) {
 		t.Fatal("Redis 挂时冷却桶应放行")
 	}
 }
+
+// TestEngine_Namespace_Exposed 锁住:引擎暴露自己的 namespace,供附属结构(如登录被锁列表索引)
+// 用同一前缀拼 key、不脱钩。namespace 语义 = 哪个服务。
+func TestEngine_Namespace_Exposed(t *testing.T) {
+	_, r := newMiniredis(t)
+	eng := NewEngine(r, "svc-x", StaticLimits(map[string]Limits{}))
+	if got := eng.Namespace(); got != "svc-x" {
+		t.Fatalf("Namespace() 应回显构造时的 ns,want svc-x got %q", got)
+	}
+}

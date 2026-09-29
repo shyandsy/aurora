@@ -31,6 +31,11 @@ type Service interface {
 	Unlock(ctx context.Context, b FailLockBucket, dims map[string]string)
 	// Cooldown 冷却桶:gap 内重复 → ok=false。
 	Cooldown(ctx context.Context, b CooldownBucket, dims map[string]string) (ok bool, retryAfter int64)
+
+	// Namespace 返回本引擎的 key 前缀 namespace(所有 key 形如 rate_limit:<namespace>:...)。
+	// 供在同一引擎上另建附属结构的代码(如登录「被锁列表」索引)用**同一** namespace 拼 key,
+	// 避免各自声明 namespace 而脱钩(否则附属结构与引擎的锁会落在不同前缀下)。
+	Namespace() string
 }
 
 const (
@@ -104,3 +109,5 @@ func (s *service) Cooldown(ctx context.Context, b CooldownBucket, dims map[strin
 	lim := s.provider.Limits(d.name)
 	return s.lim.Cooldown(ctx, keyBase(s.ns, d, dims), lim.Gap)
 }
+
+func (s *service) Namespace() string { return s.ns }

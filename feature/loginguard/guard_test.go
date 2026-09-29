@@ -292,3 +292,13 @@ func TestFailOpen(t *testing.T) {
 		}
 	})
 }
+
+// TestGuard_Namespace_DelegatesToEngine 锁住:Guard.Namespace() 透传底层引擎的 namespace,
+// 供后台「被锁列表」索引用同一前缀拼 key、和真正的锁单一源不脱钩。
+func TestGuard_Namespace_DelegatesToEngine(t *testing.T) {
+	_, r := newMiniredis(t)
+	g := newG(r, hardLockPolicy())
+	if got := g.Namespace(); got != "test" {
+		t.Fatalf("Guard.Namespace() 应透传引擎 ns,want test got %q", got)
+	}
+}
