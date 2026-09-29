@@ -31,6 +31,7 @@ Aurora 是一个约定优于配置的 Go 后端框架:把「HTTP 服务器 + 数
 | [ratelimit](./features/ratelimit.md) | 计数地基:按 key 计数 / 失败锁 / 冷却 | fail-open;shape 在码值走 Provider;key 带服务 namespace(默认 SERVICE_NAME)防多服务共库撞键 |
 | [loginguard](./features/loginguard.md) | 登录暴力破解防护(登录前) | 建在 ratelimit 上;账号硬锁 vs 只计数;fail-open |
 | [tokenguard](./features/tokenguard.md) | 会话有效性(登录后) | jti 黑名单 + IP 绑定 + scope;**fail-close** |
+| [controlgate](./features/controlgate.md) | 可信授权门禁(防搬走/防盗用):control 签发裁决 → 过期宽限/吊销/降级 | wrap `sealkit/guard`;coords 注入;**fail-close**;NTS 可信时钟;exempt 探针路径可配 |
 | [错误模型 & 日志](./features/bizerr.md) | bizerr / logger | 默认响应只含 message;`LOG_LEVEL`>`RUN_LEVEL` |
 | [migration](./features/migration.md) | goose 迁移 | `GOOSE_TABLE_PREFIX` 隔离共库版本表;worker 别跑迁移 |
 

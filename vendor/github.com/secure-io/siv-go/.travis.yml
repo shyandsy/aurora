@@ -1,0 +1,28 @@
+language: go
+
+go:
+  - "1.11.x"
+  - master
+
+env:
+   - TRAVIS_GOARCH=amd64
+   - TRAVIS_GOARCH=386 
+ 
+before_install:
+- export GO111MODULE=on
+- export GOARCH=$TRAVIS_GOARCH
+
+branches:
+  only:
+  - master
+
+before_script:
+- go mod download
+- diff -au <(go mod verify) <(printf "all modules verified\n")
+- go get -u github.com/klauspost/asmfmt/cmd/asmfmt
+
+script:
+- diff -au <(gofmt -d .) <(printf "")
+- diff -au <(asmfmt -d .) <(printf "")
+- diff -au <(go vet -all .) <(printf "")
+- go test -v ./...
