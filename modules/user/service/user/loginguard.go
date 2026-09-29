@@ -63,8 +63,9 @@ func loginRateLimited(ctx *contracts.RequestContext) bizerr.BizError {
 func (s *userService) recordLoginFailure(ctx *contracts.RequestContext, account string) {
 	ip := ctx.ClientIP()
 	s.LoginGuard.RecordFailure(ctx.Context, ip, account)
-	// 记进 user 专属索引,供后台「被锁列表」枚举(loginguard 引擎无 SCAN)。best-effort。
-	serviceRateLimit.RecordFailureIndex(ctx.Context, s.Redis, ip, account)
+	// 记进 namespace 专属索引,供后台「被锁列表」枚举(loginguard 引擎无 SCAN)。best-effort。
+	// namespace 直接问 Guard 要(= 引擎的 namespace = SERVICE_NAME),保证索引与真正的锁落在同一 <ns> 下,单一源。
+	serviceRateLimit.RecordFailureIndex(ctx.Context, s.Redis, s.LoginGuard.Namespace(), ip, account)
 }
 
 // recordLoginPending 记一次「密码已对但登录未完成」(待 2FA / 强制绑定 2FA):

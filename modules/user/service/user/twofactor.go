@@ -13,7 +13,7 @@ import (
 // ==================== pending token(2FA 登录挑战 token）====================
 //
 // 密码验过、但用户开了 2FA 时,第一步不发正式 JWT,发这个短时挑战 token。
-// 用 AES-256-GCM(common/secret)加密载荷:只有服务端能造/能读、篡改即失败,
+// 用 AES-256-GCM(encryption 包)加密载荷:只有服务端能造/能读、篡改即失败,
 // **且不是 JWT** —— 普通鉴权中间件(校验 JWT)不会把它当 access token 放行。第二步凭它 + 验证码换正式 JWT。
 
 const (
