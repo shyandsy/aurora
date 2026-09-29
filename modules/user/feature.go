@@ -23,21 +23,21 @@ import (
 	serviceUser "github.com/shyandsy/aurora/modules/user/service/user"
 )
 
-// userCenterFeature 是用户中心的可挂载 Feature(实现 contracts.Features)。
+// userFeature 是用户中心的可挂载 Feature(实现 contracts.Features)。
 // New 只存配置,全部注册与启动校验都在 Setup 里做(aurora 的 AddFeature 会同步调用 Setup)。
-type userCenterFeature struct {
+type userFeature struct {
 	cfg Config
 }
 
 // NewFeature 构造用户中心模块。cfg 的空字段回落到 homeserver 现行默认值,
 // 用当前值挂载即与内联旧代码逐字等价。
 func NewFeature(cfg Config) contracts.Features {
-	return &userCenterFeature{cfg: cfg.withDefaults()}
+	return &userFeature{cfg: cfg.withDefaults()}
 }
 
-func (f *userCenterFeature) Name() string { return "usercenter" }
+func (f *userFeature) Name() string { return "user" }
 
-func (f *userCenterFeature) Close() error { return nil }
+func (f *userFeature) Close() error { return nil }
 
 // Setup 承接原 cmd/main.go 的启动校验 + cmd/providers.go:registerProviders 的全部注册 +
 // 启动期读模型重建。顺序、依赖关系与原实现逐一保持。
@@ -45,7 +45,7 @@ func (f *userCenterFeature) Close() error { return nil }
 // 关于时序:aurora 的 app.AddFeature 会**同步**调用被加入 Feature 的 Setup;因此本 Setup 内再
 // AddFeature(geoip / loginguard / tokenguard)会就地、按序完成它们各自的 Setup,与原先在
 // registerProviders 里顺序 AddFeature 完全一致。
-func (f *userCenterFeature) Setup(app contracts.App) error {
+func (f *userFeature) Setup(app contracts.App) error {
 	// —— 0. 参数化项落到各 sub-package(在任何注册 / 请求之前)——
 	// TOTP 凭据密钥 env 名:同时作用于下面的启动校验与运行时加解密(单一事实来源)。
 	serviceUser.SetCredentialKeyEnv(f.cfg.TOTPKeyEnv)
@@ -57,6 +57,20 @@ func (f *userCenterFeature) Setup(app contracts.App) error {
 	// 共享同一份凭据的多个服务必须配置同一把密钥。保持原有 FATAL 日志 + os.Exit(1) 语义。
 	if err := serviceUser.ValidateCredentialKey(); err != nil {
 		logger.Errorf("[FATAL] 凭据加密密钥无效: %v。生产/本地/CI 均须配置 %s(base64 32 字节,或任意口令)。", err, f.cfg.TOTPKeyEnv)
+		os.Exit(1)
+	}
+
+	// —— 1b. 启动期 schema 一致性闸(承重安全件)——
+	// 迁移已在 bootstrap.InitDefaultApp() 跑完/baseline;此刻校验「模块所需的表+列库里是否都在」,
+	// 不满足即 FATAL,绝不带病启动(存量接入 baseline 写漏号 / 表 drift / goose 源指错 → 第一次启动就死)。
+	// 只查结构、不查内容(feature 行等业务数据归 host)。详见 schema_guard.go。
+	db, err := resolveDB(app)
+	if err != nil {
+		logger.Errorf("[FATAL] user 模块无法解析 DB,无法校验 schema: %v", err)
+		os.Exit(1)
+	}
+	if err := verifySchema(db); err != nil {
+		logger.Errorf("[FATAL] user 模块 schema 校验未通过(存量 baseline 写漏号 / 表结构 drift / goose 迁移源指错?):%v", err)
 		os.Exit(1)
 	}
 
@@ -72,7 +86,7 @@ func (f *userCenterFeature) Setup(app contracts.App) error {
 // registerProviders 注册所有依赖注入的 providers。
 // 顺序:先装配 Feature(geoip),再注册被依赖的 Datalayer,最后注册依赖它们的 Service。
 // (逐字搬自原 cmd/providers.go:registerProviders;仅把 homeserver 特定常量替换为 f.cfg 的值。)
-func (f *userCenterFeature) registerProviders(app contracts.App) {
+func (f *userFeature) registerProviders(app contracts.App) {
 	// IP→归属地解析:库随 aurora feature/geoip 内嵌(go:embed),零配置、零外部文件。
 	// 会话/设备清单据此把登录 IP 标注归属地。必须先于注入 geoip.Resolver 的 Service 装配。
 	app.AddFeature(geoip.NewFeature(geoip.WithChinaFallback(true)))
@@ -81,11 +95,12 @@ func (f *userCenterFeature) registerProviders(app contracts.App) {
 	// 本服务(内部用户中心)用**硬锁**模式 —— DefaultPolicy 基础上把 AcctLockSeconds 设 >0(900s):
 	// 账号失败超阈值即锁账号、预检拦截,运维去 Redis 清(account 传明文 email 便于手动解锁)。
 	// 阈值编译期定,故用 StaticPolicy;须在 redis feature(bootstrap 已装)之后、注入 Guard 的 Service 之前。
-	// 计数机制建在 aurora ratelimit 引擎上;namespace(默认 "user")给引擎做 key 前缀 rate_limit:<ns>:...。
+	// 计数机制建在 aurora ratelimit 引擎上;namespace 传空 → 引擎自动取 SERVICE_NAME(按服务解耦,
+	// 本模块不再持有 namespace 旋钮)。后台「被锁列表」索引从 Guard.Namespace() 取同一前缀,单一源。
 	userLoginPolicy := loginguard.DefaultPolicy()
 	userLoginPolicy.AcctLockSeconds = 900
 	app.ProvideAs(loginguard.StaticPolicy(userLoginPolicy), (*loginguard.LoginPolicyProvider)(nil))
-	app.AddFeature(loginguard.NewLoginGuardFeature(f.cfg.RateLimitNamespace))
+	app.AddFeature(loginguard.NewLoginGuardFeature("")) // 空 → SERVICE_NAME
 
 	// token 会话有效性内核(撤销 jti 黑名单 + 登录 IP 绑定):opt-in aurora feature,须在 redis + jwt 之后
 	// (二者由 bootstrap.InitDefaultApp 已装配)。denyTTL 取 jwt refresh 寿命——它是「只有 jti、拿不到 token

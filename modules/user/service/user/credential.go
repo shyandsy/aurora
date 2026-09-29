@@ -7,8 +7,8 @@ import (
 )
 
 // totpKeyEnv 凭据加密密钥的环境变量名(全词、不缩写)。
-// TOTP 密钥、2FA 挑战 token 等敏感数据以 AES-256-GCM(common/secret)加解密,密钥由本 env 提供。
-// 默认 "USER_GOOGLE_TOTP_AUTH_KEY";装配层(usercenter)可用 SetCredentialKeyEnv 覆盖,
+// TOTP 密钥、2FA 挑战 token 等敏感数据以 AES-256-GCM(encryption 包)加解密,密钥由本 env 提供。
+// 默认 "USER_GOOGLE_TOTP_AUTH_KEY";装配层(user 模块)可用 SetCredentialKeyEnv 覆盖,
 // 使「每项目 env 名」成为单一事实来源(启动校验与此处运行时读同一份)。
 var totpKeyEnv = "USER_GOOGLE_TOTP_AUTH_KEY"
 

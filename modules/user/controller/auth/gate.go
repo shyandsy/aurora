@@ -19,7 +19,7 @@ import (
 //
 // ⚠️ cookie 名默认 "admin_gate":SPA 侧 storage.service 与登录壳都写这个名字,谁签发 token
 // (admin 还是 user)与 cookie 名无关 —— 相位 A 把登录切到 user,但 cookie 镜像逻辑一行不动。
-// 每个接入项目的 cookie 名可能不同,故设为可由模块装配层(usercenter)通过 SetGateCookieName 覆盖的变量。
+// 每个接入项目的 cookie 名可能不同,故设为可由模块装配层(user 模块)通过 SetGateCookieName 覆盖的变量。
 var gateCookieName = "admin_gate"
 
 // SetGateCookieName 设置门禁 cookie 名(供模块装配层按 Config 注入)。

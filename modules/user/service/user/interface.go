@@ -53,7 +53,7 @@ type userService struct {
 	LoginGuard loginguard.Guard `inject:""`
 }
 
-// NewUserService 创建用户服务
+// NewUserService 创建用户服务。
 func NewUserService(app contracts.App) UserService {
 	c := &userService{}
 	if err := app.Resolve(c); err != nil {
