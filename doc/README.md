@@ -28,7 +28,7 @@ Aurora 是一个约定优于配置的 Go 后端框架:把「HTTP 服务器 + 数
 | [jwt](./features/jwt.md) | access/refresh token、黑名单登出 | jti;黑名单 TTL=剩余寿命;撤销检查 fail-close |
 | [i18n](./features/i18n.md) | 多语言翻译 | 请求语言:`?lang=`>Accept-Language |
 | [geoip](./features/geoip.md) | IP→归属地(国家/省/市/运营商)本地离线解析 | 双库 `//go:embed` 自包含、零配置、不外发;可选 ASN 面识别机房/云/Tor |
-| [ratelimit](./features/ratelimit.md) | 计数地基:按 key 计数 / 失败锁 / 冷却 | fail-open;shape 在码值走 Provider;key 带服务 namespace 防多服务共库撞键 |
+| [ratelimit](./features/ratelimit.md) | 计数地基:按 key 计数 / 失败锁 / 冷却 | fail-open;shape 在码值走 Provider;key 带服务 namespace(默认 SERVICE_NAME)防多服务共库撞键 |
 | [loginguard](./features/loginguard.md) | 登录暴力破解防护(登录前) | 建在 ratelimit 上;账号硬锁 vs 只计数;fail-open |
 | [tokenguard](./features/tokenguard.md) | 会话有效性(登录后) | jti 黑名单 + IP 绑定 + scope;**fail-close** |
 | [错误模型 & 日志](./features/bizerr.md) | bizerr / logger | 默认响应只含 message;`LOG_LEVEL`>`RUN_LEVEL` |

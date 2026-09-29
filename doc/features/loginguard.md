@@ -7,7 +7,7 @@
 ## 消费方式(opt-in,只处理登录的服务装)
 ```go
 app.ProvideAs(loginguard.StaticPolicy(loginguard.DefaultPolicy()), (*loginguard.LoginPolicyProvider)(nil))
-app.AddFeature(loginguard.NewLoginGuardFeature("user")) // namespace 必填(位置参数,通常传服务名);须在 redis + 上面的 provider 之后
+app.AddFeature(loginguard.NewLoginGuardFeature("")) // namespace 留空 → 自动 SERVICE_NAME;须在 redis + 上面的 provider 之后
 // 登录服务:  LoginGuard loginguard.Guard `inject:""`
 ```
 ```go
@@ -18,6 +18,7 @@ type Guard interface {
     RecordPending(ctx, ip, account)         // 密码对但未完成(如待 2FA):只清账号失败、保留 IP、不计成功
     RecordSuccess(ctx, ip, account)         // 完成登录:清失败 + 计每小时成功数
     Unlock(ctx, ip, account)                // 运维强制解锁:清失败计数 + 锁(比 RecordSuccess 多清锁 key)
+    Namespace() string                      // 引擎 namespace(= SERVICE_NAME):供被锁列表索引用同一前缀拼 key
 }
 ```
 
@@ -27,5 +28,5 @@ type Guard interface {
 - **`RecordPending` 只清账号失败、保留 IP**:密码对不代表同 IP 对别的账号善意,否则可被当"IP 锁重置原语"绕过。
 - **fail-open**:Redis 抖动 → 预检放行、记录 no-op(次级防护,可用性优先;与 tokenguard 的 fail-close 刻意相反)。
 - **计数/锁/TTL/原子性全归 [ratelimit](./ratelimit.md) 引擎**:loginguard 只声明 3 个登录桶(IP 失败锁、IP 每小时上限、账号失败锁)+ 用 `LoginPolicy` 适配阈值,不自己碰 redis key。反自我-DoS 的原子 `INCR + PEXPIRE`、key 命名空间隔离都由地基保证;loginguard 侧另有 miniredis 集成测试验端到端行为。
-- **namespace 必填**:透传给底层引擎做 key 前缀 `rate_limit:<ns>:...`,多服务共库不撞键(账号维度尤甚)。
+- **namespace = 服务身份**:透传给底层引擎做 key 前缀 `rate_limit:<ns>:...`,**留空默认取 SERVICE_NAME**(多服务共库不撞键,账号维度尤甚)。`Guard.Namespace()` 暴露该前缀,供后台被锁列表索引用同一 ns 拼 key、单一源不脱钩。
 - 阈值走 `LoginPolicyProvider`:静态用 `StaticPolicy`;运行时可调自实现(内存缓存,`LoginPolicy()` 不查 DB)。

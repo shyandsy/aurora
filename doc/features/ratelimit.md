@@ -8,7 +8,7 @@
 ```go
 var LoginIPFail = ratelimit.NewFailLockBucket("login_ip_fail", "ip")   // 声明成句柄(包变量)
 app.ProvideAs(ratelimit.StaticLimits(map[string]ratelimit.Limits{ ... }), (*ratelimit.LimitsProvider)(nil)) // 阈值=依赖,走 DI
-app.AddFeature(ratelimit.NewRateLimitFeature("<服务名>",          // namespace 必填(位置参数,见下"命名空间")
+app.AddFeature(ratelimit.NewRateLimitFeature("",                 // namespace 留空 → 自动 SERVICE_NAME(见下"命名空间")
     ratelimit.WithBucket(LoginIPFail),
 ))
 // 业务:  RL ratelimit.Service `inject:""`  → s.RL.Fail(ctx, LoginIPFail, map[string]string{"ip": ip})
@@ -20,8 +20,8 @@ app.AddFeature(ratelimit.NewRateLimitFeature("<服务名>",          // namespac
 - 业务用 **`Service`** + **类型化桶句柄**(`NewCountBucket`/`NewFailLockBucket`/`NewCooldownBucket`):桶名不可能 typo(句柄是变量),调错方法(如对 `CountBucket` 调 `Fail`)= **编译错**——从根上没有"桶没注册/调错方法却 fail-open"。
 
 ## 关键点
-- **fail-open**:Redis 抖动 → 放行 / no-op(次级防护,不因基础设施抖动挡住所有人);装配错误(缺 redis/namespace/provider、或注册的桶没配阈值)则 fail-startup。
-- **Key 命名空间**:所有 key 前缀 `rate_limit:<namespace>:<bucket>:<dims>`,namespace **必填**(`NewRateLimitFeature` 位置参数)**、禁空** → 多服务共用一个 Redis DB 也不撞键(账号维度尤甚:两服务同名账号是不同的人)。
+- **fail-open**:Redis 抖动 → 放行 / no-op(次级防护,不因基础设施抖动挡住所有人);装配错误(缺 redis/provider、或注册的桶没配阈值)则 fail-startup。
+- **Key 命名空间**:所有 key 前缀 `rate_limit:<namespace>:<bucket>:<dims>`,namespace = 哪个服务,`NewRateLimitFeature` 首参**留空则默认取 `SERVICE_NAME`**(按服务天然解耦;要自定义 realm 才显式传;空且 SERVICE_NAME 也没配才 fail-startup)→ 多服务共用一个 Redis DB 也不撞键(账号维度尤甚:两服务同名账号是不同的人)。`Service.Namespace()` 暴露该前缀,供附属结构(如被锁列表索引)用同一 ns 拼 key。
 - **维度值转义**:引擎对维度值里的 `:`/`=`/`%` 自动转义(防 IPv6 冒号/crafted 值冲乱 key);调用方负责敏感维度(email/account)传哈希、IP 先 `net.ParseIP` 规范化。
 - **shape/值分离**:桶名/种类/维度由句柄承载(代码),阈值走 `LimitsProvider`(静态 / 接项目设置、内存缓存热路径不查 DB)。
 - **兄弟 feature 复用引擎**:`ratelimit.NewEngine(redis, namespace, provider)` 直接拿一个 `Service`,不经 app/DI 装配——给 `loginguard` 这类要在自己包内内嵌计数地基的 feature 用(它声明登录桶 + 用 `LoginPolicy` 适配阈值,内部持一个引擎)。app 级用法仍走 `NewRateLimitFeature`。

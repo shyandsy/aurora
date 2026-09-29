@@ -7,9 +7,9 @@
 opt-in feature(不在 bootstrap 默认集,只有**处理登录**的服务需要)。登录服务注册一行,注入即用:
 
 ```go
-// service main:redis 与 LoginPolicyProvider 都经 DI —— 先 ProvideAs provider,再 AddFeature(namespace 必填)。
+// service main:redis 与 LoginPolicyProvider 都经 DI —— 先 ProvideAs provider,再 AddFeature。
 app.ProvideAs(loginguard.StaticPolicy(loginguard.DefaultPolicy()), (*loginguard.LoginPolicyProvider)(nil))
-app.AddFeature(loginguard.NewLoginGuardFeature("user"))     // "user"=namespace(引擎 key 前缀);须在 redis + 上面的 provider 之后
+app.AddFeature(loginguard.NewLoginGuardFeature(""))         // namespace 留空 → 自动 SERVICE_NAME(引擎 key 前缀);须在 redis + 上面的 provider 之后
 
 type userService struct {
     LoginGuard loginguard.Guard `inject:""`
@@ -23,6 +23,8 @@ type Guard interface {
     RecordFailure(ctx, ip, account)         // 权威判定点(密码错等)调用
     RecordPending(ctx, ip, account)         // 密码对但登录未完成(如待 2FA):只清账号失败、保留 IP、不计成功
     RecordSuccess(ctx, ip, account)         // 登录成功:清失败 + 计入每小时成功数
+    Unlock(ctx, ip, account)                // 运维强制解锁:清失败计数 + 锁(供后台被锁列表解锁)
+    Namespace() string                      // 引擎 namespace(= SERVICE_NAME):供被锁列表索引用同一前缀拼 key
 }
 ```
 

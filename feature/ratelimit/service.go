@@ -3,6 +3,7 @@ package ratelimit
 import (
 	"context"
 
+	"github.com/shyandsy/aurora/config"
 	auroraFeature "github.com/shyandsy/aurora/feature"
 )
 
@@ -31,6 +32,11 @@ type Service interface {
 	Unlock(ctx context.Context, b FailLockBucket, dims map[string]string)
 	// Cooldown 冷却桶:gap 内重复 → ok=false。
 	Cooldown(ctx context.Context, b CooldownBucket, dims map[string]string) (ok bool, retryAfter int64)
+
+	// Namespace 返回本引擎的 key 前缀 namespace(所有 key 形如 rate_limit:<namespace>:...)。
+	// 供在同一引擎上另建附属结构的代码(如登录「被锁列表」索引)用**同一** namespace 拼 key,
+	// 避免各自声明 namespace 而脱钩(否则附属结构与引擎的锁会落在不同前缀下)。
+	Namespace() string
 }
 
 const (
@@ -44,8 +50,23 @@ type service struct {
 	lim      *limiter
 }
 
+// newService 是唯一的引擎构造点(NewEngine 与 NewRateLimitFeature 都经此)。
+// namespace 兜底集中在这里:留空 → 自动取 SERVICE_NAME(= 哪个服务),
+// 故兄弟 feature(loginguard)与 app 级 feature 都无需各自解析,不重复。
 func newService(ns string, provider LimitsProvider, lim *limiter) *service {
+	if ns == "" {
+		ns = defaultNamespaceFromService()
+	}
 	return &service{ns: ns, provider: provider, lim: lim}
+}
+
+// defaultNamespaceFromService 解析 SERVICE_NAME 作为默认 namespace。
+// namespace 语义上就是「哪个服务」(ratelimit 是公共组件,按服务身份分区、天然解耦),
+// 故默认取服务名。SERVICE_NAME 在 aurora 是必填(ServerConfig.Validate),正常不会为空。
+func defaultNamespaceFromService() string {
+	var sc config.ServerConfig
+	_ = config.ResolveConfig(&sc)
+	return sc.Name
 }
 
 // NewEngine 直接构造一个限流引擎(Service),供**兄弟 feature 在自己包内复用这份计数地基**
@@ -104,3 +125,5 @@ func (s *service) Cooldown(ctx context.Context, b CooldownBucket, dims map[strin
 	lim := s.provider.Limits(d.name)
 	return s.lim.Cooldown(ctx, keyBase(s.ns, d, dims), lim.Gap)
 }
+
+func (s *service) Namespace() string { return s.ns }
