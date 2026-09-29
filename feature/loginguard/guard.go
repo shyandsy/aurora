@@ -61,6 +61,10 @@ type Guard interface {
 	// Unlock 运维强制解锁:清掉给定 IP 与账号的失败计数 + 锁(供后台"被锁列表"的解锁按钮)。
 	// 传空串则跳过该维度。与 RecordSuccess 不同:Unlock 连锁 key 一起清(RecordSuccess 只清失败计数)。
 	Unlock(ctx context.Context, ip, account string)
+
+	// Namespace 返回底层 ratelimit 引擎的 namespace(= 哪个服务,默认 SERVICE_NAME)。
+	// 供在同一引擎上另建附属结构的代码(如后台「被锁列表」索引)用**同一** namespace 拼 key,单一源、不脱钩。
+	Namespace() string
 }
 
 // guard 持有一个 ratelimit 引擎(计数地基)+ 策略来源(读阈值/模式标志)。计数、key、TTL、原子性全由引擎负责。
@@ -74,6 +78,9 @@ func newGuard(engine ratelimit.Service, provider LoginPolicyProvider) *guard {
 }
 
 func (g *guard) policy() LoginPolicy { return g.provider.LoginPolicy() }
+
+// Namespace 透传底层引擎的 namespace(= 服务名),供附属结构用同一前缀拼 key。
+func (g *guard) Namespace() string { return g.engine.Namespace() }
 
 // policyLimits 把 LoginPolicy 适配成 ratelimit.LimitsProvider:引擎按桶名问阈值时,现算自当前策略
 // (策略可运行时可调;适配器无状态,读的是 provider 的当前值)。窗口对 IP/账号失败桶复用 IPWindowSeconds。

@@ -24,13 +24,13 @@ var (
     EmailResend = ratelimit.NewCooldownBucket("email_resend", "email")
 )
 
-// 阈值来源是依赖 → 走 DI(先 ProvideAs);namespace 必填 → 位置参数;桶 → WithBucket(Setup 校验已配阈值)
+// 阈值来源是依赖 → 走 DI(先 ProvideAs);namespace 留空默认取 SERVICE_NAME;桶 → WithBucket(Setup 校验已配阈值)
 app.ProvideAs(ratelimit.StaticLimits(map[string]ratelimit.Limits{
     "login_ip_fail": {Window: 5 * time.Minute, Limit: 5, LockSeconds: 900},
     "reg_ip_hour":   {Window: time.Hour, Limit: 8},
     "email_resend":  {Gap: 60 * time.Second},
 }), (*ratelimit.LimitsProvider)(nil))
-app.AddFeature(ratelimit.NewRateLimitFeature("user",           // "user" = 本服务 namespace(必填位置参数)
+app.AddFeature(ratelimit.NewRateLimitFeature("",               // namespace 留空 → 自动取 SERVICE_NAME(也可显式传自定义 realm)
     ratelimit.WithBucket(LoginIPFail),
     ratelimit.WithBucket(RegIPHour),
     ratelimit.WithBucket(EmailResend),
@@ -51,12 +51,14 @@ if ok, retryAfter := s.RL.Cooldown(ctx, EmailResend, map[string]string{"email": 
 - **shape 在码、值在配**:桶名/种类/维度由句柄承载(代码),窗口/上限/锁/间隔由 `LimitsProvider`(配置)。
 
 ## Key 命名空间(多服务共库时的正确性关键)
-所有 key 前缀 `rate_limit:<namespace>:<bucket>:<dim=val…>`。**namespace 必填**(`NewRateLimitFeature` 第一个位置参数,通常传服务名;空 = fail-startup)。
+所有 key 前缀 `rate_limit:<namespace>:<bucket>:<dim=val…>`。namespace 语义上就是「哪个服务」,故 `NewRateLimitFeature` 第一个参数**留空则默认取 `SERVICE_NAME`**(按服务身份天然解耦、零手传);要自定义 realm 才显式传;空且 `SERVICE_NAME` 也未配才 fail-startup。
 - 常见部署里 Redis DB 按**环境**分、全服务同库 → 没有 namespace,`user` 与 `customer` 的同名桶会**撞 key**(尤其账号维度:两服务的同名账号是不同的人)。namespace 把它们**由构造隔离**。
+- **`Service.Namespace()`**:暴露引擎实际用的 namespace,供在同一引擎上另建的附属结构(如登录「被锁列表」索引)用**同一前缀**拼 key、单一源不脱钩。
+- **改 namespace = 换前缀,旧 key 成孤儿**:把显式 namespace 改成留空、或重命名 `SERVICE_NAME`,都会改变 key 前缀 → 旧前缀下的失败计数/锁**不迁移**、成为孤儿。因带 TTL,会自动过期清掉(短暂无害:个别正被锁的 IP/账号相当于提前解锁一次)。属一次性影响,知悉即可,不需迁移动作。
 
 ## 维度值:转义 / PII / 规范化
 - **引擎自动转义**维度值里的 `:`/`=`/`%`,保证 key 对 (维度, 值) 单射——否则 IPv6 值自带的冒号、或 crafted 值里的 `:`/`=` 会冲乱 key 结构、串到别的桶(破坏计数)。
 - **调用方责任**:①敏感维度(email/account)**传哈希**(别让明文 PII 进 Redis key,也顺带解决超长值);②IP 先 `net.ParseIP` **规范化**再传(躲 IPv6 多写法绕限流)。
 
 ## fail 原则
-运行时 **fail-open**:Redis 抖动 → 放行、记录 no-op。限流是次级防护,不能因基础设施抖动把所有人挡门外(与 tokenguard 的 fail-close 刻意相反)。装配错误(缺 redis/namespace/provider)则 fail-startup。
+运行时 **fail-open**:Redis 抖动 → 放行、记录 no-op。限流是次级防护,不能因基础设施抖动把所有人挡门外(与 tokenguard 的 fail-close 刻意相反)。装配错误(缺 redis/provider,或 namespace 空且 SERVICE_NAME 也没配)则 fail-startup。

@@ -15,18 +15,20 @@ import (
 //	var LoginIPFail = ratelimit.NewFailLockBucket("login_ip_fail", "ip")
 //
 //	app.ProvideAs(myLimitsProvider, (*ratelimit.LimitsProvider)(nil)) // 阈值来源(依赖,走 DI);静态用 ratelimit.StaticLimits(...)
-//	app.AddFeature(ratelimit.NewRateLimitFeature("user",             // namespace 必填(位置参数)
+//	app.AddFeature(ratelimit.NewRateLimitFeature("",                  // namespace 传空 → 自动取 SERVICE_NAME
 //	    ratelimit.WithBucket(LoginIPFail),
 //	))
 //	// 服务里:  RL ratelimit.Service `inject:""`  → s.RL.Fail(ctx, LoginIPFail, dims)
 //
 // 三样按性质用不同机制(对齐 aurora 惯例):
-//   - namespace(必填标量配置)= NewRateLimitFeature **位置参数**(编译期强制,同 tokenguard 的 denyTTL);
+//   - namespace(标量配置)= NewRateLimitFeature **位置参数**;**留空则默认取 SERVICE_NAME**(见下);
 //   - LimitsProvider(依赖/服务)= **DI 注入**(和 redis 同等,同 loginguard 的 provider);
 //   - buckets(0..N 个声明)     = 可重复 **Option** WithBucket(同 doorman 的 WithScope)。
 //
-// **namespace 禁止为空**:所有 key 前缀 `rate_limit:<namespace>:...`,把不同服务/realm 的计数由构造隔离
-// (多服务共用一个 Redis DB 时,没有它 user 与 customer 的同名桶会撞 key)。空 namespace = Setup fail-startup。
+// **namespace = 服务身份**:所有 key 前缀 `rate_limit:<namespace>:...`,把不同服务的计数由构造隔离
+// (多服务共用一个 Redis DB 时,没有它 user 与 customer 的同名桶/API 会撞 key)。ratelimit 是公共组件,
+// 分区键语义上就是「哪个服务」,故**留空自动取 SERVICE_NAME、按服务天然解耦**;要自定义 realm 才显式传。
+// 空且 SERVICE_NAME 也未配 = Setup fail-startup。
 type ratelimitFeature struct {
 	Redis    auroraFeature.RedisService `inject:""`
 	Provider LimitsProvider             `inject:""` // 阈值来源:依赖,和 redis 同等走 DI(consumer 先 ProvideAs)
@@ -44,7 +46,7 @@ func WithBucket(b Bucket) Option {
 	return func(f *ratelimitFeature) { f.buckets = append(f.buckets, b) }
 }
 
-// NewRateLimitFeature 构造限流 feature。namespace 必填(位置参数,编译期强制,通常传服务名);
+// NewRateLimitFeature 构造限流 feature。namespace 为 key 前缀(= 哪个服务),**留空则默认取 SERVICE_NAME**;
 // buckets 经 WithBucket 声明;redis 与 LimitsProvider 走 DI(consumer 先 app.ProvideAs 一个 ratelimit.LimitsProvider)。
 func NewRateLimitFeature(namespace string, opts ...Option) contracts.Features {
 	f := &ratelimitFeature{namespace: namespace}
@@ -66,9 +68,7 @@ func (f *ratelimitFeature) Setup(app contracts.App) error {
 	if f.Redis == nil {
 		return fmt.Errorf("ratelimit: RedisService 未注入 —— 须在 ratelimit 之前注册 redis feature")
 	}
-	if f.namespace == "" {
-		return fmt.Errorf("ratelimit: namespace 必填(NewRateLimitFeature 第一个参数,通常传服务名)—— 空前缀会让多服务共库时 key 相撞")
-	}
+	// namespace 留空 → 自动取 SERVICE_NAME,兜底集中在 newService(见 service.go),此处不再各自解析。
 	if f.Provider == nil {
 		return fmt.Errorf("ratelimit: LimitsProvider 未注入 —— 须先 app.ProvideAs 一个 ratelimit.LimitsProvider(静态用 StaticLimits(...))")
 	}

@@ -123,7 +123,7 @@ type LimitsProvider interface { Limits(bucket string) Limits } // 静态 或 接
 
 **fail 原则**:默认 **fail-open**(Redis 抖动 → 放行 / 记录 no-op),限流是次级防护,不因基础设施抖动把所有人挡门外。编程错(桶名/方法)已在编译期消灭,不走 fail-open。
 
-**Key 命名空间与多服务隔离(重要)**:所有 key 前缀 `rate_limit:<namespace>:<bucket>:<dim=val…>`,namespace **必填**(`NewRateLimitFeature` 位置参数)**、禁止为空**(缺 = fail-startup)。
+**Key 命名空间与多服务隔离(重要)**:所有 key 前缀 `rate_limit:<namespace>:<bucket>:<dim=val…>`,namespace = 哪个服务,`NewRateLimitFeature` 首参**留空则默认取 `SERVICE_NAME`**(按服务身份天然解耦;要自定义 realm 才显式传;空且 SERVICE_NAME 也没配才 fail-startup)。`Service`/`Guard` 的 `Namespace()` 暴露该前缀,供附属结构(如被锁列表索引)用同一 ns 拼 key、单一源。
 
 - 常见部署 Redis DB 按**环境**分、全服务同库 → 没有 namespace,`user` 与 `customer` 的同名桶会**撞 key**(账号维度尤甚:两服务同名账号是不同的人)。namespace 把它们**由构造隔离**。
 - **维度值转义**:引擎对值里的 `:`/`=`/`%` 自动转义,保证 key 单射(防 IPv6 冒号 / crafted 值冲乱 key、串桶)。调用方另负责:敏感维度(email/account)传哈希(别落明文 PII)、IP 先 `net.ParseIP` 规范化。
@@ -170,7 +170,7 @@ type LimitsProvider interface { Limits(bucket string) Limits } // 静态 或 接
 任何项目接入,大致五步(按需取,不必全上):
 
 1. `app.ProvideAs(provider, (*ratelimit.LimitsProvider)(nil))` 供阈值(依赖,走 DI);静态用 `StaticLimits(...)`,运行时可调用包住项目设置的 adapter。
-2. `app.AddFeature(ratelimit.NewRateLimitFeature("<服务名>", ratelimit.WithBucket(...), ...))`(需已装 redis;namespace 必填,位置参数)。
+2. `app.AddFeature(ratelimit.NewRateLimitFeature("", ratelimit.WithBucket(...), ...))`(需已装 redis;namespace 留空 → 自动 SERVICE_NAME,要自定义 realm 才显式传)。
 3. `WithBucket(...)` 声明本项目有哪些桶(shape)。
 4. 需要精确判定的流程(如登录)在 service 判定点注入 `ratelimit.Service` 调 `Fail/ClearFail/Hit` / 用 `loginguard.Guard`;简单路由的 gin 中间件骨架待做。
 5.(可选)敏感操作接 `doorman` 做风险决策;要统一后台就接横切层的管理 API + 拷配置前端。
