@@ -29,3 +29,8 @@ go.work.sum
 # OS
 .DS_Store
 Thumbs.db
+
+# .claude 整体忽略(worktree 等),但放行 skills/ ——
+# 面向消费项目的 skill 要随仓入库、随 sync 分发到 third_party/aurora/.claude/skills/。
+.claude/*
+!.claude/skills/
