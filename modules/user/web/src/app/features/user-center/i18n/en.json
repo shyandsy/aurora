@@ -3,7 +3,8 @@
     "userPermission": "User & Permission",
     "users": "Users",
     "roles": "Roles",
-    "microservice": "Microservice"
+    "microservice": "Microservice",
+    "lockedLogins": "Locked Logins"
   },
   "user": {
     "title": "Users",
@@ -125,6 +126,32 @@
         "microserviceFeatureIdsRequired": "At least one microservice configuration must be selected",
         "microserviceFeatureIdsMinLength": "At least one microservice configuration must be selected"
       }
+    }
+  },
+  "lockedLogins": {
+    "title": "Locked Logins",
+    "subtitle": "IPs / accounts currently locked by login rate limiting. Review the reason and time until auto-release, or unlock manually right away.",
+    "empty": "No locked login entries at the moment.",
+    "unlock": "Unlock",
+    "unlockConfirmTitle": "Confirm Unlock",
+    "unlockConfirm": "Unlock this entry now? It will be able to log in normally again. Target:",
+    "autoUnlockSoon": "Releasing soon",
+    "scope": {
+      "ip": "IP",
+      "account": "Account"
+    },
+    "reason": {
+      "ip_locked": "IP locked",
+      "ip_hour_cap": "IP hourly cap",
+      "acct_locked": "Account locked"
+    },
+    "col": {
+      "scope": "Scope",
+      "key": "IP / Account",
+      "email": "Recent Email",
+      "reason": "Reason",
+      "retryAfter": "Time Left",
+      "updatedAt": "Recorded At"
     }
   }
 }

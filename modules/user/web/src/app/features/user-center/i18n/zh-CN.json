@@ -3,7 +3,8 @@
     "userPermission": "用户与权限",
     "users": "用户",
     "roles": "角色",
-    "microservice": "Microservice"
+    "microservice": "Microservice",
+    "lockedLogins": "被锁登录"
   },
   "user": {
     "title": "用户",
@@ -134,6 +135,32 @@
         "microserviceFeatureIdsRequired": "至少需要选择一个微服务配置",
         "microserviceFeatureIdsMinLength": "至少需要选择一个微服务配置"
       }
+    }
+  },
+  "lockedLogins": {
+    "title": "被锁登录",
+    "subtitle": "当前被登录限流锁住的 IP / 账号。可查看命中原因与自动解除剩余时间,或手动立即解锁。",
+    "empty": "当前没有被锁的登录项。",
+    "unlock": "解锁",
+    "unlockConfirmTitle": "确认解锁",
+    "unlockConfirm": "确定要立即解锁吗？解锁后该项将恢复正常登录。目标:",
+    "autoUnlockSoon": "即将自动解除",
+    "scope": {
+      "ip": "IP",
+      "account": "账号"
+    },
+    "reason": {
+      "ip_locked": "IP 已锁定",
+      "ip_hour_cap": "IP 每小时上限",
+      "acct_locked": "账号已锁定"
+    },
+    "col": {
+      "scope": "维度",
+      "key": "IP / 账号",
+      "email": "最近邮箱",
+      "reason": "原因",
+      "retryAfter": "解除剩余",
+      "updatedAt": "记录时刻"
     }
   }
 }

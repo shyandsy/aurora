@@ -36,6 +36,16 @@ export const USER_CENTER_ROUTES: Routes = [
         canActivate: [featureGuard],
         data: { feature: 'ui.menu.microservice' }
       },
+      {
+        // 第 4 个 tab:被锁登录 / 登录限流(loginguard 后台管理)。父 authGuard 已保证登录;
+        // 门控用后端**实际校验的** feature `user.get`(查看语义,列表接口正是这个)——后端刻意
+        // 复用用户权限、未新增 ui.menu.*,故不另造门控 key(否则要等后端 seed 才可见)。
+        // 与壳 tab 门控同一 feature,直达 URL 也守得住。
+        path: 'locked-logins',
+        loadComponent: () => import('./pages/locked-logins/locked-logins.component').then(m => m.LockedLoginsComponent),
+        canActivate: [featureGuard],
+        data: { feature: 'user.get' }
+      },
       { path: '', redirectTo: 'users', pathMatch: 'full' }
     ]
   },

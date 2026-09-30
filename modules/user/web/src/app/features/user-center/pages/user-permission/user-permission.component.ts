@@ -37,7 +37,10 @@ export class UserPermissionComponent {
   private readonly allTabs: GatedTab[] = [
     { id: 'users', labelKey: 'sidebar.users' },
     { id: 'roles', labelKey: 'sidebar.roles' },
-    { id: 'microservice', labelKey: 'sidebar.microservice', feature: 'ui.menu.microservice' }
+    { id: 'microservice', labelKey: 'sidebar.microservice', feature: 'ui.menu.microservice' },
+    // 第 4 个 tab:被锁登录(loginguard 后台)。门控用后端实际校验的 user.get(查看语义,列表接口即此)——
+    // 后端刻意复用用户权限、未新增 ui.menu.*,故不另造门控 key(否则要等后端 seed 才可见)。
+    { id: 'locked-logins', labelKey: 'sidebar.lockedLogins', feature: 'user.get' }
   ];
 
   /** 当前账号可见的 tab:无 feature 的恒显,有 feature 的走 authService.hasFeature(含 '*' 超管通配)。 */
