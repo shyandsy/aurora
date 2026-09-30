@@ -16,6 +16,11 @@ import {
   GetMicroserviceTokenTokensRequest,
   MicroserviceTokenFeatureToken,
 } from '../models/microservice.dto';
+import {
+  ListLockedResponse,
+  UnlockLockedRequest,
+  UnlockLockedResponse,
+} from '../models/rate-limit.dto';
 
 /**
  * 用户中心模块自带的 HTTP 访问层的 baseUrl 注入点。
@@ -169,5 +174,15 @@ export class UserCenterApi {
 
   disableMicroserviceToken(id: number): Observable<{ message: string }> {
     return this.put<{ message: string }>(`/microservice/jwt_token/${id}/disable`, {});
+  }
+
+  // ---- 被锁登录管理(loginguard 后台)APIs ---------------------------------
+  // 契约:GET /rate-limit/locked(查看=user.get)、POST /rate-limit/locked/unlock(解锁=user.update)。
+  listLockedLogins(): Observable<ListLockedResponse> {
+    return this.get<ListLockedResponse>(`/rate-limit/locked`);
+  }
+
+  unlockLockedLogin(req: UnlockLockedRequest): Observable<UnlockLockedResponse> {
+    return this.post<UnlockLockedResponse>(`/rate-limit/locked/unlock`, req);
   }
 }

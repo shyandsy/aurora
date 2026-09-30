@@ -3,7 +3,8 @@
     "userPermission": "用戶與權限",
     "users": "用戶",
     "roles": "角色",
-    "microservice": "Microservice"
+    "microservice": "Microservice",
+    "lockedLogins": "被鎖登入"
   },
   "user": {
     "title": "用戶",
@@ -126,6 +127,32 @@
         "microserviceFeatureIdsRequired": "至少需要選擇一個微服務配置",
         "microserviceFeatureIdsMinLength": "至少需要選擇一個微服務配置"
       }
+    }
+  },
+  "lockedLogins": {
+    "title": "被鎖登入",
+    "subtitle": "目前被登入限流鎖住的 IP / 帳號。可查看命中原因與自動解除剩餘時間,或手動立即解鎖。",
+    "empty": "目前沒有被鎖的登入項。",
+    "unlock": "解鎖",
+    "unlockConfirmTitle": "確認解鎖",
+    "unlockConfirm": "確定要立即解鎖嗎？解鎖後該項將恢復正常登入。目標:",
+    "autoUnlockSoon": "即將自動解除",
+    "scope": {
+      "ip": "IP",
+      "account": "帳號"
+    },
+    "reason": {
+      "ip_locked": "IP 已鎖定",
+      "ip_hour_cap": "IP 每小時上限",
+      "acct_locked": "帳號已鎖定"
+    },
+    "col": {
+      "scope": "維度",
+      "key": "IP / 帳號",
+      "email": "最近郵箱",
+      "reason": "原因",
+      "retryAfter": "解除剩餘",
+      "updatedAt": "記錄時刻"
     }
   }
 }

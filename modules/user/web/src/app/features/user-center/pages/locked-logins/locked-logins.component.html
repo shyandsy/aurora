@@ -1,0 +1,103 @@
+<div class="container mx-auto px-4 py-8">
+  <div class="flex items-center justify-between mb-6">
+    <h1 class="text-3xl font-bold">{{ 'lockedLogins.title' | translate }}</h1>
+    <button (click)="loadLocked()" [disabled]="isLoading()"
+      class="px-4 py-2 text-sm font-medium text-white bg-indigo-600 rounded-lg hover:bg-indigo-700 transition-colors disabled:opacity-50">
+      {{ 'common.refresh' | translate }}
+    </button>
+  </div>
+
+  <p class="text-sm text-gray-500 mb-4">{{ 'lockedLogins.subtitle' | translate }}</p>
+
+  @if (error()) {
+  <div class="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded mb-4">
+    {{ error() }}
+  </div>
+  }
+
+  @if (isLoading()) {
+  <div class="flex justify-center items-center py-12">
+    <div class="text-gray-500">{{ 'common.loading' | translate }}</div>
+  </div>
+  } @else if (items().length === 0) {
+  <div class="bg-gray-50 border border-gray-200 text-gray-700 px-4 py-3 rounded">
+    {{ 'lockedLogins.empty' | translate }}
+  </div>
+  } @else {
+  <div class="bg-white shadow-sm rounded-lg overflow-hidden w-full">
+    <div class="overflow-x-auto">
+      <table class="w-full divide-y divide-gray-200">
+        <thead class="bg-gray-50">
+          <tr>
+            <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+              {{ 'lockedLogins.col.scope' | translate }}
+            </th>
+            <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+              {{ 'lockedLogins.col.key' | translate }}
+            </th>
+            <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+              {{ 'lockedLogins.col.email' | translate }}
+            </th>
+            <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+              {{ 'lockedLogins.col.reason' | translate }}
+            </th>
+            <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+              {{ 'lockedLogins.col.retryAfter' | translate }}
+            </th>
+            <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+              {{ 'lockedLogins.col.updatedAt' | translate }}
+            </th>
+            <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+              {{ 'common.actions' | translate }}
+            </th>
+          </tr>
+        </thead>
+        <tbody class="bg-white divide-y divide-gray-200">
+          @for (item of items(); track item.scope + ':' + item.key) {
+          <tr class="hover:bg-gray-50">
+            <td class="px-6 py-4 whitespace-nowrap text-sm">
+              @if (item.scope === 'ip') {
+              <span class="px-2 py-1 text-xs font-semibold rounded bg-amber-100 text-amber-800">
+                {{ scopeLabel(item.scope) }}
+              </span>
+              } @else {
+              <span class="px-2 py-1 text-xs font-semibold rounded bg-sky-100 text-sky-800">
+                {{ scopeLabel(item.scope) }}
+              </span>
+              }
+            </td>
+            <td class="px-6 py-4 whitespace-nowrap text-sm font-mono text-gray-900">
+              {{ item.key }}
+            </td>
+            <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+              {{ item.email || '-' }}
+            </td>
+            <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+              {{ reasonLabel(item.reason) }}
+            </td>
+            <td class="px-6 py-4 whitespace-nowrap text-sm font-mono text-gray-500">
+              {{ formatRemaining(item.retryAfterSeconds) }}
+            </td>
+            <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+              {{ formatUpdatedAt(item.updatedAt) }}
+            </td>
+            <td class="px-6 py-4 whitespace-nowrap text-sm">
+              <button (click)="onUnlock(item)" [disabled]="unlocking()"
+                class="px-3 py-1 text-xs font-medium text-green-700 bg-green-100 rounded hover:bg-green-200 transition-colors disabled:opacity-50">
+                {{ 'lockedLogins.unlock' | translate }}
+              </button>
+            </td>
+          </tr>
+          }
+        </tbody>
+      </table>
+    </div>
+  </div>
+  }
+</div>
+
+<app-confirm-dialog [visible]="showUnlockConfirm()" [title]="'lockedLogins.unlockConfirmTitle' | translate"
+  [message]="('lockedLogins.unlockConfirm' | translate) + ' ' + unlockTargetLabel()"
+  [confirmText]="'lockedLogins.unlock' | translate" [cancelText]="'common.cancel' | translate"
+  confirmButtonClass="bg-green-600 hover:bg-green-700" (confirm)="onConfirmUnlock()" (cancel)="onCancelUnlock()">
+</app-confirm-dialog>
