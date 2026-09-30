@@ -1,0 +1,13 @@
+<div class="min-h-screen flex items-center justify-center bg-gray-50 py-12 px-4 sm:px-6 lg:px-8">
+  <div class="max-w-md w-full">
+    <div class="bg-white shadow rounded-lg p-8">
+      <h2 class="text-center text-2xl font-bold text-gray-900 mb-2">
+        {{ 'twoFactor.enroll.forcedTitle' | translate }}
+      </h2>
+      <p class="text-center text-sm text-gray-500 mb-6">
+        {{ 'twoFactor.enroll.forcedHint' | translate }}
+      </p>
+      <app-totp-enroll [showCancel]="false" (completed)="onCompleted()"></app-totp-enroll>
+    </div>
+  </div>
+</div>

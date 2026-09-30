@@ -1,0 +1,31 @@
+/* Modal backdrop */
+.modal-backdrop {
+  animation: fadeIn 0.2s ease-in-out;
+}
+
+/* Modal content */
+.modal-content {
+  animation: slideIn 0.2s ease-in-out;
+}
+
+@keyframes fadeIn {
+  from {
+    opacity: 0;
+  }
+
+  to {
+    opacity: 1;
+  }
+}
+
+@keyframes slideIn {
+  from {
+    transform: translateY(-20px);
+    opacity: 0;
+  }
+
+  to {
+    transform: translateY(0);
+    opacity: 1;
+  }
+}

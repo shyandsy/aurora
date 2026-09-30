@@ -1,0 +1,272 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <title>登录</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="robots" content="noindex, nofollow, noarchive, nosnippet">
+  <style>
+    :root { color-scheme: light dark; }
+    * { box-sizing: border-box; }
+    html, body { height: 100%; margin: 0; }
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "PingFang SC", "Microsoft YaHei", sans-serif;
+      background: linear-gradient(135deg, #0f172a 0%, #1e293b 100%);
+      color: #e2e8f0;
+      display: flex; align-items: center; justify-content: center;
+      -webkit-font-smoothing: antialiased;
+    }
+    .card {
+      width: 100%; max-width: 380px; margin: 24px;
+      background: #1e293b;
+      border: 1px solid #334155;
+      border-radius: 14px;
+      padding: 32px 28px;
+      box-shadow: 0 20px 60px rgba(0,0,0,.45);
+    }
+    .brand { text-align: center; margin-bottom: 24px; }
+    .brand h1 { font-size: 20px; font-weight: 600; margin: 0 0 6px; color: #f1f5f9; }
+    .brand p { font-size: 12px; margin: 0; color: #64748b; }
+    label { display: block; font-size: 13px; color: #94a3b8; margin: 16px 0 6px; }
+    input {
+      width: 100%; padding: 11px 12px; font-size: 14px;
+      background: #0f172a; color: #f1f5f9;
+      border: 1px solid #334155; border-radius: 8px; outline: none;
+      transition: border-color .15s;
+    }
+    input:focus { border-color: #6366f1; }
+    button {
+      width: 100%; margin-top: 22px; padding: 12px;
+      font-size: 14px; font-weight: 600;
+      background: #6366f1; color: #fff;
+      border: 0; border-radius: 8px; cursor: pointer;
+      transition: background .15s;
+    }
+    button:hover:not(:disabled) { background: #4f46e5; }
+    button:disabled { opacity: .55; cursor: default; }
+    .err {
+      margin-top: 16px; padding: 10px 12px;
+      background: rgba(239,68,68,.12); border: 1px solid rgba(239,68,68,.35);
+      border-radius: 8px; color: #fca5a5; font-size: 13px;
+      display: none;
+    }
+    .err.show { display: block; }
+    .hint { margin-top: 18px; text-align: center; font-size: 12px; color: #475569; }
+    .loading { text-align: center; color: #94a3b8; font-size: 14px; padding: 12px 0; }
+    .step { display: none; }
+    .step.show { display: block; }
+    .back { margin-top: 14px; text-align: center; }
+    .back a { color: #818cf8; font-size: 13px; text-decoration: none; cursor: pointer; }
+  </style>
+</head>
+<body>
+  <div class="card">
+    <div class="brand">
+      <h1>登录</h1>
+    </div>
+
+    <!-- 初始:静默续期检查中 -->
+    <div id="boot" class="loading">正在检查登录状态…</div>
+
+    <!-- 第一步:账号密码 -->
+    <form id="loginStep" class="step" autocomplete="off">
+      <label for="email">邮箱</label>
+      <input id="email" type="email" autocomplete="username" required>
+      <label for="password">密码</label>
+      <input id="password" type="password" autocomplete="current-password" required>
+      <button id="loginBtn" type="submit">登录</button>
+    </form>
+
+    <!-- 第二步:两步验证码 -->
+    <form id="twoFactorStep" class="step" autocomplete="off">
+      <label for="code">两步验证码</label>
+      <input id="code" type="text" inputmode="numeric" autocomplete="one-time-code"
+             placeholder="输满 6 位自动验证 / 备用码回车" required>
+      <div class="back"><a id="backToLogin">← 返回</a></div>
+    </form>
+
+    <div id="err" class="err"></div>
+    <div class="hint">受两步验证保护</div>
+  </div>
+
+  <script>
+    (function () {
+      'use strict';
+      var API = '/api/user/v1';
+      var K = {
+        access: 'admin_access_token',
+        refresh: 'admin_refresh_token',
+        user: 'admin_user',
+        enroll: 'admin_2fa_enrollment_pending'
+      };
+
+      var elBoot = document.getElementById('boot');
+      var elLogin = document.getElementById('loginStep');
+      var elTwoFactor = document.getElementById('twoFactorStep');
+      var elErr = document.getElementById('err');
+      var pendingToken = '';
+
+      function showErr(msg) { elErr.textContent = msg; elErr.classList.add('show'); }
+      function clearErr() { elErr.classList.remove('show'); }
+
+      function show(el) {
+        elBoot.style.display = 'none';
+        elLogin.classList.remove('show');
+        elTwoFactor.classList.remove('show');
+        el.classList.add('show');
+      }
+
+      function setGateCookie(token) {
+        document.cookie = 'admin_gate=' + token + '; Path=/; SameSite=Strict; Secure';
+      }
+      function clearTokens() {
+        localStorage.removeItem(K.access);
+        localStorage.removeItem(K.refresh);
+        localStorage.removeItem(K.user);
+        localStorage.removeItem(K.enroll);
+        document.cookie = 'admin_gate=; Path=/; Max-Age=0; SameSite=Strict; Secure';
+      }
+
+      function persistLogin(data) {
+        if (data.accessToken) localStorage.setItem(K.access, data.accessToken);
+        if (data.refreshToken) localStorage.setItem(K.refresh, data.refreshToken);
+        var user = data.user || { features: data.features || [] };
+        localStorage.setItem(K.user, JSON.stringify(user));
+        if (data.mustEnrollTwoFactor) localStorage.setItem(K.enroll, '1');
+        else localStorage.removeItem(K.enroll);
+        setGateCookie(data.accessToken);
+      }
+
+      // 续期/登录成功后跳回用户原本要去的页(门禁 302 带来的 ?returnUrl=),没有或不安全则落首页。
+      // 三重锁死防开放重定向:①正则只允许站内路径的安全字符集(反斜杠/空白/控制符/绝对URL全拒);
+      // ②排除 /gate、/login 自身防死循环;③用 new URL 解析确认**解析出来还是本站 origin**(挡住
+      // /\evil.com、%5C 等浏览器归一化把 \ 当 / 的绕过)。判"解析后是不是自己域",不判表面字符。
+      var RETURN_URL_RE = /^\/(?!\/)[A-Za-z0-9\-._~/?#=&@%+:,]*$/;
+      function safeReturnUrl() {
+        try {
+          var p = new URLSearchParams(window.location.search).get('returnUrl') || '';
+          if (!RETURN_URL_RE.test(p)) return '/';
+          if (p.indexOf('/gate') === 0 || p.indexOf('/login') === 0) return '/';
+          var u = new URL(p, window.location.origin);
+          if (u.origin !== window.location.origin) return '/';
+          return u.pathname + u.search + u.hash;
+        } catch (e) { return '/'; }
+      }
+      function enterApp() { window.location.replace(safeReturnUrl()); }
+
+      function postJSON(path, body) {
+        return fetch(API + path, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(body)
+        });
+      }
+
+      function trySilentRefresh() {
+        var rt = localStorage.getItem(K.refresh);
+        if (!rt) return Promise.resolve(false);
+        return postJSON('/auth/refresh', { refreshToken: rt })
+          .then(function (res) { return res.ok ? res.json() : null; })
+          .then(function (data) {
+            if (!data || !data.accessToken) return false;
+            localStorage.setItem(K.access, data.accessToken);
+            if (data.refreshToken) localStorage.setItem(K.refresh, data.refreshToken);
+            setGateCookie(data.accessToken); // user 已在本地,续期响应不含 user,保留即可
+            return true;
+          })
+          .catch(function () { return false; });
+      }
+
+      function setBusy(btn, busy, label) {
+        btn.disabled = busy;
+        btn.textContent = busy ? '请稍候…' : label;
+      }
+
+      // ---- 第一步:账号密码 ----
+      elLogin.addEventListener('submit', function (e) {
+        e.preventDefault();
+        clearErr();
+        var btn = document.getElementById('loginBtn');
+        var email = document.getElementById('email').value.trim();
+        var password = document.getElementById('password').value;
+        setBusy(btn, true, '登录');
+        postJSON('/auth/login', { email: email, password: password })
+          .then(function (res) {
+            return res.json().catch(function () { return {}; }).then(function (data) {
+              return { ok: res.ok, data: data };
+            });
+          })
+          .then(function (r) {
+            if (!r.ok) { showErr(r.data.message || '登录失败'); setBusy(btn, false, '登录'); return; }
+            if (r.data.twoFactorRequired) {
+              pendingToken = r.data.pendingToken || '';
+              setBusy(btn, false, '登录');
+              show(elTwoFactor);
+              document.getElementById('code').focus();
+              return;
+            }
+            persistLogin(r.data);
+            enterApp();
+          })
+          .catch(function () { showErr('网络错误,请重试'); setBusy(btn, false, '登录'); });
+      });
+
+      // ---- 第二步:两步验证(输满 6 位数字自动验证,无按钮;备用码可回车提交)----
+      var verifying = false;
+      var elCode = document.getElementById('code');
+
+      function submitCode() {
+        if (verifying) return;
+        var code = elCode.value.trim();
+        if (!code) return;
+        verifying = true;
+        clearErr();
+        elCode.disabled = true;
+        postJSON('/auth/login/2fa', { pendingToken: pendingToken, code: code })
+          .then(function (res) {
+            return res.json().catch(function () { return {}; }).then(function (data) {
+              return { ok: res.ok, data: data };
+            });
+          })
+          .then(function (r) {
+            if (!r.ok) {
+              showErr(r.data.message || '验证码错误');
+              verifying = false; elCode.disabled = false;
+              elCode.value = ''; elCode.focus();
+              return;
+            }
+            persistLogin(r.data);
+            enterApp();
+          })
+          .catch(function () {
+            showErr('网络错误,请重试');
+            verifying = false; elCode.disabled = false; elCode.focus();
+          });
+      }
+
+      // 输满 6 位数字即自动验证。
+      elCode.addEventListener('input', function () {
+        if (/^\d{6}$/.test(elCode.value.trim())) submitCode();
+      });
+      // 回车提交(兼容长度不为 6 的备用码)。
+      elTwoFactor.addEventListener('submit', function (e) { e.preventDefault(); submitCode(); });
+
+      document.getElementById('backToLogin').addEventListener('click', function () {
+        clearErr();
+        pendingToken = '';
+        document.getElementById('code').value = '';
+        show(elLogin);
+        document.getElementById('email').focus();
+      });
+
+      // ---- 加载:先试静默续期,失败再显示登录 ----
+      trySilentRefresh().then(function (ok) {
+        if (ok) { enterApp(); return; }
+        clearTokens();
+        show(elLogin);
+        document.getElementById('email').focus();
+      });
+    })();
+  </script>
+</body>
+</html>

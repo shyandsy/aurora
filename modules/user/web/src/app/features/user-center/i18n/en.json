@@ -1,0 +1,130 @@
+{
+  "sidebar": {
+    "userPermission": "User & Permission",
+    "users": "Users",
+    "roles": "Roles",
+    "microservice": "Microservice"
+  },
+  "user": {
+    "title": "Users",
+    "edit": "Edit User",
+    "email": "Email",
+    "role": "Role",
+    "status": "Status",
+    "enabled": "Enabled",
+    "disabled": "Disabled",
+    "created": "Created",
+    "modified": "Modified",
+    "password": "Password",
+    "passwordPlaceholder": "Leave blank to keep current password",
+    "errors": {
+      "emailRequired": "Email is required",
+      "emailInvalid": "Please enter a valid email address",
+      "passwordRequired": "Password is required",
+      "roleRequired": "Role is required",
+      "createFailed": "Failed to create user",
+      "updateFailed": "Failed to update user"
+    },
+    "showPassword": "Show",
+    "hidePassword": "Hide",
+    "randomPassword": "Random"
+  },
+  "role": {
+    "title": "Roles",
+    "create": "Create Role",
+    "edit": "Edit Role",
+    "name": "Name",
+    "created": "Created",
+    "modified": "Modified",
+    "noRoles": "No roles found",
+    "deleteConfirmTitle": "Confirm Delete",
+    "deleteConfirm": "Are you sure you want to delete role \"{{name}}\"? This action cannot be undone.",
+    "errors": {
+      "nameRequired": "Name is required",
+      "nameMinLength": "Name must be at least 1 character",
+      "createFailed": "Failed to create role",
+      "updateFailed": "Failed to update role"
+    }
+  },
+  "roleFeature": {
+    "title": "Role Features",
+    "create": "Create Role Feature",
+    "role": "Role",
+    "feature": "Feature",
+    "selectRole": "Select Role",
+    "selectFeatures": "Select Features",
+    "filterFeatures": "Filter Features",
+    "selectAllVisible": "Select all (filtered)",
+    "deselectAllVisible": "Deselect all (filtered)",
+    "batchUpdating": "Batch updating…",
+    "searchPlaceholder": "Search features by name...",
+    "errors": {
+      "roleRequired": "Role is required",
+      "featureRequired": "At least one feature must be selected",
+      "createFailed": "Failed to create role feature"
+    }
+  },
+  "rolePermission": {
+    "title": "Permissions",
+    "modePage": "By Page",
+    "modeAdvanced": "Advanced (per feature)",
+    "selectRoleFirst": "Select a role on the left first",
+    "page": "Page",
+    "access": "Access",
+    "tier": {
+      "none": "None",
+      "view": "Read",
+      "operate": "Operate"
+    },
+    "hint": "\"Operate\" includes \"Read\". Granting a page auto-expands to that page's full set of API permissions (incl. cross-page deps) when the token is issued at login. Grant high-risk / service-only features individually under \"Advanced\"."
+  },
+  "microservice": {
+    "title": "Microservice Management",
+    "microservices": "Microservice Configurations",
+    "tokens": "Token List",
+    "create": "Create Microservice Configuration",
+    "edit": "Edit Microservice Configuration",
+    "name": "Name",
+    "description": "Description",
+    "featureList": "Feature List",
+    "created": "Created",
+    "noMicroservices": "No microservice configurations found",
+    "deleteConfirmTitle": "Confirm Delete",
+    "deleteConfirmMessage": "Are you sure you want to delete this microservice configuration? This action cannot be undone.",
+    "createFailed": "Failed to create microservice configuration",
+    "updateFailed": "Failed to update microservice configuration",
+    "deleteFailed": "Failed to delete microservice configuration",
+    "errors": {
+      "nameRequired": "Name is required",
+      "descriptionRequired": "Description is required",
+      "nameMaxLength": "Name cannot exceed 255 characters",
+      "descriptionMaxLength": "Description cannot exceed 500 characters",
+      "featureListRequired": "At least one feature must be selected",
+      "featureListMinLength": "At least one feature must be selected"
+    },
+    "token": {
+      "create": "Generate Token",
+      "description": "Description",
+      "featureList": "Feature List",
+      "token": "Token",
+      "expiresAt": "Expires At",
+      "status": "Status",
+      "statusEnabled": "Enabled",
+      "statusDisabled": "Disabled",
+      "enable": "Enable",
+      "disable": "Disable",
+      "created": "Created",
+      "noTokens": "No tokens found",
+      "copy": "Copy",
+      "selectMicroservices": "Select Microservice Configurations",
+      "noMicroservicesAvailable": "No microservice configurations available",
+      "createdSuccessfully": "Token generated successfully",
+      "saveTokenWarning": "Please save this token securely. It will only be shown once.",
+      "createFailed": "Failed to generate token",
+      "errors": {
+        "microserviceFeatureIdsRequired": "At least one microservice configuration must be selected",
+        "microserviceFeatureIdsMinLength": "At least one microservice configuration must be selected"
+      }
+    }
+  }
+}

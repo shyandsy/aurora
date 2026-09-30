@@ -1,0 +1,27 @@
+@if (isLoading) {
+<div class="flex justify-center items-center py-12">
+  <div class="text-gray-500">Loading roles...</div>
+</div>
+} @else if (error) {
+<div class="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded mb-4">
+  {{ error }}
+</div>
+} @else if (roles.length === 0) {
+<div class="bg-gray-50 border border-gray-200 text-gray-700 px-4 py-3 rounded">
+  No roles found.
+</div>
+} @else {
+<div class="space-y-2">
+  @for (role of roles; track role.id) {
+  <div (click)="onRoleClick(role)" [class.bg-indigo-100]="isSelected(role)" [class.border-indigo-500]="isSelected(role)"
+    class="px-4 py-3 border rounded-lg cursor-pointer hover:bg-gray-50 transition-colors w-full">
+    <div class="flex items-center justify-between">
+      <div>
+        <div class="text-sm font-medium text-gray-900">ID: {{ role.id }}</div>
+        <div class="text-sm text-gray-600">{{ role.name }}</div>
+      </div>
+    </div>
+  </div>
+  }
+</div>
+}

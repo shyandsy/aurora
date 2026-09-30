@@ -28,6 +28,8 @@ app.Run()
 
 aurora 里**任何带 UI 的 module 或 feature,前端源码一律放它正下方的 `web/` 子目录**(`modules/user/web/`、`feature/doorman/web/`)——后端 + 前端共置、锁步 sync,扫一眼就知道它是全栈的,不会"前端在别的仓 → 被忘"。aurora 只**存**前端源码、自己不构建;消费方从该源构建成**一份版本化的共享 remote**、各项目后台壳 pin 版本加载,**别各项目各拷各建**(必 drift = "重写"的变种,详见 [设计稿 §4.3](../doc/proposals/shared-user-center.md))。
 
+**跨模块通用的前端件**(通用 util / DTO / 共享组件)不放进某个模块的 `web/`,而是收口到**顶层前端共享库 [`web/common`](../web/common/)**(和后端顶层 `middleware`/`encryption`/`types` 同理),各模块/特性前端经 `@common/*` import、**别各自复制**(`feature/doorman/web` 早期自带过一份 `date.util`、已与 `web/common` 漂移,属待收口的反例)。
+
 ## 现有模块
 
 | 模块 | 是什么 | 文档 |

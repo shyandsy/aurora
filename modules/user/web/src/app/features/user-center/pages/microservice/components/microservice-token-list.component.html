@@ -1,0 +1,117 @@
+@if (isLoading) {
+<div class="flex justify-center items-center py-12">
+  <div class="text-gray-500">{{ 'common.loading' | translate }}</div>
+</div>
+} @else if (error) {
+<div class="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded mb-4">
+  {{ error }}
+</div>
+} @else if (tokens.length === 0) {
+<div class="bg-gray-50 border border-gray-200 text-gray-700 px-4 py-3 rounded">
+  {{ 'microservice.token.noTokens' | translate }}
+</div>
+} @else {
+<div class="bg-white shadow-sm rounded-lg overflow-hidden w-full">
+  <div class="overflow-x-auto">
+    <table class="w-full divide-y divide-gray-200">
+      <thead class="bg-gray-50">
+        <tr>
+          <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+            ID
+          </th>
+          <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+            {{ 'microservice.token.description' | translate }}
+          </th>
+          <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+            {{ 'microservice.token.featureList' | translate }}
+          </th>
+          <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+            {{ 'microservice.token.token' | translate }}
+          </th>
+          <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+            {{ 'microservice.token.expiresAt' | translate }}
+          </th>
+          <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+            {{ 'microservice.token.status' | translate }}
+          </th>
+          <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+            {{ 'microservice.token.created' | translate }}
+          </th>
+          <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+            {{ 'common.actions' | translate }}
+          </th>
+        </tr>
+      </thead>
+      <tbody class="bg-white divide-y divide-gray-200">
+        @for (token of tokens; track token.id) {
+        <tr class="hover:bg-gray-50">
+          <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+            {{ token.id }}
+          </td>
+          <td class="px-6 py-4 text-sm text-gray-500">
+            {{ token.description }}
+          </td>
+          <td class="px-6 py-4 text-sm text-gray-500">
+            <div class="flex flex-wrap gap-1">
+              @for (feature of token.featureList; track feature) {
+              <span class="px-2 py-1 text-xs bg-blue-100 text-blue-800 rounded">
+                {{ feature }}
+              </span>
+              }
+            </div>
+          </td>
+          <td class="px-6 py-4 text-sm text-gray-500">
+            <div class="flex items-center gap-2">
+              <span class="font-mono text-xs truncate max-w-xs">{{ token.token }}</span>
+              <button (click)="copyToken(token.token)" class="text-indigo-600 hover:text-indigo-900 text-xs"
+                [title]="'microservice.token.copy' | translate">
+                {{ 'microservice.token.copy' | translate }}
+              </button>
+            </div>
+          </td>
+          <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+            {{ formatDate(token.expiresAt) }}
+          </td>
+          <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+            @if (isTokenEnabled(token)) {
+            <span class="px-2 py-1 text-xs font-semibold rounded bg-green-100 text-green-800">
+              {{ 'microservice.token.statusEnabled' | translate }}
+            </span>
+            } @else {
+            <span class="px-2 py-1 text-xs font-semibold rounded bg-red-100 text-red-800">
+              {{ 'microservice.token.statusDisabled' | translate }}
+            </span>
+            }
+          </td>
+          <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+            {{ formatDate(token.created) }}
+          </td>
+          <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+            <div class="flex items-center gap-2">
+              @if (isTokenEnabled(token)) {
+              <button (click)="disableToken(token.id)"
+                class="px-3 py-1 text-xs font-medium text-red-700 bg-red-100 rounded hover:bg-red-200 transition-colors">
+                {{ 'microservice.token.disable' | translate }}
+              </button>
+              } @else {
+              <button (click)="enableToken(token.id)"
+                class="px-3 py-1 text-xs font-medium text-green-700 bg-green-100 rounded hover:bg-green-200 transition-colors">
+                {{ 'microservice.token.enable' | translate }}
+              </button>
+              }
+            </div>
+          </td>
+        </tr>
+        }
+      </tbody>
+    </table>
+  </div>
+</div>
+}
+
+@if (total > pageSize) {
+<div class="mt-4">
+  <app-pagination [currentPage]="currentPage" [totalPages]="totalPages" [total]="total" [pageSize]="pageSize"
+    [hasNext]="hasNext" [hasPrev]="hasPrev" (pageChange)="onPageChange($event)" />
+</div>
+}

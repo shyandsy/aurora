@@ -1,0 +1,139 @@
+{
+  "sidebar": {
+    "userPermission": "用户与权限",
+    "users": "用户",
+    "roles": "角色",
+    "microservice": "Microservice"
+  },
+  "user": {
+    "title": "用户",
+    "create": "创建用户",
+    "edit": "编辑用户",
+    "email": "邮箱",
+    "role": "角色",
+    "status": "状态",
+    "enabled": "启用",
+    "disabled": "禁用",
+    "created": "创建时间",
+    "modified": "修改时间",
+    "password": "密码",
+    "passwordPlaceholder": "留空以保持当前密码",
+    "enable": "启用",
+    "disable": "禁用",
+    "noUsers": "没有找到用户",
+    "selectRole": "选择角色",
+    "deleteConfirmTitle": "确认删除",
+    "deleteConfirm": "确定要删除用户 \"{{email}}\" 吗？此操作无法撤销。",
+    "disableConfirmTitle": "确认禁用",
+    "disableConfirm": "确定要禁用用户 \"{{email}}\" 吗？",
+    "errors": {
+      "emailRequired": "邮箱是必填项",
+      "emailInvalid": "请输入有效的邮箱地址",
+      "passwordRequired": "密码是必填项",
+      "roleRequired": "角色是必填项",
+      "createFailed": "创建用户失败",
+      "updateFailed": "更新用户失败"
+    },
+    "showPassword": "显示",
+    "hidePassword": "隐藏",
+    "randomPassword": "随机"
+  },
+  "role": {
+    "title": "角色",
+    "create": "创建角色",
+    "edit": "编辑角色",
+    "name": "名称",
+    "created": "创建时间",
+    "modified": "修改时间",
+    "noRoles": "没有找到角色",
+    "deleteConfirmTitle": "确认删除",
+    "deleteConfirm": "确定要删除角色 \"{{name}}\" 吗？此操作无法撤销。",
+    "errors": {
+      "nameRequired": "名称是必填项",
+      "nameMinLength": "名称至少需要 1 个字符",
+      "createFailed": "创建角色失败",
+      "updateFailed": "更新角色失败"
+    }
+  },
+  "roleFeature": {
+    "title": "角色功能",
+    "create": "创建角色功能",
+    "role": "角色",
+    "feature": "功能",
+    "selectRole": "选择角色",
+    "selectFeatures": "选择功能",
+    "filterFeatures": "筛选功能",
+    "selectAllVisible": "全选(当前筛选)",
+    "deselectAllVisible": "全不选(当前筛选)",
+    "batchUpdating": "批量更新中…",
+    "searchPlaceholder": "按名称搜索功能...",
+    "errors": {
+      "roleRequired": "角色是必填项",
+      "featureRequired": "至少选择一个功能",
+      "createFailed": "创建角色功能失败"
+    }
+  },
+  "rolePermission": {
+    "title": "权限授权",
+    "modePage": "页面权限",
+    "modeAdvanced": "高级(单个功能)",
+    "selectRoleFirst": "请先在左侧选择一个角色",
+    "page": "页面",
+    "access": "权限",
+    "tier": {
+      "none": "无",
+      "view": "只读",
+      "operate": "可操作"
+    },
+    "hint": "「可操作」含「只读」。授某页后,该页用到的一整簇接口权限(含跨页依赖)会在登录签发 token 时自动展开。高危/服务间功能请到「高级」里单独授。"
+  },
+  "microservice": {
+    "title": "微服务管理",
+    "microservices": "微服务配置",
+    "tokens": "Token 列表",
+    "create": "创建微服务配置",
+    "edit": "编辑微服务配置",
+    "name": "名称",
+    "description": "描述",
+    "featureList": "功能列表",
+    "created": "创建时间",
+    "noMicroservices": "没有微服务配置",
+    "deleteConfirmTitle": "确认删除",
+    "deleteConfirmMessage": "确定要删除这个微服务配置吗？此操作无法撤销。",
+    "createFailed": "创建微服务配置失败",
+    "updateFailed": "更新微服务配置失败",
+    "deleteFailed": "删除微服务配置失败",
+    "errors": {
+      "nameRequired": "名称是必填项",
+      "descriptionRequired": "描述是必填项",
+      "nameMaxLength": "名称不能超过 255 个字符",
+      "descriptionMaxLength": "描述不能超过 500 个字符",
+      "featureListRequired": "至少需要选择一个功能",
+      "featureListMinLength": "至少需要选择一个功能"
+    },
+    "token": {
+      "create": "生成 Token",
+      "description": "描述",
+      "featureList": "功能列表",
+      "token": "Token",
+      "expiresAt": "过期时间",
+      "status": "状态",
+      "statusEnabled": "已启用",
+      "statusDisabled": "已禁用",
+      "enable": "启用",
+      "disable": "禁用",
+      "created": "创建时间",
+      "noTokens": "没有 Token 记录",
+      "copy": "复制",
+      "selectMicroservices": "选择微服务配置",
+      "noMicroservicesAvailable": "没有可用的微服务配置",
+      "createdSuccessfully": "Token 生成成功",
+      "saveTokenWarning": "请妥善保存此 Token，它只会显示一次。",
+      "createFailed": "生成 Token 失败",
+      "errors": {
+        "microserviceFeatureIdsRequired": "至少需要选择一个微服务配置",
+        "microserviceFeatureIdsMinLength": "至少需要选择一个微服务配置"
+      }
+    }
+  }
+}
