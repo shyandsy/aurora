@@ -28,11 +28,12 @@ A lightweight, modular web framework for Go, built on top of Gin with dependency
 **🔌 直接用的 Feature**（`app.AddFeature(...)` + 结构体 `inject:""`）:
 `server` · `gorm` · `redis` · `jwt` · `i18n` · `geoip` · `migration` · `bizerr`/`logger` · `ratelimit`（计数地基）· `loginguard`（登录前防护）· `tokenguard`（登录后会话）· `controlgate`（可信授权门禁 / 防搬走·防盗用)
 
-**🖥️ 带前端的 Feature**（后端 `AddFeature` + **把 `feature/<x>/web/` 组件拷进你的前端**）:
-`doorman`（门房/风险评估器,自带 schema 驱动的配置台前端）
+**🖥️ 带前端的 Feature / 模块**（后端 + 前端源码**共置**在 `feature/<x>/web/` 或 `modules/<x>/web/`;aurora 只存源不构建,消费方从源构建/加载,**别各拷各建**,见各自 README):
+`doorman`（门房/风险评估器,schema 驱动配置台前端,`feature/doorman/web/`）· `modules/user`（用户中心,完整 SPA 前端 `modules/user/web/` → 构建一份版本化共享 remote)
 
 **📦 库(非 Feature)**（不走 AddFeature,直接 import 用函数/类型）:
-`mail`（发信)· `middleware`（JWT 鉴权中间件 + rolefeature）· `encryption`（AES-256-GCM 凭据加解密,密钥调用方注入)· `types`（业务无关通用类型:JSON 列 / 分页 DTO / 状态枚举)
+- 后端:`mail`（发信)· `middleware`（JWT 鉴权中间件 + rolefeature）· `encryption`（AES-256-GCM 凭据加解密,密钥调用方注入)· `types`（业务无关通用类型:JSON 列 / 分页 DTO / 状态枚举)
+- 前端:[`web/common`](web/common/)（通用 Angular 共享库:工具 date/bytes util、通用 DTO、confirm-dialog 组件;供各模块/特性前端 `@common/*` import,别各自复制)
 
 **🏗️ 脚手架/约定**（照着搭 / fork,不是拿来注入）:
 `bootstrap.InitDefaultApp` · 分层结构 controller/service/datalayer/model · 以 `sample/full_showcase` 为骨架 → 见 [doc/building](doc/building/)
@@ -41,7 +42,7 @@ A lightweight, modular web framework for Go, built on top of Gin with dependency
 **防护体系** = `ratelimit`+`loginguard`+`doorman`+`tokenguard` → 见 [doc/topics/security-suite](doc/topics/security-suite.md)
 
 **🧱 可挂载服务模块**（`modules/`，一整套后端服务：`app.AddFeature(x.NewFeature(cfg))` + `app.RegisterRoutes(x.Routes(app))` 就有整套,项目差异只走 `Config`）:
-`modules/user`（后台账号中心:账号/RBAC/登录/2FA/会话/微服务 token/登录防护/被锁管理/gate）→ 见 [modules/README.md](modules/README.md)
+`modules/user`（后台账号中心:账号/RBAC/登录/2FA/会话/微服务 token/登录防护/被锁管理/gate;**全栈**——配套前端 SPA 在 [`modules/user/web/`](modules/user/web/)）→ 见 [modules/README.md](modules/README.md)
 
 ## Documentation
 

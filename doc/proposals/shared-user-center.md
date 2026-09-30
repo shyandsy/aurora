@@ -83,6 +83,8 @@ user 模块在 aurora 里,所以**不需要新 sync 机制**——各项目现�
 
 ### 4.3 前端(源码进 aurora,消费一份共享 remote)
 
+> **✅ 已落地(aurora #71)**:前端源码已进 `modules/user/web/`(完整 SPA)。**待做**:从该源构建版本化共享 remote 的 CI + 各项目壳 pin 加载 + 各项目现有 `web/user` 切成消费这份。
+
 **源码放 `modules/user/web/`**(和 doorman 的 `feature/doorman/web/` 一致——aurora 存前端源码、自己不构建;见 §2 的 `web/` 约定)。这样 user 模块的**后端 + 前端共置、锁步 sync、扫一眼就知道是全栈的**(避免"前端在别的仓 → 被忘"的坑)。
 
 **消费 = 一份共享 remote,别各项目各拷。** 前车之鉴:doorman 现在是"各项目把 `feature/doorman/web` 组件拷进自己的 remote app"(homeserver `web/doorman`),实测已和 aurora 源**逐字节漂移**——各拷各建必 drift,就是"重写"的变种。web/user 一整个 SPA 更要避开:从 `modules/user/web/` 源**构建出一份版本化的共享 remote**(`/user/vN/remoteEntry.json`),4 个项目后台壳 `federation.manifest.json` **pin 到某版本**加载;升级 = 该壳显式 bump manifest(不重构建 host、不自动传播,坏了不连累别人)。i18n/路由经贡献套件合并。
@@ -138,7 +140,7 @@ user 模块在 aurora 里,所以**不需要新 sync 机制**——各项目现�
 
 - **测试搬回**(本次搬移先移除测试聚焦结构):`modules/user/*` 各层测试、`middleware` 的 `jwt_middleware_test`/`dualmode_test`。(`encryption` 已补齐 AES-GCM 测试 ✅。)
 - **`middleware` 去业务化(独立重构)**:通用 JWT 鉴权中间件里目前焊着 ①2FA 绑定域逻辑(`ScopeEnroll2FA`/`mustEnrollTwoFactor`)②写死的 `gin.H` 响应壳 ③硬编码中文。应:2FA 逻辑泛化成"受限作用域 token"或注入钩子(回到 user 模块)、响应走 `bizerr`、文案走 i18n。单独 PR,别塞进本次搬移。
-- **前端 web/user**:源码进 `modules/user/web/`(见 §4.3),构建成一份共享 remote;等后端接入跑通后单独做。
+- **前端**:源码**已进** `modules/user/web/`(aurora #71 ✅)。**待做**:从该源构建版本化共享 remote 的 CI + 各项目后台壳 pin 加载 + 各项目现有 `web/user` 切成消费这份(去本地副本)。
 - **migrations 改 embed.FS 由模块自持**(现仍靠宿主 `InitDefaultApp` 的 goose + `GOOSE_TABLE_PREFIX`;下沉需连 App 初始化一起理)。这也是 homeserver 接入(§6b①)"goose 迁移源重指到模块目录"的落点。
 - **把 `20260921140000_user_adopt_admin_data.sql` 从模块剥离**(见 §6b):它是 homeserver 专用数据采纳,按治理铁律 B 不该在共享 `user_` 流里。剥离手法注意——homeserver 已把该号应用进 `user_goose_db_version`,直接删文件 goose 会报"缺失迁移"。可选:①保留一个 no-op 占位(空 up/down)守住版本号连续、真正的采纳逻辑挪进 homeserver 私有一次性迁移;②或按 goose `allow-missing` 策略处理。定夺前别动,先确认 homeserver 现网 goose 行为。
 - `RateLimitNamespace` 与被锁列表索引常量(`rate_limit:user:index*`)耦合,改 namespace 需同步改常量(待参数化)。

@@ -53,7 +53,7 @@ modules/user/
 
 ## 前端
 
-配套前端 `web/user`(用户中心 SPA + 登录壳)是 **Angular Native Federation remote**,不在 aurora(Go 仓放不了 Angular)——走单独的共享 remote,各项目后台壳 pin 版本指过去。
+配套前端就在本模块正下方 **[`web/`](web/)**(`modules/user/web/`):完整的 Angular **Native Federation remote** SPA(登录壳 + 账号/角色/权限/2FA/会话/微服务 token/被锁列表页),和后端**同源共置**。aurora 只存源码、不构建;消费方从该源构建**一份版本化共享 remote**,各项目后台壳 pin 版本加载(**别各项目各拷**)。详见 [modules/user/web/README](web/README.md) 与设计稿 §4.3。
 
 ## 注意 / 待办(见设计稿 §8)
 
