@@ -1,0 +1,518 @@
+// Copyright © Brett Vickers.
+// Use of this source code is governed by a BSD-style
+// license that can be found in the LICENSE file.
+
+// Package nts provides a client implementation of Network Time Security (NTS)
+// for the Network Time Protocol (NTP). It enables the secure querying of
+// time-related information that can be used to synchronize the local system
+// clock with a more accurate network clock. See RFC 8915
+// (https://tools.ietf.org/html/rfc8915) for more details.
+package nts
+
+import (
+	"bytes"
+	"crypto/cipher"
+	"crypto/rand"
+	"crypto/tls"
+	"encoding/binary"
+	"errors"
+	"fmt"
+	"io"
+	"runtime"
+	"strings"
+	"time"
+	"unsafe"
+
+	"github.com/beevik/ntp"
+)
+
+var alignMemory = runtime.GOARCH == "amd64"
+
+const alignment = 16
+
+var (
+	ErrAuthFailedOnClient = errors.New("authentication failed on client")
+	ErrAuthFailedOnServer = errors.New("authentication failed on server")
+	ErrInvalidFormat      = errors.New("invalid packet format")
+	ErrNoCookies          = errors.New("no NTS cookies available")
+	ErrUniqueIDMismatch   = errors.New("client and server unique ID mismatch")
+	ErrMissingExtField    = errors.New("server response missing a required extension field")
+)
+
+// Session contains the state of an active NTS session. It is initialized by
+// exchanging keys and cookies with an NTS key-exchange server, after which
+// the connection to the key-exchange server is immediately dropped. The
+// session's internal state is updated as NTP queries are made against an
+// NTS-capable NTP server.
+type Session struct {
+	options   SessionOptions // options provided at session creation time
+	ntskeAddr string         // "host:port" address used for NTS key exchange
+	ntpAddr   string         // "host:port" address to use for NTP service
+	cookies   cookieJar      // container for cookies consumed by NTP queries
+	cipherC2S cipher.AEAD    // client-to-server authentication & encryption
+	cipherS2C cipher.AEAD    // server-to-client authentication & encryption
+	uniqueID  []byte         // most recently transmitted unique ID
+}
+
+// SessionOptions contains options for customizing the behavior of an NTS
+// session.
+type SessionOptions struct {
+	// TLSConfig is used to override the default TLS configuration for NTS key
+	// exchange. Attempts to downgrade the TLS protocol version below 1.3
+	// using this override are ignored.
+	TLSConfig *tls.Config
+
+	// Timeout determines how long the session waits for a response from the
+	// key exchange server before failing with a timeout error. Defaults to 5
+	// seconds.
+	Timeout time.Duration
+
+	// RequestedNTPServerAddress is the hostname or IP address of the NTPv4
+	// server the client wishes to associate with once the NTS key exchange
+	// has completed. The field must contain a fully qualified domain name, an
+	// IPv4 address in dotted decimal notation, or an IPv6 address conforming
+	// to the "Text Representation of Addresses" as specified in RFC 4291. The
+	// NTS key exchange server's decision to honor this request is optional.
+	// If this field contains the empty string, the server will select the NTP
+	// server the client should use.
+	RequestedNTPServerAddress string
+
+	// RequestedNTPServerPort is the port number of the NTPv4 server with
+	// which the client should associate once the NTS key exchange has
+	// completed. It is used in conjunction with the RequestedNTPServerAddress
+	// option. The NTS key exchange server's decision to honor this request is
+	// optional. If this field contains the value zero, the NTS server will
+	// select the NTP server port the client should use.
+	RequestedNTPServerPort int
+
+	// Dialer is a callback that overrides the default TLS dialer behavior
+	// used to establish a connection with the NTS key exchange endpoint's
+	// network address. The tlsConfig is the TLS configuration used to
+	// establish the connection.
+	Dialer func(network, addr string, tlsConfig *tls.Config) (*tls.Conn, error)
+
+	// Resolver is a callback used to override the NTP address returned by the
+	// NTS key exchange protocol. The addr parameter contains the "host:port"
+	// address of the NTP server returned by the key exchange protocol. The
+	// function is expected to return a "host:port" address to override this
+	// address. This option is commonly used in proxy setups.
+	Resolver func(addr string) string
+
+	// AssumeCompliant128GCM determines whether the client should assume the
+	// NTS key exchange server implements a default-compliant use of the
+	// AES-128-GCM-SIV algorithm. At the present time, only chrony supports
+	// this algorithm, but it was introduced with a bug that caused it to use
+	// the wrong algorithm ID when generating keys. Version 4.6.1 introduced a
+	// workaround for this issue by adding a new key-exchange record to
+	// negotiate the use of compliant AES-128-GCM-SIV.
+	//
+	// Setting this option to false (the default) causes the client to assume
+	// a non-compliant server and to attempt negotation of compliant
+	// AES-128-GCM-SIV behavior during key exchange. Setting this option to
+	// false is necessary when communicating with chrony servers until all of
+	// them have migrated to a default-compliant AES-128-GCM-SIV behavior.
+	//
+	// Setting this option to true causes the client to assume the server
+	// implements a default-compliant AES-128-GCM-SIV behavior without
+	// exchanging any additional records. This should only be done when the
+	// client is sure the server implements default-compliant AES-128-GCM-SIV
+	// behavior.
+	//
+	// For further details, see:
+	// https://chrony-project.org/doc/spec/nts-compliant-128gcm.html
+	AssumeCompliant128GCM bool
+}
+
+// NewSession creates an NTS session by connecting to an NTS key-exchange
+// server and requesting keys and cookies to be used for future secure NTP
+// queries. Once keys and cookies have been received, the connection is
+// dropped. The address is of the form "host" or "host:port", where host is a
+// domain name address. If no port is included, NTS default port 4460 is used.
+func NewSession(address string) (*Session, error) {
+	return NewSessionWithOptions(address, &SessionOptions{})
+}
+
+// NewSessionWithOptions performs the same function as NewSession but allows
+// for the customization of certain authentication behaviors.
+func NewSessionWithOptions(address string, opt *SessionOptions) (*Session, error) {
+	ntskeAddr, err := fixHostPort(address, defaultNtsPort)
+	if err != nil {
+		return nil, fmt.Errorf("invalid address: %s", err.Error())
+	}
+
+	s := &Session{
+		options:   *opt,
+		ntskeAddr: ntskeAddr,
+	}
+
+	if s.options.TLSConfig == nil {
+		s.options.TLSConfig = &tls.Config{}
+	} else {
+		s.options.TLSConfig = s.options.TLSConfig.Clone()
+	}
+	if s.options.TLSConfig.MinVersion < tls.VersionTLS13 {
+		s.options.TLSConfig.MinVersion = tls.VersionTLS13
+	}
+	s.options.TLSConfig.NextProtos = []string{ntskeProtocol}
+
+	if s.options.Timeout == 0 {
+		s.options.Timeout = time.Second * 5
+	}
+
+	err = s.performKeyExchange()
+	if err != nil {
+		return nil, err
+	}
+	return s, nil
+}
+
+// Address returns the NTP server "host:port" pair configured for the session.
+func (s *Session) Address() string {
+	return s.ntpAddr
+}
+
+// Query time data from the session's associated NTP server. The response
+// contains information from which an accurate local time can be determined.
+func (s *Session) Query() (response *ntp.Response, err error) {
+	return s.QueryWithOptions(&ntp.QueryOptions{})
+}
+
+// QueryWithOptions performs the same function as Query but allows for the
+// customization of certain NTP behaviors.
+func (s *Session) QueryWithOptions(opt *ntp.QueryOptions) (response *ntp.Response, err error) {
+	opt.Extensions = append(opt.Extensions, privateWrapper{s})
+	return ntp.QueryWithOptions(s.ntpAddr, *opt)
+}
+
+// Refresh the session by clearing the its current cookies and performing a
+// new key exchange. This should only be done when no queries have been
+// performed with the session for a very long time (i.e., more than 24 hours).
+func (s *Session) Refresh() error {
+	s.ntpAddr = ""
+	s.cipherC2S = nil
+	s.cipherS2C = nil
+	s.uniqueID = nil
+	s.cookies.Clear()
+
+	return s.performKeyExchange()
+}
+
+// privateWrapper wraps a session in a private type so we can avoid exposing
+// ntp.Extension's ProcessQuery and ProcessResponse functions as public
+// Session APIs.
+type privateWrapper struct {
+	session *Session
+}
+
+func (w privateWrapper) ProcessQuery(buf *bytes.Buffer) error {
+	return w.session.processQuery(buf)
+}
+
+func (w privateWrapper) ProcessResponse(buf []byte) error {
+	return w.session.processResponse(buf)
+}
+
+func (s *Session) processQuery(buf *bytes.Buffer) error {
+	// Refresh session if we're out of cookies.
+	if s.cookies.count == 0 {
+		err := s.Refresh()
+		if err != nil {
+			return err
+		}
+	}
+
+	// Append the UniqueID extension field. Remember the unique ID so we can
+	// compare it to the response's value.
+	s.uniqueID = make([]byte, 32)
+	_, err := rand.Read(s.uniqueID)
+	if err != nil {
+		return err
+	}
+	writeExtUniqueID(buf, s.uniqueID)
+
+	// Append the cookie extension field.
+	cookie := s.cookies.Consume()
+	if cookie == nil {
+		return ErrNoCookies
+	}
+	writeExtCookie(buf, cookie)
+
+	// Append cookie placeholder fields. Request enough additional cookies to
+	// fill the jar.
+	phCount := cookieJarSize - (s.cookies.Count() + 1)
+	if phCount > 0 {
+		placeholder := make([]byte, paddedLen(len(cookie)))
+		for i := 0; i < phCount; i++ {
+			writeExtCookiePlaceholder(buf, placeholder)
+		}
+	}
+
+	// Authenticate the packet up to this point and append the AEAD extension
+	// field.
+	nonce := allocAligned(s.cipherC2S.NonceSize())
+	_, err = rand.Read(nonce)
+	if err != nil {
+		return err
+	}
+	ciphertext := s.cipherC2S.Seal(nil, nonce, nil, buf.Bytes())
+	writeExtAEAD(buf, nonce, ciphertext)
+
+	return nil
+}
+
+func (s *Session) processResponse(buf []byte) error {
+	const (
+		cryptoNAK    = 0x4e54534e // Kiss code "NTSN"
+		ntpHeaderLen = 48
+	)
+
+	defer func() {
+		s.uniqueID = nil
+	}()
+
+	var isCryptoNAK, gotUniqueID, gotAEAD bool
+
+	// Check the NTP header for a crypto-NAK kiss-of-death, but don't act on
+	// it until we've verified the unique ID extension field.
+	stratum := buf[1]
+	if stratum == 0 {
+		kissCode := binary.BigEndian.Uint32(buf[12:])
+		isCryptoNAK = kissCode == cryptoNAK
+	}
+
+	// Process all extension fields until the AEAD extension field is
+	// encountered. All fields encountered after the AEAD extension field are
+	// considered unauthenticated and must be discarded according to RFC 8915
+	// section 5.7.
+	offset := ntpHeaderLen
+	cur := buf[offset:]
+	for len(cur) >= 4 && !gotAEAD {
+		xtype := extType(binary.BigEndian.Uint16(cur[0:2]))
+		xlen := int(binary.BigEndian.Uint16(cur[2:4]))
+		if xlen < 4 || len(cur) < xlen {
+			return ErrInvalidFormat
+		}
+
+		body := cur[4:xlen]
+		cur = cur[xlen:]
+
+		switch xtype {
+		case extUniqueID:
+			if !bytes.Equal(s.uniqueID, body) {
+				return ErrUniqueIDMismatch
+			}
+			gotUniqueID = true
+
+		case extAEAD:
+			if len(body) < 4 {
+				return ErrInvalidFormat
+			}
+
+			nonceLen := int(binary.BigEndian.Uint16(body[0:2]))
+			nonceLenPadded := paddedLen(nonceLen)
+			ciphertextLen := int(binary.BigEndian.Uint16(body[2:4]))
+			ciphertextLenPadded := paddedLen(ciphertextLen)
+			if len(body) < 4+ciphertextLenPadded+nonceLenPadded {
+				return ErrInvalidFormat
+			}
+
+			// NOTE: The siv-go package has an undocumented issue where all
+			// memory accesses on the amd64 architecture must be 16-byte
+			// aligned or else it segfaults. To prevent this, check if the
+			// nonce and ciphertext within the packet are memory aligned, and
+			// if not, copy them into aligned buffers before decrypting and
+			// authenticating.
+			ptr := body[4:]
+			nonce := align(ptr[:nonceLen])
+			ptr = ptr[nonceLenPadded:]
+			ciphertext := align(ptr[:ciphertextLen])
+
+			// Decrypt the ciphertext and authenticate the portion of the
+			// packet appearing before this extension field.
+			plaintext, err := s.cipherS2C.Open(nil, nonce, ciphertext, align(buf[:offset]))
+			if err != nil {
+				return ErrAuthFailedOnClient
+			}
+
+			// The plaintext should contain only cookies.
+			err = s.processCookies(plaintext)
+			if err != nil {
+				return err
+			}
+			gotAEAD = true
+		}
+
+		offset += xlen
+	}
+
+	if !gotUniqueID {
+		return ErrMissingExtField
+	}
+	if isCryptoNAK {
+		return ErrAuthFailedOnServer
+	}
+	if !gotAEAD {
+		return ErrMissingExtField
+	}
+
+	return nil
+}
+
+func (s *Session) processCookies(buf []byte) error {
+	for len(buf) >= 4 {
+		xtype := extType(binary.BigEndian.Uint16(buf[0:2]))
+		xlen := int(binary.BigEndian.Uint16(buf[2:4]))
+		if xlen < 4 || len(buf) < xlen {
+			return ErrInvalidFormat
+		}
+
+		body := buf[4:xlen]
+		buf = buf[xlen:]
+
+		if xtype == extCookie {
+			cookie := make([]byte, len(body))
+			copy(cookie, body)
+			s.cookies.Add(cookie)
+		}
+	}
+	return nil
+}
+
+// fixHostPort examines an address in one of the accepted forms and fixes it
+// to include a port number if necessary.
+func fixHostPort(address string, defaultPort int) (fixed string, err error) {
+	if len(address) == 0 {
+		return "", errors.New("address string is empty")
+	}
+
+	// If the address is wrapped in brackets, append a port if necessary.
+	if address[0] == '[' {
+		end := strings.IndexByte(address, ']')
+		switch {
+		case end < 0:
+			return "", errors.New("missing ']' in address")
+		case end+1 == len(address):
+			return fmt.Sprintf("%s:%d", address, defaultPort), nil
+		case address[end+1] == ':':
+			return address, nil
+		default:
+			return "", errors.New("unexpected character following ']' in address")
+		}
+	}
+
+	// No colons? Must be a port-less IPv4 or domain address.
+	last := strings.LastIndexByte(address, ':')
+	if last < 0 {
+		return fmt.Sprintf("%s:%d", address, defaultPort), nil
+	}
+
+	// Exactly one colon? A port have been included along with an IPv4 or
+	// domain address. (IPv6 addresses are guaranteed to have more than one
+	// colon.)
+	prev := strings.LastIndexByte(address[:last], ':')
+	if prev < 0 {
+		return address, nil
+	}
+
+	// Two or more colons means we must have an IPv6 address without a port.
+	return fmt.Sprintf("[%s]:%d", address, defaultPort), nil
+}
+
+func align(slice []byte) []byte {
+	// Alignment only required on amd64, which uses SIMD operations.
+	if !alignMemory {
+		return slice
+	}
+
+	// If the slice is already aligned and a multiple of 16 bytes in length,
+	// simply return it.
+	ptr := uintptr(unsafe.Pointer(&slice[0]))
+	if ptr&uintptr(alignment-1) == 0 && len(slice)&(alignment-1) == 0 {
+		return slice
+	}
+
+	// Allocate an aligned buffer and copy the data into it.
+	buf := allocAligned(len(slice))
+	copy(buf, slice)
+	return buf
+}
+
+func allocAligned(size int) []byte {
+	// Alignment only required on amd64, which uses SIMD operations.
+	if !alignMemory {
+		return make([]byte, size)
+	}
+
+	// Pad the buffer size to a multiple of 16 bytes.
+	paddedSize := (size + alignment - 1) & ^(alignment - 1)
+
+	// Try allocating a slice of the padded size. If the result is aligned,
+	// we're done.
+	buf := make([]byte, paddedSize)
+	ptr := uintptr(unsafe.Pointer(&buf[0]))
+	if ptr&uintptr(alignment-1) == 0 {
+		return buf[:size]
+	}
+
+	// Given the way the underlying go slice allocator works, this line of
+	// code should not be reached. But just in case it is...
+
+	// Allocate a buffer slightly larger than requested and return a sub-slice
+	// that is guaranteed to be aligned.
+	buf = make([]byte, paddedSize+alignment-1)
+	ptr = uintptr(unsafe.Pointer(&buf[0]))
+	offset := (alignment - int(ptr&uintptr(alignment-1))) & (alignment - 1)
+	return buf[offset : offset+size]
+}
+
+var pad = make([]byte, 4)
+
+func paddedLen(len int) int {
+	return (len + 3) & ^3
+}
+
+type extType uint16
+
+const (
+	extUniqueID          extType = 0x0104
+	extCookie            extType = 0x0204
+	extCookiePlaceholder extType = 0x0304
+	extAEAD              extType = 0x0404
+)
+
+func writeExtUniqueID(w io.Writer, uniqueID []byte) {
+	totalLen := 4 + len(uniqueID)
+	binary.Write(w, binary.BigEndian, extUniqueID)
+	binary.Write(w, binary.BigEndian, uint16(totalLen))
+	w.Write(uniqueID)
+}
+
+func writeExtCookie(w io.Writer, cookie []byte) {
+	cookieLenPadded := paddedLen(len(cookie))
+	totalLen := 4 + cookieLenPadded
+	binary.Write(w, binary.BigEndian, extCookie)
+	binary.Write(w, binary.BigEndian, uint16(totalLen))
+	w.Write(cookie)
+	w.Write(pad[:cookieLenPadded-len(cookie)])
+}
+
+func writeExtCookiePlaceholder(w io.Writer, placeholder []byte) {
+	totalLen := 4 + len(placeholder)
+	binary.Write(w, binary.BigEndian, extCookiePlaceholder)
+	binary.Write(w, binary.BigEndian, uint16(totalLen))
+	w.Write(placeholder)
+}
+
+func writeExtAEAD(w io.Writer, nonce []byte, ciphertext []byte) {
+	nonceLenPadded := paddedLen(len(nonce))
+	ciphertextLenPadded := paddedLen(len(ciphertext))
+	totalLen := 4 + 4 + nonceLenPadded + ciphertextLenPadded
+	binary.Write(w, binary.BigEndian, extAEAD)
+	binary.Write(w, binary.BigEndian, uint16(totalLen))
+	binary.Write(w, binary.BigEndian, uint16(len(nonce)))
+	binary.Write(w, binary.BigEndian, uint16(len(ciphertext)))
+	w.Write(nonce)
+	w.Write(pad[:nonceLenPadded-len(nonce)])
+	w.Write(ciphertext)
+	w.Write(pad[:ciphertextLenPadded-len(ciphertext)])
+}

@@ -26,7 +26,7 @@ A lightweight, modular web framework for Go, built on top of Gin with dependency
 一眼看清框架里有什么、每样**怎么拿来用**(标签即消费方式)。深度细节全在 **[doc/](doc/README.md)**。
 
 **🔌 直接用的 Feature**（`app.AddFeature(...)` + 结构体 `inject:""`）:
-`server` · `gorm` · `redis` · `jwt` · `i18n` · `geoip` · `migration` · `bizerr`/`logger` · `ratelimit`（计数地基）· `loginguard`（登录前防护）· `tokenguard`（登录后会话）
+`server` · `gorm` · `redis` · `jwt` · `i18n` · `geoip` · `migration` · `bizerr`/`logger` · `ratelimit`（计数地基）· `loginguard`（登录前防护）· `tokenguard`（登录后会话）· `controlgate`（可信授权门禁 / 防搬走·防盗用)
 
 **🖥️ 带前端的 Feature**（后端 `AddFeature` + **把 `feature/<x>/web/` 组件拷进你的前端**）:
 `doorman`（门房/风险评估器,自带 schema 驱动的配置台前端）
