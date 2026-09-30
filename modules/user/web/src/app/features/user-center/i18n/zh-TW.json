@@ -1,0 +1,131 @@
+{
+  "sidebar": {
+    "userPermission": "用戶與權限",
+    "users": "用戶",
+    "roles": "角色",
+    "microservice": "Microservice"
+  },
+  "user": {
+    "title": "用戶",
+    "create": "創建用戶",
+    "edit": "編輯用戶",
+    "email": "電子郵件",
+    "role": "角色",
+    "status": "狀態",
+    "enabled": "啟用",
+    "disabled": "禁用",
+    "created": "創建時間",
+    "modified": "修改時間",
+    "password": "密碼",
+    "passwordPlaceholder": "留空以保持當前密碼",
+    "errors": {
+      "emailRequired": "電子郵件是必填項",
+      "emailInvalid": "請輸入有效的電子郵件地址",
+      "passwordRequired": "密碼是必填項",
+      "roleRequired": "角色是必填項",
+      "createFailed": "創建用戶失敗",
+      "updateFailed": "更新用戶失敗"
+    },
+    "showPassword": "顯示",
+    "hidePassword": "隱藏",
+    "randomPassword": "隨機"
+  },
+  "role": {
+    "title": "角色",
+    "create": "創建角色",
+    "edit": "編輯角色",
+    "name": "名稱",
+    "created": "創建時間",
+    "modified": "修改時間",
+    "noRoles": "沒有找到角色",
+    "deleteConfirmTitle": "確認刪除",
+    "deleteConfirm": "確定要刪除角色 \"{{name}}\" 嗎？此操作無法撤銷。",
+    "errors": {
+      "nameRequired": "名稱是必填項",
+      "nameMinLength": "名稱至少需要 1 個字符",
+      "createFailed": "創建角色失敗",
+      "updateFailed": "更新角色失敗"
+    }
+  },
+  "roleFeature": {
+    "title": "角色功能",
+    "create": "創建角色功能",
+    "role": "角色",
+    "feature": "功能",
+    "selectRole": "選擇角色",
+    "selectFeatures": "選擇功能",
+    "filterFeatures": "篩選功能",
+    "selectAllVisible": "全選(當前篩選)",
+    "deselectAllVisible": "全不選(當前篩選)",
+    "batchUpdating": "批量更新中…",
+    "searchPlaceholder": "按名稱搜索功能...",
+    "errors": {
+      "roleRequired": "角色是必填項",
+      "featureRequired": "至少選擇一個功能",
+      "createFailed": "創建角色功能失敗"
+    }
+  },
+  "rolePermission": {
+    "title": "權限授權",
+    "modePage": "頁面權限",
+    "modeAdvanced": "進階(單個功能)",
+    "selectRoleFirst": "請先在左側選擇一個角色",
+    "page": "頁面",
+    "access": "權限",
+    "tier": {
+      "none": "無",
+      "view": "唯讀",
+      "operate": "可操作"
+    },
+    "hint": "「可操作」含「唯讀」。授予某頁後,該頁用到的整組介面權限(含跨頁相依)會在登入簽發 token 時自動展開。高危/服務間功能請到「進階」裡單獨授予。"
+  },
+  "microservice": {
+    "title": "微服務管理",
+    "microservices": "微服務配置",
+    "tokens": "Token 列表",
+    "create": "創建微服務配置",
+    "edit": "編輯微服務配置",
+    "name": "名稱",
+    "description": "描述",
+    "featureList": "功能列表",
+    "created": "創建時間",
+    "noMicroservices": "沒有微服務配置",
+    "deleteConfirmTitle": "確認刪除",
+    "deleteConfirmMessage": "確定要刪除這個微服務配置嗎？此操作無法撤銷。",
+    "createFailed": "創建微服務配置失敗",
+    "updateFailed": "更新微服務配置失敗",
+    "deleteFailed": "刪除微服務配置失敗",
+    "errors": {
+      "nameRequired": "名稱是必填項",
+      "descriptionRequired": "描述是必填項",
+      "nameMaxLength": "名稱不能超過 255 個字符",
+      "descriptionMaxLength": "描述不能超過 500 個字符",
+      "featureListRequired": "至少需要選擇一個功能",
+      "featureListMinLength": "至少需要選擇一個功能"
+    },
+    "token": {
+      "create": "生成 Token",
+      "description": "描述",
+      "featureList": "功能列表",
+      "token": "Token",
+      "expiresAt": "過期時間",
+      "status": "狀態",
+      "statusEnabled": "已啟用",
+      "statusDisabled": "已禁用",
+      "enable": "啟用",
+      "disable": "禁用",
+      "created": "創建時間",
+      "noTokens": "沒有 Token 記錄",
+      "copy": "複製",
+      "selectMicroservices": "選擇微服務配置",
+      "noMicroservicesAvailable": "沒有可用的微服務配置",
+      "createdSuccessfully": "Token 生成成功",
+      "saveTokenWarning": "請妥善保存此 Token，它只會顯示一次。",
+      "createFailed": "生成 Token 失敗",
+      "errors": {
+        "microserviceFeatureIdsRequired": "至少需要選擇一個微服務配置",
+        "microserviceFeatureIdsMinLength": "至少需要選擇一個微服務配置"
+      }
+    }
+  }
+}

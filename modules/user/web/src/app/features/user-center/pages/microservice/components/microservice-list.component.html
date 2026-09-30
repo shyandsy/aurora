@@ -1,0 +1,82 @@
+@if (isLoading) {
+<div class="flex justify-center items-center py-12">
+  <div class="text-gray-500">{{ 'common.loading' | translate }}</div>
+</div>
+} @else if (error) {
+<div class="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded mb-4">
+  {{ error }}
+</div>
+} @else if (microservices.length === 0) {
+<div class="bg-gray-50 border border-gray-200 text-gray-700 px-4 py-3 rounded">
+  {{ 'microservice.noMicroservices' | translate }}
+</div>
+} @else {
+<div class="bg-white shadow-sm rounded-lg overflow-hidden w-full">
+  <div class="overflow-x-auto">
+    <table class="w-full divide-y divide-gray-200">
+      <thead class="bg-gray-50">
+        <tr>
+          <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+            ID
+          </th>
+          <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+            {{ 'microservice.name' | translate }}
+          </th>
+          <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+            {{ 'microservice.description' | translate }}
+          </th>
+          <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+            {{ 'microservice.featureList' | translate }}
+          </th>
+          <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+            {{ 'microservice.created' | translate }}
+          </th>
+          <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+            {{ 'common.actions' | translate }}
+          </th>
+        </tr>
+      </thead>
+      <tbody class="bg-white divide-y divide-gray-200">
+        @for (microservice of microservices; track microservice.id) {
+        <tr class="hover:bg-gray-50">
+          <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+            {{ microservice.id }}
+          </td>
+          <td class="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">
+            {{ microservice.name }}
+          </td>
+          <td class="px-6 py-4 text-sm text-gray-500">
+            {{ microservice.description }}
+          </td>
+          <td class="px-6 py-4 text-sm text-gray-500">
+            <div class="flex flex-wrap gap-1">
+              @for (feature of microservice.featureList; track feature) {
+              <span class="px-2 py-1 text-xs bg-blue-100 text-blue-800 rounded">
+                {{ feature }}
+              </span>
+              }
+            </div>
+          </td>
+          <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+            {{ formatDate(microservice.created) }}
+          </td>
+          <td class="px-6 py-4 whitespace-nowrap text-sm font-medium">
+            <button (click)="onEdit(microservice)" class="text-indigo-600 hover:text-indigo-900 mr-4">
+              {{ 'common.edit' | translate }}
+            </button>
+            <button (click)="onDelete(microservice)" class="text-red-600 hover:text-red-900">
+              {{ 'common.delete' | translate }}
+            </button>
+          </td>
+        </tr>
+        }
+      </tbody>
+    </table>
+  </div>
+</div>
+}
+
+@if (showDeleteConfirmDialog) {
+<app-confirm-dialog [title]="'microservice.deleteConfirmTitle' | translate"
+  [message]="'microservice.deleteConfirmMessage' | translate" (confirm)="confirmDelete()" (cancel)="cancelDelete()" />
+}

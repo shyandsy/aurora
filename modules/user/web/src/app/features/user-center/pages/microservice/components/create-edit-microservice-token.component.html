@@ -1,0 +1,84 @@
+<div class="fixed inset-0 bg-black/30 overflow-y-auto h-full w-full z-50" (click)="onCancel()">
+  <div class="relative top-10 mx-auto p-5 border w-[800px] max-h-[90vh] overflow-y-auto shadow-lg rounded-md bg-white"
+    (click)="$event.stopPropagation()">
+    <div class="mt-3">
+      <h3 class="text-lg font-medium text-gray-900 mb-4">{{ 'microservice.token.create' | translate }}</h3>
+
+      @if (generatedToken) {
+      <div class="mb-4 bg-green-50 border border-green-200 text-green-700 px-4 py-3 rounded">
+        <p class="font-semibold mb-2">{{ 'microservice.token.createdSuccessfully' | translate }}</p>
+        <div class="flex items-center gap-2">
+          <code class="flex-1 text-xs break-all bg-white p-2 rounded border">{{ generatedToken }}</code>
+          <button (click)="copyToken()"
+            class="px-3 py-1 text-sm text-green-700 bg-green-100 rounded hover:bg-green-200">
+            {{ 'microservice.token.copy' | translate }}
+          </button>
+        </div>
+        <p class="mt-2 text-sm">{{ 'microservice.token.saveTokenWarning' | translate }}</p>
+      </div>
+      } @else {
+      <form [formGroup]="tokenForm" (ngSubmit)="onSubmit()">
+        <div class="mb-4">
+          <label class="block text-sm font-medium text-gray-700 mb-2">
+            {{ 'microservice.token.selectMicroservices' | translate }} <span class="text-red-500">*</span>
+          </label>
+          @if (isLoadingMicroservices) {
+          <div class="text-gray-500">{{ 'common.loading' | translate }}</div>
+          } @else {
+          <div class="border border-gray-300 rounded-md p-4 max-h-60 overflow-y-auto">
+            @if (allMicroservices.length === 0) {
+            <div class="text-gray-500 text-sm">{{ 'microservice.token.noMicroservicesAvailable' | translate }}</div>
+            } @else {
+            <div class="space-y-2">
+              @for (microservice of allMicroservices; track microservice.id) {
+              <label class="flex items-start cursor-pointer p-2 hover:bg-gray-50 rounded">
+                <input type="checkbox" [checked]="isMicroserviceSelected(microservice.id)"
+                  (change)="toggleMicroservice(microservice.id)"
+                  class="mt-1 mr-3 rounded border-gray-300 text-indigo-600 focus:ring-indigo-500" />
+                <div class="flex-1">
+                  <div class="font-medium text-sm text-gray-900">{{ microservice.name }}</div>
+                  <div class="text-xs text-gray-500 mt-1">{{ microservice.description }}</div>
+                  <div class="flex flex-wrap gap-1 mt-2">
+                    @for (feature of microservice.featureList; track feature) {
+                    <span class="px-2 py-0.5 text-xs bg-blue-100 text-blue-800 rounded">
+                      {{ feature }}
+                    </span>
+                    }
+                  </div>
+                </div>
+              </label>
+              }
+            </div>
+            }
+          </div>
+          @if (microserviceIdsFormArray.invalid && microserviceIdsFormArray.touched) {
+          <p class="mt-1 text-sm text-red-600">{{ getErrorMessage('microserviceFeatureIds') }}</p>
+          }
+          }
+        </div>
+
+        @if (error) {
+        <div class="mb-4 bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded">
+          {{ error }}
+        </div>
+        }
+
+        <div class="flex justify-end gap-3 mt-6">
+          <button type="button" (click)="onCancel()" [disabled]="isSubmitting"
+            class="px-4 py-2 text-sm font-medium text-gray-700 bg-gray-100 rounded-md hover:bg-gray-200 disabled:bg-gray-50 disabled:text-gray-400 disabled:cursor-not-allowed transition-colors">
+            {{ 'common.cancel' | translate }}
+          </button>
+          <button type="submit" [disabled]="tokenForm.invalid || isSubmitting"
+            class="px-4 py-2 text-sm font-medium text-white bg-indigo-600 rounded-md hover:bg-indigo-700 disabled:bg-indigo-300 disabled:cursor-not-allowed transition-colors">
+            @if (isSubmitting) {
+            <span>{{ 'common.saving' | translate }}</span>
+            } @else {
+            <span>{{ 'common.create' | translate }}</span>
+            }
+          </button>
+        </div>
+      </form>
+      }
+    </div>
+  </div>
+</div>

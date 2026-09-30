@@ -1,0 +1,14 @@
+@if (showChrome()) {
+<!-- 用户中心是有界工具:无左侧 sidebar,顶栏 + 内容区全宽,页面内用顶部 tab 导航。 -->
+<div class="flex flex-col h-screen">
+  <app-topbar />
+  <main class="flex-1 overflow-auto">
+    <router-outlet />
+  </main>
+</div>
+} @else {
+<router-outlet />
+}
+
+<!-- Error Modal -->
+<app-error-modal [message]="errorMessage() || ''" [visible]="isErrorVisible()" (close)="onErrorClose()" />

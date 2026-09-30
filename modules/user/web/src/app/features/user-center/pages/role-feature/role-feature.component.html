@@ -1,0 +1,60 @@
+<div class="container mx-auto px-4 py-8">
+  <h1 class="text-3xl font-bold mb-6">{{ 'roleFeature.title' | translate }}</h1>
+
+  <div class="grid grid-cols-3 gap-6">
+    <!-- Left: Role List with Edit/Delete -->
+    <div class="col-span-2">
+      <h2 class="text-xl font-semibold mb-4">{{ 'role.title' | translate }}</h2>
+      <div class="mb-4 flex justify-end">
+        <button (click)="onCreate()"
+          class="px-4 py-2 text-sm font-medium text-white bg-indigo-600 rounded-lg hover:bg-indigo-700 transition-colors">
+          {{ 'role.create' | translate }}
+        </button>
+      </div>
+      <app-role-list [selectedRoleId]="selectedRoleId()" [refreshTrigger]="roleListRefreshTrigger()"
+        (roleSelected)="onRoleSelect($event)" (editRole)="onEdit($event)" />
+    </div>
+
+    <!-- Right: Permissions (page-level view/operate  |  advanced per-feature) -->
+    <div>
+      <div class="mb-4">
+        <h2 class="text-xl font-semibold mb-2">{{ 'rolePermission.title' | translate }}</h2>
+        <!-- 模式切换:页面权限(推荐) / 高级 -->
+        <div class="inline-flex rounded-lg border border-gray-300 overflow-hidden text-sm mb-3">
+          <button type="button" (click)="authMode.set('page')"
+            [class]="authMode() === 'page' ? 'px-3 py-1.5 bg-indigo-600 text-white' : 'px-3 py-1.5 bg-white text-gray-700 hover:bg-gray-50'">
+            {{ 'rolePermission.modePage' | translate }}
+          </button>
+          <button type="button" (click)="authMode.set('advanced')"
+            [class]="authMode() === 'advanced' ? 'px-3 py-1.5 bg-indigo-600 text-white' : 'px-3 py-1.5 bg-white text-gray-700 hover:bg-gray-50'">
+            {{ 'rolePermission.modeAdvanced' | translate }}
+          </button>
+        </div>
+
+        @if (authMode() === 'advanced') {
+          <div class="flex items-center gap-3">
+            <label for="featureFilter" class="text-sm font-medium text-gray-700 whitespace-nowrap">
+              {{ 'roleFeature.filterFeatures' | translate }}
+            </label>
+            <input type="text" id="featureFilter" [value]="featureFilter()"
+              (input)="featureFilter.set($any($event.target).value)"
+              [placeholder]="'roleFeature.searchPlaceholder' | translate"
+              class="flex-1 px-4 py-2 border border-gray-300 rounded-lg shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm" />
+          </div>
+        }
+      </div>
+
+      @if (authMode() === 'page') {
+        <app-page-permission-list [selectedRoleId]="selectedRoleId()" [refreshTrigger]="refreshTrigger()"
+          (changed)="onFeatureUpdated()" />
+      } @else {
+        <app-feature-checkbox-list [selectedRoleId]="selectedRoleId()" [refreshTrigger]="refreshTrigger()"
+          [filterText]="featureFilter()" />
+      }
+    </div>
+  </div>
+
+  @if (showCreateEditDialog()) {
+  <app-create-edit-role [role]="editingRole()" (close)="onDialogClose()" (saved)="onRoleSaved()" />
+  }
+</div>

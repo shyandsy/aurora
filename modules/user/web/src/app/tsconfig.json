@@ -1,0 +1,26 @@
+// 仅为 Native Federation「暴露产物(federation artefacts)」的 esbuild 提供 @common/* 路径解析。
+//
+// 背景:NF 把 exposes 的路由子树用一个**独立的 esbuild** 重新打包(见 @angular-architects/native-federation
+// 的 bundle-exposed-and-mappings)。这个 esbuild **不设** initialOptions.tsconfig,而是按「就近向上找
+// 名为 tsconfig.json 的文件」来读取 compilerOptions.paths 做别名解析。exposes 图里的组件(role-list /
+// role-feature-list 等)运行时用到 @common/utils/date.util,故必须让该 esbuild 能解析 @common。
+//
+// 为什么不放根 tsconfig.json:开着 features.ignoreUnusedDeps(裁剪未用 shared 依赖,健康默认,能剪掉
+// 未安装的 @angular/animations 次级入口)时,NF 会用 @softarc/sheriff 从 src/main.ts 向上找到根
+// tsconfig.json 并顺着它的 paths 静态分析全项目 import 图;一旦根 tsconfig 里有 @common,sheriff 会走进
+// 项目根(modules/user/web)之外的 web/common → 直接抛「file ... is outside of root directory」。
+//
+// 本文件放在 src/app/:sheriff 从 src/main.ts 向上找 tsconfig.json 命中的是 src/(无)→ modules/user/web 根,
+// **看不到**本文件;而 exposes 图里所有 @common 引用者都在 src/app/** 下,它们的 esbuild 就近解析命中
+// 本文件。于是「sheriff 干净 + esbuild 能解析」两者兼得。主 Angular 构建显式用 tsconfig.app.json,不受影响。
+//
+// paths 相对本文件目录(modules/user/web/src/app)回指 web/common,故为 ../../../../../web/common/*。
+{
+  "compilerOptions": {
+    "paths": {
+      "@common/*": [
+        "../../../../../web/common/*"
+      ]
+    }
+  }
+}

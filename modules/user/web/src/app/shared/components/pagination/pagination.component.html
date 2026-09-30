@@ -1,0 +1,70 @@
+<div class="bg-gray-50 px-4 py-3 flex items-center justify-between border-t border-gray-200">
+  <div class="flex-1 flex justify-between sm:hidden">
+    @if (totalPages() > 1) {
+    <button (click)="prevPage()" [disabled]="!hasPrev()"
+      class="relative inline-flex items-center px-4 py-2 border border-gray-300 text-sm font-medium rounded-md text-gray-700 bg-white hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed">
+      Previous
+    </button>
+    <button (click)="nextPage()" [disabled]="!hasNext()"
+      class="ml-3 relative inline-flex items-center px-4 py-2 border border-gray-300 text-sm font-medium rounded-md text-gray-700 bg-white hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed">
+      Next
+    </button>
+    }
+  </div>
+  <div class="hidden sm:flex-1 sm:flex sm:items-center sm:justify-between">
+    <div></div>
+    <div>
+      <p class="text-sm text-gray-500 text-right">
+        @if (total() === 1) {
+        <span>{{ 'pagination.singleResult' | translate }}</span>
+        } @else {
+        <span>{{ (currentPage() - 1) * pageSize() + 1 }}</span>
+        <span class="mx-1">-</span>
+        <span>{{ min(currentPage() * pageSize(), total()) }}</span>
+        <span class="mx-1">/</span>
+        <span class="font-medium text-gray-700">{{ total() }}</span>
+        <span class="ml-1">{{ 'pagination.items' | translate }}</span>
+        }
+      </p>
+    </div>
+    @if (totalPages() > 1) {
+    <div>
+      <nav class="flex items-center gap-1" aria-label="Pagination">
+        <button (click)="firstPage()" [disabled]="!hasPrev()" aria-label="First page"
+          class="px-3 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-md hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed transition-colors">
+          «
+        </button>
+        <button (click)="prevPage()" [disabled]="!hasPrev()"
+          class="px-3 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-md hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed transition-colors">
+          Previous
+        </button>
+        @for (page of getPageNumbers(); track $index) {
+        @if (page !== ellipsis) {
+        <button (click)="goToPage(page)" [class.bg-indigo-600]="currentPage() === page"
+          [class.text-white]="currentPage() === page" [class.border-indigo-600]="currentPage() === page"
+          [class.text-gray-700]="currentPage() !== page" [class.bg-white]="currentPage() !== page"
+          [class.border-gray-300]="currentPage() !== page" [class.hover\:bg-gray-50]="currentPage() !== page"
+          [class.hover\:border-gray-400]="currentPage() !== page"
+          class="min-w-[2.5rem] px-3 py-2 text-sm font-medium border rounded-md transition-all duration-150">
+          {{ page }}
+        </button>
+        } @else {
+        <span class="min-w-[2.5rem] px-2 py-2 text-sm text-gray-400 text-center select-none">{{ page }}</span>
+        }
+        }
+        <button (click)="nextPage()" [disabled]="!hasNext()"
+          class="px-3 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-md hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed transition-colors">
+          Next
+        </button>
+        <button (click)="lastPage()" [disabled]="!hasNext()" aria-label="Last page"
+          class="px-3 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-md hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed transition-colors">
+          »
+        </button>
+      </nav>
+    </div>
+    } @else {
+    <!-- 单页时也显示统计信息 -->
+    <div></div>
+    }
+  </div>
+</div>

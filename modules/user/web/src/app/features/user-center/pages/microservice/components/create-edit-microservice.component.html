@@ -1,0 +1,80 @@
+<div class="fixed inset-0 bg-black/30 overflow-y-auto h-full w-full z-50" (click)="onCancel()">
+  <div class="relative top-10 mx-auto p-5 border w-[800px] max-h-[90vh] overflow-y-auto shadow-lg rounded-md bg-white"
+    (click)="$event.stopPropagation()">
+    <div class="mt-3">
+      <h3 class="text-lg font-medium text-gray-900 mb-4">{{ formTitle }}</h3>
+
+      <form [formGroup]="microserviceForm" (ngSubmit)="onSubmit()">
+        <div class="mb-4">
+          <label for="name" class="block text-sm font-medium text-gray-700 mb-1">
+            {{ 'microservice.name' | translate }} <span class="text-red-500">*</span>
+          </label>
+          <input type="text" id="name" formControlName="name"
+            class="w-full px-3 py-2 bg-white text-gray-900 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500"
+            [class.border-red-300]="microserviceForm.get('name')?.invalid && microserviceForm.get('name')?.touched" />
+          @if (microserviceForm.get('name')?.invalid && microserviceForm.get('name')?.touched) {
+          <p class="mt-1 text-sm text-red-600">{{ getErrorMessage('name') }}</p>
+          }
+        </div>
+
+        <div class="mb-4">
+          <label for="description" class="block text-sm font-medium text-gray-700 mb-1">
+            {{ 'microservice.description' | translate }} <span class="text-red-500">*</span>
+          </label>
+          <textarea id="description" formControlName="description" rows="3"
+            class="w-full px-3 py-2 bg-white text-gray-900 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500"
+            [class.border-red-300]="microserviceForm.get('description')?.invalid && microserviceForm.get('description')?.touched"></textarea>
+          @if (microserviceForm.get('description')?.invalid && microserviceForm.get('description')?.touched) {
+          <p class="mt-1 text-sm text-red-600">{{ getErrorMessage('description') }}</p>
+          }
+        </div>
+
+        <div class="mb-4">
+          <label class="block text-sm font-medium text-gray-700 mb-2">
+            {{ 'microservice.featureList' | translate }} <span class="text-red-500">*</span>
+          </label>
+          @if (isLoadingFeatures) {
+          <div class="text-gray-500">{{ 'common.loading' | translate }}</div>
+          } @else {
+          <div class="border border-gray-300 rounded-md p-4 max-h-60 overflow-y-auto">
+            <div class="grid grid-cols-2 gap-2">
+              @for (feature of allFeatures; track feature.id) {
+              <label class="flex items-center cursor-pointer">
+                <input type="checkbox" [checked]="isFeatureSelected(feature.name)"
+                  (change)="toggleFeature(feature.name)"
+                  class="mr-2 rounded border-gray-300 text-indigo-600 focus:ring-indigo-500" />
+                <span class="text-sm text-gray-700">{{ feature.name }}</span>
+              </label>
+              }
+            </div>
+          </div>
+          @if (featureListFormArray.invalid && featureListFormArray.touched) {
+          <p class="mt-1 text-sm text-red-600">{{ getErrorMessage('featureList') }}</p>
+          }
+          }
+        </div>
+
+        @if (error) {
+        <div class="mb-4 bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded">
+          {{ error }}
+        </div>
+        }
+
+        <div class="flex justify-end gap-3 mt-6">
+          <button type="button" (click)="onCancel()" [disabled]="isSubmitting"
+            class="px-4 py-2 text-sm font-medium text-gray-700 bg-gray-100 rounded-md hover:bg-gray-200 disabled:bg-gray-50 disabled:text-gray-400 disabled:cursor-not-allowed transition-colors">
+            {{ 'common.cancel' | translate }}
+          </button>
+          <button type="submit" [disabled]="microserviceForm.invalid || isSubmitting"
+            class="px-4 py-2 text-sm font-medium text-white bg-indigo-600 rounded-md hover:bg-indigo-700 disabled:bg-indigo-300 disabled:cursor-not-allowed transition-colors">
+            @if (isSubmitting) {
+            <span>{{ 'common.saving' | translate }}</span>
+            } @else {
+            <span>{{ isEditMode ? ('common.update' | translate) : ('common.create' | translate) }}</span>
+            }
+          </button>
+        </div>
+      </form>
+    </div>
+  </div>
+</div>

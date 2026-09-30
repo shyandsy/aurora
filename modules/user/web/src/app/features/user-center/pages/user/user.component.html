@@ -1,0 +1,15 @@
+<div class="container mx-auto px-4 py-8">
+  <div class="flex items-center justify-between mb-6">
+    <h1 class="text-3xl font-bold">{{ 'user.title' | translate }}</h1>
+    <button (click)="onCreate()"
+      class="px-4 py-2 text-sm font-medium text-white bg-indigo-600 rounded-lg hover:bg-indigo-700 transition-colors">
+      {{ 'user.create' | translate }}
+    </button>
+  </div>
+
+  <app-user-list [refreshTrigger]="refreshTrigger()" (editUser)="onEdit($event)" />
+
+  @if (showCreateEditDialog()) {
+  <app-create-edit-user [user]="editingUser()" (close)="onDialogClose()" (saved)="onUserSaved()" />
+  }
+</div>
