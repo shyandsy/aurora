@@ -35,6 +35,17 @@
       transition: border-color .15s;
     }
     input:focus { border-color: #6366f1; }
+    /* 6 格验证码输入(TOTP)。.otp-box 用类选择器,宽/内边距盖过上面通用 input 规则。 */
+    .otp { display: flex; gap: 8px; justify-content: center; }
+    .otp-box {
+      width: 44px; height: 54px; padding: 0;
+      text-align: center; font-size: 22px; font-weight: 600;
+    }
+    .otp-box:focus { border-color: #6366f1; }
+    /* 备用码文本框(切换后显示):居中、字距宽,与 6 格视觉呼应。 */
+    .recovery { text-align: center; letter-spacing: .15em; }
+    .toggle { margin-top: 14px; text-align: center; }
+    .toggle a { color: #818cf8; font-size: 13px; text-decoration: none; cursor: pointer; }
     button {
       width: 100%; margin-top: 22px; padding: 12px;
       font-size: 14px; font-weight: 600;
@@ -77,11 +88,22 @@
       <button id="loginBtn" type="submit">登录</button>
     </form>
 
-    <!-- 第二步:两步验证码 -->
+    <!-- 第二步:两步验证码(6 格自动验证;备用码切换成文本框回车提交)-->
     <form id="twoFactorStep" class="step" autocomplete="off">
-      <label for="code">两步验证码</label>
-      <input id="code" type="text" inputmode="numeric" autocomplete="one-time-code"
-             placeholder="输满 6 位自动验证 / 备用码回车" required>
+      <label>两步验证码</label>
+      <!-- 6 格 TOTP(默认):输满 6 位自动提交,无按钮 -->
+      <div id="otpBoxes" class="otp">
+        <input class="otp-box" type="text" inputmode="numeric" autocomplete="one-time-code" maxlength="1" aria-label="第 1 位">
+        <input class="otp-box" type="text" inputmode="numeric" maxlength="1" aria-label="第 2 位">
+        <input class="otp-box" type="text" inputmode="numeric" maxlength="1" aria-label="第 3 位">
+        <input class="otp-box" type="text" inputmode="numeric" maxlength="1" aria-label="第 4 位">
+        <input class="otp-box" type="text" inputmode="numeric" maxlength="1" aria-label="第 5 位">
+        <input class="otp-box" type="text" inputmode="numeric" maxlength="1" aria-label="第 6 位">
+      </div>
+      <!-- 备用码(切换后显示):变长,回车提交 -->
+      <input id="recoveryCode" class="recovery" type="text" autocomplete="one-time-code"
+             placeholder="输入备用码后回车" style="display:none">
+      <div class="toggle"><a id="toggleRecovery">用备用码</a></div>
       <div class="back"><a id="backToLogin">← 返回</a></div>
     </form>
 
@@ -202,7 +224,7 @@
               pendingToken = r.data.pendingToken || '';
               setBusy(btn, false, '登录');
               show(elTwoFactor);
-              document.getElementById('code').focus();
+              focusOtp(0);
               return;
             }
             persistLogin(r.data);
@@ -211,17 +233,34 @@
           .catch(function () { showErr('网络错误,请重试'); setBusy(btn, false, '登录'); });
       });
 
-      // ---- 第二步:两步验证(输满 6 位数字自动验证,无按钮;备用码可回车提交)----
+      // ---- 第二步:两步验证 ----
+      // 默认 6 格 TOTP:每格 1 位数字,输入自动跳下一格、退格回上一格、← →切格、粘贴整串自动分配,
+      // 输满 6 位自动提交(无按钮)。「用备用码」切换成单个文本框(变长,回车提交)。
       var verifying = false;
-      var elCode = document.getElementById('code');
+      var recoveryMode = false;
+      var elOtpBoxes = document.getElementById('otpBoxes');
+      var boxes = Array.prototype.slice.call(elOtpBoxes.querySelectorAll('.otp-box'));
+      var elRecovery = document.getElementById('recoveryCode');
+      var elToggleRecovery = document.getElementById('toggleRecovery');
 
-      function submitCode() {
+      function otpValue() { return boxes.map(function (b) { return b.value; }).join(''); }
+      function clearOtp() { boxes.forEach(function (b) { b.value = ''; }); }
+      function focusOtp(i) {
+        var el = boxes[Math.max(0, Math.min(i, boxes.length - 1))];
+        if (el) { el.focus(); el.select(); }
+      }
+      function setInputsDisabled(d) {
+        boxes.forEach(function (b) { b.disabled = d; });
+        elRecovery.disabled = d;
+      }
+
+      function submitCode(code) {
         if (verifying) return;
-        var code = elCode.value.trim();
+        code = (code || '').trim();
         if (!code) return;
         verifying = true;
         clearErr();
-        elCode.disabled = true;
+        setInputsDisabled(true);
         postJSON('/auth/login/2fa', { pendingToken: pendingToken, code: code })
           .then(function (res) {
             return res.json().catch(function () { return {}; }).then(function (data) {
@@ -231,8 +270,9 @@
           .then(function (r) {
             if (!r.ok) {
               showErr(r.data.message || '验证码错误');
-              verifying = false; elCode.disabled = false;
-              elCode.value = ''; elCode.focus();
+              verifying = false; setInputsDisabled(false);
+              if (recoveryMode) { elRecovery.value = ''; elRecovery.focus(); }
+              else { clearOtp(); focusOtp(0); }
               return;
             }
             persistLogin(r.data);
@@ -240,21 +280,75 @@
           })
           .catch(function () {
             showErr('网络错误,请重试');
-            verifying = false; elCode.disabled = false; elCode.focus();
+            verifying = false; setInputsDisabled(false);
+            (recoveryMode ? elRecovery : boxes[0]).focus();
           });
       }
 
-      // 输满 6 位数字即自动验证。
-      elCode.addEventListener('input', function () {
-        if (/^\d{6}$/.test(elCode.value.trim())) submitCode();
+      // 每格:只留最后一个数字,自动跳格;输满 6 位自动提交。
+      boxes.forEach(function (box, i) {
+        box.addEventListener('input', function () {
+          var ch = box.value.replace(/\D/g, '').slice(-1);
+          box.value = ch;
+          if (ch && i < boxes.length - 1) focusOtp(i + 1);
+          var v = otpValue();
+          if (/^\d{6}$/.test(v)) submitCode(v);
+        });
+        box.addEventListener('keydown', function (e) {
+          if (e.key === 'Backspace') {
+            if (box.value) { box.value = ''; }
+            else if (i > 0) { focusOtp(i - 1); boxes[i - 1].value = ''; }
+            e.preventDefault();
+          } else if (e.key === 'ArrowLeft' && i > 0) { focusOtp(i - 1); e.preventDefault(); }
+          else if (e.key === 'ArrowRight' && i < boxes.length - 1) { focusOtp(i + 1); e.preventDefault(); }
+        });
+        box.addEventListener('focus', function () { box.select(); });
       });
-      // 回车提交(兼容长度不为 6 的备用码)。
-      elTwoFactor.addEventListener('submit', function (e) { e.preventDefault(); submitCode(); });
+      // 粘贴整串:抽出数字分配到各格,输满自动提交。
+      elOtpBoxes.addEventListener('paste', function (e) {
+        var cb = e.clipboardData || window.clipboardData;
+        var text = ((cb && cb.getData('text')) || '').replace(/\D/g, '').slice(0, boxes.length);
+        if (!text) return;
+        e.preventDefault();
+        clearOtp();
+        for (var j = 0; j < text.length; j++) boxes[j].value = text[j];
+        focusOtp(text.length);
+        if (/^\d{6}$/.test(otpValue())) submitCode(otpValue());
+      });
+      // 备用码文本框:回车提交(变长)。
+      elRecovery.addEventListener('keydown', function (e) {
+        if (e.key === 'Enter') { e.preventDefault(); submitCode(elRecovery.value); }
+      });
+      // 表单回车兜底:按当前模式取值提交。
+      elTwoFactor.addEventListener('submit', function (e) {
+        e.preventDefault();
+        submitCode(recoveryMode ? elRecovery.value : otpValue());
+      });
+
+      // 「用备用码 / 用验证器」切换。
+      elToggleRecovery.addEventListener('click', function () {
+        recoveryMode = !recoveryMode;
+        clearErr();
+        elRecovery.value = '';
+        clearOtp();
+        if (recoveryMode) {
+          elOtpBoxes.style.display = 'none';
+          elRecovery.style.display = '';
+          elToggleRecovery.textContent = '用验证器';
+          elRecovery.focus();
+        } else {
+          elRecovery.style.display = 'none';
+          elOtpBoxes.style.display = '';
+          elToggleRecovery.textContent = '用备用码';
+          focusOtp(0);
+        }
+      });
 
       document.getElementById('backToLogin').addEventListener('click', function () {
         clearErr();
         pendingToken = '';
-        document.getElementById('code').value = '';
+        clearOtp();
+        elRecovery.value = '';
         show(elLogin);
         document.getElementById('email').focus();
       });
