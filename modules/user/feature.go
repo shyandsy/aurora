@@ -92,14 +92,12 @@ func (f *userFeature) registerProviders(app contracts.App) {
 	app.AddFeature(geoip.NewFeature(geoip.WithChinaFallback(true)))
 
 	// 登录暴力破解防护(防护三件套之「登录前」):按 IP + 账号做失败计数 / 短期锁定 / 成功清理。
-	// 本服务(内部用户中心)用**硬锁**模式 —— DefaultPolicy 基础上把 AcctLockSeconds 设 >0(900s):
-	// 账号失败超阈值即锁账号、预检拦截,运维去 Redis 清(account 传明文 email 便于手动解锁)。
-	// 阈值编译期定,故用 StaticPolicy;须在 redis feature(bootstrap 已装)之后、注入 Guard 的 Service 之前。
-	// 计数机制建在 aurora ratelimit 引擎上;namespace 传空 → 引擎自动取 SERVICE_NAME(按服务解耦,
-	// 本模块不再持有 namespace 旋钮)。后台「被锁列表」索引从 Guard.Namespace() 取同一前缀,单一源。
-	userLoginPolicy := loginguard.DefaultPolicy()
-	userLoginPolicy.AcctLockSeconds = 900
-	app.ProvideAs(loginguard.StaticPolicy(userLoginPolicy), (*loginguard.LoginPolicyProvider)(nil))
+	// 阈值来源:宿主可经 Config.LoginPolicyProvider 注入**运行时可调**的 provider(如从设置表读);
+	// 留空则用内置 StaticPolicy 硬锁默认(DefaultPolicy + AcctLockSeconds=900:账号失败超阈值即锁账号、
+	// 预检拦截,运维去 Redis 清),即现行行为、零回归。须在 redis feature(bootstrap 已装)之后、注入 Guard
+	// 的 Service 之前。计数机制建在 aurora ratelimit 引擎上;namespace 传空 → 引擎自动取 SERVICE_NAME
+	// (按服务解耦,本模块不持 namespace 旋钮);后台「被锁列表」索引从 Guard.Namespace() 取同一前缀,单一源。
+	app.ProvideAs(resolveLoginPolicyProvider(f.cfg), (*loginguard.LoginPolicyProvider)(nil))
 	app.AddFeature(loginguard.NewLoginGuardFeature("")) // 空 → SERVICE_NAME
 
 	// token 会话有效性内核(撤销 jti 黑名单 + 登录 IP 绑定):opt-in aurora feature,须在 redis + jwt 之后

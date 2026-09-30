@@ -1,5 +1,7 @@
 package user
 
+import "github.com/shyandsy/aurora/feature/loginguard"
+
 // Package user 是用户中心(user 服务)的「可挂载模块」装配层。
 //
 // 它把原先散在 cmd/main.go + cmd/providers.go + controller/routes.go 里的
@@ -38,6 +40,13 @@ type Config struct {
 	// 关于登录限流 namespace:**不在本 Config 里**。限流分区键语义上就是「哪个服务」,归公共组件
 	// aurora ratelimit/loginguard 拥有——留空则**自动取 SERVICE_NAME**(按服务天然解耦)。本模块只声明
 	// 登录桶,不决定 namespace;后台「被锁列表」索引也从 loginguard.Guard.Namespace() 取同一前缀,单一源。
+
+	// LoginPolicyProvider 可选:注入登录限流阈值来源,让阈值**运行时可调**(改设置即生效,不改代码/不重部署)。
+	//   - 留空 → 内置 StaticPolicy(编译期硬锁:DefaultPolicy + AcctLockSeconds=900),即现行行为,零回归;
+	//   - 传值 → 用宿主自己的实现(如从设置表读、内存缓存的 provider;deploy 的 DBProvider 读 deploy_setting)。
+	// provider 只决定「阈值从哪来」;账号维度硬锁 vs 只计数仍由它返回的 LoginPolicy.AcctLockSeconds 编码
+	// (>0 硬锁 / =0 只计数)。loginguard feature 启动时会校验初始快照自洽(不自洽即 fail-startup)。
+	LoginPolicyProvider loginguard.LoginPolicyProvider
 }
 
 const (
@@ -55,4 +64,19 @@ func (c Config) withDefaults() Config {
 		c.GateCookie = defaultGateCookie
 	}
 	return c
+}
+
+// defaultAcctLockSeconds 是内置(未注入 provider 时)的账号硬锁时长:失败超阈值即锁账号、预检拦截。
+const defaultAcctLockSeconds = 900
+
+// resolveLoginPolicyProvider 决定登录限流阈值来源:
+//   - Config.LoginPolicyProvider 非空 → 用宿主注入的(运行时可调,如从设置表读);
+//   - 留空 → 内置 StaticPolicy(DefaultPolicy + AcctLockSeconds=900,编译期硬锁),即现行行为、零回归。
+func resolveLoginPolicyProvider(c Config) loginguard.LoginPolicyProvider {
+	if c.LoginPolicyProvider != nil {
+		return c.LoginPolicyProvider
+	}
+	p := loginguard.DefaultPolicy()
+	p.AcctLockSeconds = defaultAcctLockSeconds
+	return loginguard.StaticPolicy(p)
 }
