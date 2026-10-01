@@ -1,0 +1,32 @@
+#!/usr/bin/env bash
+# 分支命名守卫(shyandsy 各仓统一)—— 拒绝 push 不符规范的分支名。
+#
+# 规范:分支名必须以  feature/ | bugfix/ | docs/  开头。
+#       维护 / 依赖升级 / 杂务 一律归 feature/(别用 chore/ fix/ feat/ 等其它前缀)。
+#       main/master 例外(但约定:绝不强推 main,合并一律走 PR)。
+#
+# 这是**可靠**那层:不依赖 agent 或人记得规范,push 时机械拦截。
+# 单一源在 aurora(scripts/git-hooks/pre-push);各仓把它拷进自己的 .githooks/ 并
+#   `git config core.hooksPath .githooks`(每个 clone 一次)即生效。改规范去 aurora 改后重新分发。
+set -euo pipefail
+
+ALLOWED='^(feature|bugfix|docs)/'
+PROTECTED='^(main|master)$'
+fail=0
+
+while read -r local_ref local_sha remote_ref remote_sha; do
+  # 只管推往 refs/heads/* 的分支(忽略 tag 等)
+  case "$remote_ref" in refs/heads/*) ;; *) continue ;; esac
+  # 跳过删除分支(local_sha 全 0)
+  case "$local_sha" in *[!0]*) ;; *) continue ;; esac
+  branch="${remote_ref#refs/heads/}"
+  [[ "$branch" =~ $PROTECTED ]] && continue
+  if [[ ! "$branch" =~ $ALLOWED ]]; then
+    echo "✗ 分支名 '$branch' 不符规范:必须以 feature/ | bugfix/ | docs/ 开头(维护/依赖类也归 feature/)。" >&2
+    echo "  改名重推:git branch -m '$branch' feature/<name> && git push -u origin feature/<name>" >&2
+    fail=1
+  fi
+done
+
+[ "$fail" -eq 0 ] || echo "✗ 已拦截本次 push(分支名规范见 aurora doc/conventions/branching.md)。" >&2
+exit "$fail"
