@@ -17,6 +17,41 @@ aurora 是框架仓,不跑 `ng build`。这里放的是**源码**;由消费方**
 
 host 集成大致三步(声明 remote → 加懒加载路由 `loadRemoteModule('user','./Routes')` → 提供壳布局);详见设计稿 [§4.3 前端](../../../doc/proposals/shared-user-center.md)。
 
+## gate 登录壳怎么部署(**消费方必读,之前没写,害人踩坑**)
+
+gate 是**后台 SPA 的「下载门禁」登录壳**:一个自包含静态页 `public/gate/index.html`(内联 CSS/JS,POST 到绝对 `/api/<user>/v1/auth/login`,写 `admin_gate` cookie),**不是** `./Routes` 暴露的那棵 Angular 路由,也不依赖 base-href。它随 `ng build` 原样落到**本 remote 产物的 dist 根 `/gate/`**(来自 `public/` 资源拷贝)。
+
+运行时它配合后端:host 的 SPA catch-all 路由挂 Traefik forwardAuth(verify 端点 = api 侧 user 模块的 `GET /api/<user>/v1/auth/gate/verify`,读 `admin_gate` cookie 验签);未通过 → 302 到 `/gate/`(`gate.go` 的 `gateShellPath`)。所以**必须有人在 host 域名根的 `/gate/` 提供这个静态壳,且该路径公开、不挂 forwardAuth**(否则连登录壳都下不到 = 死锁)。
+
+**推荐:把 `/gate` 路由到本 remote 的镜像**(它 dist 根就有 `/gate/`)——
+
+- Traefik 加一条 `PathPrefix(/gate)` 路由指向 **user remote 的 nginx 服务**,**公开、不挂 gate forwardAuth、不 stripprefix**,priority 高于 host 的 catch-all;
+- host(后台壳镜像)**完全不碰 gate**。
+- 好处:gate **只有 aurora 一份源、运行时只有 remote 镜像一份拷贝**,升级随 remote 走,host 零维护。
+
+**反模式(能用但不推荐):把 gate 注入 host 镜像**——构建 host 时 `rm -rf public/gate && cp <aurora>/modules/user/web/public/gate/index.html public/gate/`。缺点:运行时 host 和 remote **各带一份 gate 拷贝**、host 的 Dockerfile 要硬编码 aurora 路径、升级要重建 host。**仅当** host 不单独部署 user remote 镜像时才退而求其次这么做。
+
+> homeserver(admin host)目前用的是「注入 host」反模式;deploy 接入时改用了推荐做法(`/gate` 路由到 web-user 镜像)。本节即为收口两边 ad-hoc 差异而补。
+
+## 接入前必读:登录态约定必须**全栈对齐**(否则必死循环)
+
+本 remote 与它自带的 gate **硬编码**一套登录态约定,host 壳必须**全部对齐**,缺一就登录死循环:
+
+| 项 | 本 remote / gate 用的值 |
+|---|---|
+| access token(localStorage) | `admin_access_token` |
+| refresh token(localStorage) | `admin_refresh_token` |
+| user 快照(localStorage) | `admin_user` |
+| 2FA 强制绑定标记(localStorage) | `admin_2fa_enrollment_pending` |
+| 门禁 cookie(access token 镜像) | `admin_gate` |
+
+原因:host 把 remote 懒加载进自己的注入器,二者**同源共享同一份 localStorage**;remote 的 auth/guard **硬读 `admin_access_token`**,host 登录后必须把 token 写在同一个 key,remote 才认得。同理 gate 写 `admin_gate` cookie、forwardAuth verify 读 `admin_gate`,host 的 token→cookie 镜像也必须写 `admin_gate`。
+
+- host 若原本用别的 key(如 deploy 曾用 `deploy_access_token` / `access_token` cookie),接入时要把 storage 层、forwardAuth verify 的 cookie 名、以及任何读该 cookie 的旁路(如 SSR 控制台)**一并改成 `admin_*` / `admin_gate`**。
+- key 名用 `admin_*` 不影响各 host 的「独立性」——不同 host 本就独立 origin,localStorage 天然按 origin 隔离,与 key 名无关。
+
+> 真实教训:deploy 接入时只换了 gate 没对齐 storage/cookie → remote 读不到 token + gate cookie 与 forwardAuth 对不上 → 疯狂 `/auth/refresh`、卡「正在检查登录状态」死循环。全栈对齐后解决。
+
 ## 中立(硬性)
 
 本目录**不含任何业务名/品牌/域名/私有镜像仓**(白标中性);渠道差异(品牌、apiBaseUrl 等)全走消费侧 env/挂载,不进这里的代码/模板/类名。改动后须复查中立性。

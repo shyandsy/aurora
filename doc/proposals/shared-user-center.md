@@ -66,16 +66,17 @@ aurora/
 ```go
 app := bootstrap.InitDefaultApp()                       // aurora 起 redis/jwt/gorm/migrations
 app.AddFeature(user.NewFeature(user.Config{
-    TOTPKeyEnv:         "MYPROJ_TOTP_KEY",  // 各项目自己的凭据加密密钥 env 名
-    GateCookie:         "myproj_gate",       // forwardAuth cookie 名
-    RateLimitNamespace: "myproj",            // loginguard 引擎 key 前缀 rate_limit:<ns>:...
-    TablePrefix:        "user_",             // goose 表前缀(走 GOOSE_TABLE_PREFIX)
+    // 字段以 config.go 为准,当前就三个(都可选,留空回落默认):
+    TOTPKeyEnv:          "MYPROJ_TOTP_KEY",            // 凭据加密密钥 env 名;留空→USER_GOOGLE_TOTP_AUTH_KEY
+    GateCookie:          "myproj_gate",                 // 下载门禁 forwardAuth cookie 名;留空→admin_gate
+    LoginPolicyProvider: loginpolicy.NewDBProvider(..), // 可选:登录限流阈值运行时可调;留空→内置 StaticPolicy 硬锁
 }))
 app.RegisterRoutes(user.Routes(app))
 app.Run()
 ```
 - **差异全在这个 Config + chart/values 的 env/secret**,业务代码零行。
-- 迁移随模块(embed.FS)按各项目表前缀跑;各项目各自的库、数据隔离。
+- 限流 **namespace 不在 Config**(自动取 `SERVICE_NAME`);**表前缀不在 Config**(走部署期 env `GOOSE_TABLE_PREFIX`)——二者都不是字段。
+- 迁移随模块按各项目表前缀跑;各项目各自的库、数据隔离。
 
 ### 4.2 拿到这份代码 = `make sync-aurora`
 
@@ -88,6 +89,17 @@ user 模块在 aurora 里,所以**不需要新 sync 机制**——各项目现�
 **源码放 `modules/user/web/`**(和 doorman 的 `feature/doorman/web/` 一致——aurora 存前端源码、自己不构建;见 §2 的 `web/` 约定)。这样 user 模块的**后端 + 前端共置、锁步 sync、扫一眼就知道是全栈的**(避免"前端在别的仓 → 被忘"的坑)。
 
 **消费 = 一份共享 remote,别各项目各拷。** 前车之鉴:doorman 现在是"各项目把 `feature/doorman/web` 组件拷进自己的 remote app"(homeserver `web/doorman`),实测已和 aurora 源**逐字节漂移**——各拷各建必 drift,就是"重写"的变种。web/user 一整个 SPA 更要避开:从 `modules/user/web/` 源**构建出一份版本化的共享 remote**(`/user/vN/remoteEntry.json`),4 个项目后台壳 `federation.manifest.json` **pin 到某版本**加载;升级 = 该壳显式 bump manifest(不重构建 host、不自动传播,坏了不连累别人)。i18n/路由经贡献套件合并。
+
+#### 4.3.1 gate 登录壳怎么部署(之前漏写,homeserver / deploy 各自 ad-hoc,在此收口)
+
+gate(`public/gate/index.html`)是**后台 SPA 下载门禁的静态登录壳**,**不是** `./Routes` 那棵 Angular 路由:自包含页、POST 绝对 `/api/<user>/v1/auth/login`、写 `admin_gate` cookie、不依赖 base-href。它随 `ng build` 落到**本 remote 产物的 dist 根 `/gate/`**。运行时:host 的 SPA catch-all 挂 forwardAuth(verify = `GET /api/<user>/v1/auth/gate/verify`,读 `admin_gate`),未过 → 302 到 `/gate/`(`gate.go: gateShellPath`);故 `/gate/` **必须有人提供、且公开不挂门禁**。
+
+- **✅ 推荐:`/gate` 路由到 user remote 的镜像**(它 dist 根就有 `/gate/`)——Traefik 一条 `PathPrefix(/gate)` 指向 remote 的 nginx,公开、不挂 forwardAuth、不 stripprefix、priority 高于 host catch-all;host 完全不碰 gate。gate **只有 aurora 一份源、运行时只 remote 一份拷贝**,升级随 remote 走。
+- **⚠️ 反模式:注入 host 镜像**(host 构建时 `cp aurora gate → public/gate`)——运行时 host 和 remote 各一份拷贝、host Dockerfile 硬编码 aurora 路径、升级要重建 host。仅当 host 不单独部署 remote 镜像时退而求其次。homeserver admin 现用此法;**deploy 已改用推荐做法**。
+
+#### 4.3.2 登录态约定必须全栈对齐(接入硬约束,否则死循环)
+
+remote 与 gate **硬编码**一套 key/cookie,host 壳必须全部对齐:access/refresh/user/enroll 的 localStorage key = `admin_access_token` / `admin_refresh_token` / `admin_user` / `admin_2fa_enrollment_pending`,门禁镜像 cookie = `admin_gate`。原因:remote 被懒加载进 host、**同源共享 localStorage**,remote 的 guard 硬读 `admin_access_token`;gate/forwardAuth 认 `admin_gate`。host 原本用别的 key(deploy 曾用 `deploy_*` / `access_token`)**必须一并改**(storage 层 + forwardAuth verify 的 cookie 名 + 任何读该 cookie 的旁路如 SSR 控制台)。key 名用 `admin_*` 不碍各 host 独立——不同 host 本就独立 origin、localStorage 天然隔离。deploy 真实踩坑:只换 gate 没对齐 storage → remote 读不到 token、gate 与 forwardAuth cookie 对不上 → 疯狂 `/auth/refresh` 死循环;全栈对齐后解决。
 
 ### 4.4 版本化 / 升级
 
@@ -143,7 +155,7 @@ user 模块在 aurora 里,所以**不需要新 sync 机制**——各项目现�
 - **前端**:源码**已进** `modules/user/web/`(aurora #71 ✅)。**待做**:从该源构建版本化共享 remote 的 CI + 各项目后台壳 pin 加载 + 各项目现有 `web/user` 切成消费这份(去本地副本)。
 - **migrations 改 embed.FS 由模块自持**(现仍靠宿主 `InitDefaultApp` 的 goose + `GOOSE_TABLE_PREFIX`;下沉需连 App 初始化一起理)。这也是 homeserver 接入(§6b①)"goose 迁移源重指到模块目录"的落点。
 - **把 `20260921140000_user_adopt_admin_data.sql` 从模块剥离**(见 §6b):它是 homeserver 专用数据采纳,按治理铁律 B 不该在共享 `user_` 流里。剥离手法注意——homeserver 已把该号应用进 `user_goose_db_version`,直接删文件 goose 会报"缺失迁移"。可选:①保留一个 no-op 占位(空 up/down)守住版本号连续、真正的采纳逻辑挪进 homeserver 私有一次性迁移;②或按 goose `allow-missing` 策略处理。定夺前别动,先确认 homeserver 现网 goose 行为。
-- `RateLimitNamespace` 与被锁列表索引常量(`rate_limit:user:index*`)耦合,改 namespace 需同步改常量(待参数化)。
+- 限流 namespace **不是 Config 字段**(自动取 `SERVICE_NAME`);后台「被锁列表」索引已从 `loginguard.Guard.Namespace()` 取同一前缀(单一源,已非硬编码)。此前「`RateLimitNamespace` 待参数化」的说法作废。
 - `types`:`status.go`(int)与 `enabled_disabled_status.go`(string)同概念不同类型的历史冗余,统一 = 改 DB 列/DTO 的数据变更,独立 cleanup。
 - 注释里 "homeserver" 泛化为"宿主"。
 - 通用「设置」框架(aurora `feature/setting` + `web/setting`)—— 独立 initiative,单独排(doorman 那套:中立框架 + 前端 + 业务配置留消费侧)。

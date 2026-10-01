@@ -54,11 +54,12 @@ description: 把 aurora 共享后台 user 模块(modules/user:账号/RBAC/登录
 ### A. goose 两层隔离(为什么模块 schema 是座孤岛)
 1. **业务表名写死 `user_*`**(在迁移 SQL 里,不是靠前缀拼)→ 与项目已有的 `users`/`roles` 天然不撞名。
 2. **版本表靠 `GOOSE_TABLE_PREFIX` 隔离**:homeserver `user_` → `user_goose_db_version`,和 host 自己的 `goose_db_version` **分开记账**。模块迁移流独立跟踪、永不和 host 的 app 迁移交叉编号。
-3. **迁移在 `bootstrap.InitDefaultApp()` 里跑,早于模块 Setup**。所以前缀只能由部署期 env `GOOSE_TABLE_PREFIX` 给,`Config.TablePrefix` 只是把契约写进配置、当前不由模块注入(见 `modules/user/config.go` 注释)。
+3. **迁移在 `bootstrap.InitDefaultApp()` 里跑,早于模块 Setup**。所以前缀只能由部署期 env `GOOSE_TABLE_PREFIX` 给(**不是** Config 字段——`Config` 没有 `TablePrefix`,见 §2E)。
 
 ### B. 存量接入,顺序绝不能反:先校验、再写号
 - 一旦把版本号写进 `user_goose_db_version`,goose **永远不再碰这些表**。若此时存量表少一列/类型不对,不一致被**永久固化** → 代码上线崩在字段不匹配(500)。
 - **⚠️ 不能靠 `goose up` + `CREATE TABLE IF NOT EXISTS` 偷懒**:`IF NOT EXISTS` 只保证"表在就不报错",**不保证结构对**。存量表少一列它照样"成功"、照样写号,把不一致藏得更深。→ 必须**显式校验 + 显式写号**,不走这条捷径。
+- **⚠️ 迁移别用 MariaDB-only 语法(消费库多是 MySQL)**:`ALTER TABLE ... ADD COLUMN IF NOT EXISTS` / `DROP COLUMN IF EXISTS` **只有 MariaDB 支持,MySQL 报 1064 语法错 → goose 失败 → `bootstrap.InitDefaultApp()` panic(exit 2)→ 服务回滚**。用朴素 `ALTER TABLE ADD COLUMN`(goose 每个迁移只成功跑一次,天然安全);`CREATE/DROP TABLE IF [NOT] EXISTS` 两端都支持可用。deploy 接入时就栽在这(第一版对账迁移用了 `ADD COLUMN IF NOT EXISTS`、api-user 启动即崩回滚)。
 
 ### C. feature 权限目录是 data,不是 schema —— host 声明式注册表,模块不掺和
 - homeserver 有 **137 条 `services/admin/migrations/feature_*.sql`**,每条 `INSERT INTO features ... ON DUPLICATE KEY UPDATE`(按 name 幂等 upsert)——上个新页/新接口就加一条权限行 + 授权。
@@ -74,11 +75,27 @@ description: 把 aurora 共享后台 user 模块(modules/user:账号/RBAC/登录
 - **新项目照它的形状写自己的回填,放 host 流,别拷它、别删模块里的号**。剥离手法(homeserver 已应用、直接删文件 goose 报缺失)见设计稿 §8。
 
 ### E. 挂载配置别硬编码(照 Config 走)
-- 差异只经 `user.Config`:`TOTPKeyEnv`(凭据加密密钥 env 名)/`GateCookie`(forwardAuth cookie 名)/`RateLimitNamespace`(loginguard key 前缀)/`TablePrefix`。留空回落 homeserver 默认值。
-- ⚠️ `RateLimitNamespace` 改了,`service/ratelimit` 的「被锁列表」索引常量(`rate_limit:<ns>:index*`)目前仍硬编码、需同步改,否则后台列表读不到。
+- 差异只经 `user.Config`,**当前就三个字段**(以 `modules/user/config.go` 为准):
+  - `TOTPKeyEnv`(凭据加密密钥的 env 名;留空 → `USER_GOOGLE_TOTP_AUTH_KEY`)
+  - `GateCookie`(下载门禁 forwardAuth cookie 名;留空 → `admin_gate`)
+  - `LoginPolicyProvider`(可选:登录限流阈值来源,让阈值运行时可调,如读设置表;留空 → 内置 StaticPolicy 硬锁默认,零回归)
+- ⚠️ **不存在 `RateLimitNamespace` / `TablePrefix` 这两个 Config 字段**(老文档写过、是错的):
+  - **限流 namespace 不在 Config**:留空自动取 `SERVICE_NAME`;后台「被锁列表」索引从 `loginguard.Guard.Namespace()` 取同一前缀(单一源,别再按老说法手改索引常量)。
+  - **goose 表前缀不在 Config**:走部署期 env `GOOSE_TABLE_PREFIX`(见 §2A.3)。
 
 ### F. 凭据密钥 fail-fast
 - 模块 Setup 会强制校验 `TOTPKeyEnv` 指向的密钥(空/无效 → FATAL + os.Exit(1)),**绝不回落占位密钥**。接入前先把该 env 配进 chart/secret(base64 32 字节或任意口令)。多个共享同一份凭据的服务必须同一把密钥。
+
+### G. 别只接后端——前端 federation + gate + 登录态对齐(deploy 在这栽过死循环)
+user 模块是**全栈**的:只挂后端,用户进不了用户中心。前端 = host 懒加载 user remote(Native Federation),完整说明见 [`modules/user/web/README.md`](../../../modules/user/web/README.md),这里只给接入时**必踩的三条**:
+
+1. **消费 remote,别拷源**:host 把 `web/user` 改成 Federation host,懒加载 `loadRemoteModule('user','./Routes')`;从 `modules/user/web` 源构建一份 **web-user remote 镜像**(base-href `/user/`)独立部署,host pin manifest 加载。别把 remote 的 `src/app` 拷进 host(= drift)。
+2. **gate 由 remote 镜像提供,别注入 host**:gate 是 remote 自带静态壳(`public/gate` → 镜像 dist 根 `/gate/`);Traefik 把 `/gate` 路由到 **web-user 镜像**(公开、不挂 forwardAuth、不 stripprefix),host 零 gate。详见 web/README「gate 登录壳怎么部署」。(homeserver 用"注入 host"反模式;deploy 已改推荐做法。)
+3. **⚠️ 登录态约定必须全栈对齐(不对齐必死循环)**:remote/gate **硬编码** `admin_access_token`/`admin_refresh_token`/`admin_user`/`admin_2fa_enrollment_pending`(localStorage)+ `admin_gate`(cookie)。host 壳必须全部用这套:
+   - host SPA 的 storage 层写同样的 key(remote 与 host 同源共享 localStorage,remote 的 guard 硬读 `admin_access_token`);
+   - 门禁 forwardAuth 的 verify 指 **api-user `/api/<user>/v1/auth/gate/verify`**(读 `admin_gate`);
+   - 任何旁路读该 cookie 的(如 SSR 控制台)也改成 `admin_gate`。
+   - host 原本用别的 key(deploy 曾用 `deploy_*` / `access_token`)**必须一并全改**,只换一半 → remote 读不到 token / gate 与 forwardAuth 对不上 → 疯狂 `/auth/refresh` 死循环。key 名用 `admin_*` 不碍各 host 独立(不同 host 独立 origin,localStorage 天然隔离)。
 
 ---
 
@@ -89,8 +106,9 @@ description: 把 aurora 共享后台 user 模块(modules/user:账号/RBAC/登录
 2. main 挂载:
    ```go
    app := bootstrap.InitDefaultApp()
-   app.AddFeature(user.NewFeature(user.Config{TOTPKeyEnv:"...", GateCookie:"...", RateLimitNamespace:"...", TablePrefix:"user_"}))
+   app.AddFeature(user.NewFeature(user.Config{TOTPKeyEnv:"...", GateCookie:"..." /*, LoginPolicyProvider: ... 可选 */}))
    app.RegisterRoutes(user.Routes(app))
+   // 注:namespace 自动取 SERVICE_NAME、表前缀走 env GOOSE_TABLE_PREFIX,都不是 Config 字段(见 §2E)。
    ```
 3. 部署期 export `GOOSE_TABLE_PREFIX=user_`;goose 迁移源指向模块 migrations。
 4. 起服务 → 迁移建空 `user_*` 表(**不跑 adopt**,删/占位那条)。
@@ -159,8 +177,9 @@ INSERT INTO user_goose_db_version (version_id, is_applied, tstamp) VALUES
 3. **存量项目先 verify(§4)**:有 drift 停,expand-contract 对齐。
 4. **按情况处理表/数据**:①建空表+seed / ②baseline / ③建空表+host 回填(§3)。
 5. **feature 目录 seed 走 host 流**(§2C),别碰 `user_` 流。
-6. **起服务验证**:迁移无重跑、`/health` 通、登录+2FA+gate 通、后台被锁列表读得到(namespace 对)。
-7. **③ 额外**:并行验证稳 → cutover 停老 admin。
+6. **前端接入(§2G)**:host 改 Federation host 懒加载 user remote + 构建 web-user remote 镜像部署 + `/gate` 路由到该镜像 + **host 登录态全栈对齐 `admin_*`/`admin_gate`**(只接后端用户进不去 / 只换 gate 必死循环)。
+7. **起服务验证**:迁移无重跑、`/health` 通、登录+2FA+gate 通、`/user-center` remote 加载出、后台被锁列表读得到(namespace 对)。
+8. **③ 额外**:并行验证稳 → cutover 停老 admin。
 
 ---
 
@@ -169,3 +188,19 @@ INSERT INTO user_goose_db_version (version_id, is_applied, tstamp) VALUES
 - **host feature/role 注册表(§2C)**:设计已定(host `rbaccatalog/` 声明 + 开机 upsert + 防幻影,模块不掺和),**代码待写**,属各项目接入 PR(homeserver 先做)。渐进,不必一次搬完 137 条。
 - **baseline(§5)**:落地前靠手工 SQL;可后续做成模块自带确定性子命令。
 - **这个 skill 怎么到达消费项目的 agent**:它在 aurora(单一源),但消费项目把 aurora vendor 进 `third_party/aurora`,`.claude/skills` 未必随之被 agent 加载。方案待定:随 `make sync-aurora` 分发进消费项目 `.claude/skills/` / 各项目一个薄指针 / 收口共享 skill 仓。**这条要产品化拍板。**
+
+---
+
+## §8 维护:改了模块「对外面」就同步这些文档(别只改一处)
+
+user.Config / 路由 / gate / 前端约定这些**对消费方可见的契约**被抄在多处文档里——改一处必漏几处(实测:Config 字段曾在模块 README + 本 skill + 设计稿三处抄错,漏 `LoginPolicyProvider`、多 `RateLimitNamespace`/`TablePrefix`)。改了下列任一就**全量同步**对应文档:
+
+| 改了什么 | 要同步的文档 |
+|---|---|
+| `user.Config` 字段(config.go) | `modules/user/README.md`(用法 + 对外入口)、`modules/user/web/README.md`(涉前端时)、设计稿 `§4.1`、本 skill §2E/§3/§6 |
+| 路由(routes.go) | `modules/user/README.md`(对外入口)、设计稿 §3 功能 |
+| gate 部署 / 登录态 cookie·localStorage 约定 | `modules/user/web/README.md`(gate 部署 / 登录态对齐节)、设计稿 §4.3.1/4.3.2、本 skill §2G |
+
+**自动闸(别只靠自觉)**:`make doc-check`(= `go test ./modules/user/ -run TestDocs_`,已含在 `make test` / CI)——①文档里 `user.Config{}` 示例字段都真实存在(反射 config.go)②每个真实字段都在模块 README 出现。漏同步/抄错字段,CI 直接红。新增要盯的文档就加进 `modules/user/docs_config_test.go` 的 `configDocs`。
+
+**通法**:评估「改这个要同步哪些文档」时**对整仓全量扫**(`git ls-tree -r --name-only HEAD | grep -iE '\.md$'` 排 `vendor/` 再逐个 grep),别只盯脑子里那个子目录——漏文档基本都是 scope 太窄。
