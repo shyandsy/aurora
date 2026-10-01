@@ -50,6 +50,7 @@ A lightweight, modular web framework for Go, built on top of Gin with dependency
 - **[doc/architecture.md](doc/architecture.md)** —— App / Feature / DI / 生命周期。**先读这篇。**
 - **[doc/topics/security-suite.md](doc/topics/security-suite.md)** —— 防护体系(限流/登录/会话/风险)总设计。
 - **[doc/building/](doc/building/)** —— 怎么用框架搭一个服务(脚手架/分层/fork)。
+- **[doc/conventions/branching.md](doc/conventions/branching.md)** —— 分支 / 提交规范(各仓统一单一源):分支只用 `feature/`·`bugfix/`·`docs/`,配 `scripts/git-hooks/pre-push` 机械守卫。**各项目接入前先读。**
 - 单点 Feature 参考:[doc/features/](doc/features/)。
 
 ## Installation
