@@ -187,7 +187,7 @@ INSERT INTO user_goose_db_version (version_id, is_applied, tstamp) VALUES
 - **启动 schema 闸(§4)**:设计已定(entity 自省 + Setup FATAL),**代码待写**(`modules/user/schema_guard.go`)——建议独立小 PR,是模块自带的承重安全件。落地前存量对齐靠 scratch 库 dump-diff 人工兜。
 - **host feature/role 注册表(§2C)**:设计已定(host `rbaccatalog/` 声明 + 开机 upsert + 防幻影,模块不掺和),**代码待写**,属各项目接入 PR(homeserver 先做)。渐进,不必一次搬完 137 条。
 - **baseline(§5)**:落地前靠手工 SQL;可后续做成模块自带确定性子命令。
-- **这个 skill 怎么到达消费项目的 agent**:它在 aurora(单一源),但消费项目把 aurora vendor 进 `third_party/aurora`,`.claude/skills` 未必随之被 agent 加载。方案待定:随 `make sync-aurora` 分发进消费项目 `.claude/skills/` / 各项目一个薄指针 / 收口共享 skill 仓。**这条要产品化拍板。**
+- **这个 skill 怎么到达消费项目的 agent**:它在 aurora(单一源)。**只有把 aurora 整棵树 vendor 进 `third_party/aurora` 的项目**(README「消费 aurora:两种方式」第 ② 类 —— 因防逆向需隐藏上游身份才整树 vendor + 改 import)才能靠 `scripts/post-sync.sh` 把它镜像进项目根 `.claude/skills/`。走 `go get` 直接依赖的项目(第 ① 类)其 `third_party/aurora` 里只有 web/迁移源(甚至没这文件夹),不含 `.claude/skills/`,不经此获得本 skill——**别为了拿它去引入整树 vendor**;要不要、怎么拿由该项目自己决定(直接放一份 / 不放)。其余方案(薄指针 / 共享 skill 仓)仍待产品化拍板。
 
 ---
 
