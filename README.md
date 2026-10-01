@@ -58,6 +58,66 @@ A lightweight, modular web framework for Go, built on top of Gin with dependency
 go get github.com/shyandsy/aurora
 ```
 
+## 消费 aurora:两种方式(别把第二种当默认)
+
+aurora 有**两条**被消费的路径。**默认、通用、绝大多数项目走第一条**;第二条**只为一个特定场景(防逆向)存在**,是 optional,**不是必须**。先认清你属于哪种,别套错模型。
+
+### ① 默认 —— `go get` 直接依赖(普通 Go module)
+
+```bash
+go get github.com/shyandsy/aurora
+```
+
+直接 `import "github.com/shyandsy/aurora/..."` 用,go module 正常依赖,**不改 import 路径、不 replace**。绝大多数消费项目都是这样。
+
+唯一例外是 `go vendor` 带不走的**非 `.go` 源**(前端 web 源 `modules/*/web`、`feature/*/web`、`web/common`;goose 迁移 `.sql`):这些按需**窄同步**——只把**用到的那几个目录**拷进本项目的 `third_party/aurora/`(**只拷这些目录,不拷 Go、不改任何 import、不 replace**),REF pin 到与 `go.mod` 同一 commit 保证同源。
+
+> ⚠️ **`third_party/aurora/` 文件夹存在 ≠ 你在走 ②。** ① 的窄同步也落在这个文件夹里(web/迁移源)。区分 ①/② **看的是有没有改 import 路径 / `replace`,不是文件夹在不在**。
+
+### ② 身份隐藏 —— 整棵树 vendor + 改 import 路径(仅防逆向场景)
+
+**目的(唯一):** 当构建产物会落到不可信方(对外交付 / 暴露的二进制),需要**在产物里隐藏 aurora / 上游身份**以防逆向时,才把 aurora **整棵树** vendor 进 `third_party/aurora/` 并把 import 路径 `github.com/shyandsy/aurora` 整体**改名**到一个中立 host(如 `bitbucket.com/...`),让产物里认不出上游。(前身是 garble;garble 弃用后改用改名这招。)
+
+**没有这个防逆向 / 身份隐藏需求的项目,一律用 ①。** 别只因为"想在本地持有一份"就上 ②——那是 ① 的窄同步就能满足的事。
+
+判断你在哪种(任一 tell 即可):
+
+- **最直观**:import 写的是 `github.com/shyandsy/...`(→ ①),还是中立 host 如 `bitbucket.com/...`(→ ②)。
+- **go.mod**:aurora 是 `require github.com/shyandsy/aurora`(→ ①),还是被 `replace` 成 `third_party/aurora` 的本地改名路径(→ ②)。
+
+### 随仓 skill 分发 —— 和代码消费**正交**(①② 都能用)
+
+aurora 把跨项目复用的 agent skill 放在 `.claude/skills/`。**拿 skill 和"你怎么消费 aurora 的代码"没有关系**,由独立脚本 **`scripts/sync-skills.sh`** 负责,**不碰 `go.mod`、不碰 `third_party/aurora`**。
+
+> ⚠️ **先解决"从哪拿到这个脚本"——这正是容易把人绕回 vendor 的坑。** ① 项目**本地没有 aurora 树**(aurora 只是 go module),所以**不存在 `<aurora>/scripts/sync-skills.sh` 这个本地路径**。**别为了拿这个脚本去 clone / vendor 整个 aurora** —— 那就又掉回 ② 了。正确做法见下,按你是 ① 还是 ② 分叉。
+
+**①(go get)项目 —— 自带一个独立 helper,不碰 aurora 树:**
+
+`scripts/sync-skills.sh` 是**零依赖的单文件**。把它**拷一份进你自己的仓**(如本项目 `scripts/sync-skills.sh`,托管副本,别手改,升级就重拷)——**这不是 vendor aurora**,只是带一个独立小工具。然后在你的 `Makefile` 加**一行**目标:
+
+```makefile
+sync-aurora-skills:   ## 同步 aurora 的 agent skill 进项目根 .claude/skills/(与代码消费无关)
+	REF=$(AURORA_REF) SKILLS="design-nav" bash scripts/sync-skills.sh
+```
+
+脚本会从上游**只** sparse-checkout `.claude/skills`(不下 Go/web 源、**不建 `third_party/aurora`**)拷进项目根 `.claude/skills/`。它和 `sync-aurora-web` 这类**代码**同步目标**平级、互不依赖**。
+
+> 不想带脚本副本?也可以把那几行 sparse-clone 直接内联进 Makefile 目标(效果一样,代价是 clone 逻辑在各项目各一份)。两种都行,**唯独不要为拿 skill 去 vendor 整棵 aurora。**
+
+**②(整树 vendor)项目 —— 本地已有脚本和 skill:**
+
+你的 `third_party/aurora/` 里已有 `scripts/sync-skills.sh` 和 `.claude/skills/`,直接:
+
+```bash
+bash third_party/aurora/scripts/sync-skills.sh   # 自动发现本地树,零网络镜像进项目根
+```
+
+`scripts/post-sync.sh` 现在只是转发到 `sync-skills.sh` 的**向后兼容 shim**(已写 `post-sync` 调用的项目不受影响;新项目直接用 `sync-skills.sh`)。
+
+> 历史教训:skill 分发曾寄生在 ② 的整树 vendor 上,逼着只想要个 skill 的 ① 项目去上整套 vendoring —— 这正是"把 ② 当默认"的误导源。现已拆开:**要 skill 走 `sync-skills.sh`,和要不要 vendor 整树无关;而拿这个脚本本身也不需要 vendor aurora。**
+
+> 一句话:**改 import 路径 / 整树 vendor 只在"要把上游身份藏进交付产物"时才做,不是消费 aurora 的前提,更不是拿 skill 的前提。** 看到 `make sync-aurora`、中立 host 的 import 路径,先确认目标项目是不是真有防逆向需求(② 类),再照搬。
+
 ## Examples
 
 The framework includes sample projects under **[sample](sample/)**:
