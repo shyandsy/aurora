@@ -23,7 +23,7 @@ import {
 } from './shared/models/doorman.dto';
 import { DOORMAN_I18N } from './i18n';
 import { ConfirmDialogComponent } from './shared/components/confirm-dialog/confirm-dialog.component';
-import { formatDate } from './shared/utils/date.util';
+import { formatDate } from '@common/utils/date.util';
 
 /** 编辑器里的一条可编辑条件(type + params;params 随所选类型的 schema 动态渲染)。 */
 interface EditCondition {
@@ -244,7 +244,7 @@ export class DoormanConfigComponent {
   }
   /** 风险等级(字符串)→ pill class,复用 riskPillClass(它按等级取色)。 */
   decisionTime(iso: string): string {
-    return formatDate(iso);
+    return formatDate(iso, '');
   }
 
   // ---- 视图切换 + 明细翻页 ----------------------------------------------
@@ -624,7 +624,7 @@ export class DoormanConfigComponent {
   }
 
   formatDate(v: string | null | undefined): string {
-    return formatDate(v);
+    return formatDate(v, '');
   }
 
   // ---- 保存(新增 / 编辑) ------------------------------------------------
