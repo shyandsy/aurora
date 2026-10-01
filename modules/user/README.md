@@ -8,23 +8,26 @@
 - **登录**:密码登录 + 2FA(TOTP) + 会话/设备清单(列出/撤销/滚动续期)。
 - **登录防护**:建在 aurora `loginguard`(失败计数→锁)+ `tokenguard`(会话有效性/撤销/IP 绑定)上;后台「被锁列表 + 解锁」。
 - **微服务 token**:对外签发「服务间调用」长效 token + 启停。
-- **gate**:登录壳 + Traefik forwardAuth + TOTP(cookie 镜像 SPA token),后台 SPA 下载门禁。
+- **gate**:登录壳 + Traefik forwardAuth + TOTP(cookie 镜像 SPA token),后台 SPA 下载门禁。**部署方式**(谁在 `/gate` 提供登录壳 + host 登录态约定必须对齐)见 [web/README 的「gate 登录壳怎么部署」「登录态约定对齐」](web/README.md)。
 
 ## 用法
 
 ```go
 app := bootstrap.InitDefaultApp()          // aurora 起 redis/jwt/gorm/migrations
 app.AddFeature(user.NewFeature(user.Config{
-    TOTPKeyEnv:         "MYPROJ_TOTP_KEY",  // 凭据加密密钥的 env 名(各项目自己的)
-    GateCookie:         "myproj_gate",       // forwardAuth cookie 名
-    RateLimitNamespace: "myproj",            // loginguard 引擎 key 前缀 rate_limit:<ns>:...
-    TablePrefix:        "user_",             // goose 表前缀(走 GOOSE_TABLE_PREFIX)
+    // 全部字段可选,留空各自回落默认(见 config.go withDefaults / resolveLoginPolicyProvider)。
+    TOTPKeyEnv:          "MYPROJ_TOTP_KEY",            // 凭据(TOTP 等)加解密密钥的 env 名;留空→USER_GOOGLE_TOTP_AUTH_KEY
+    GateCookie:          "myproj_gate",                 // 下载门禁 forwardAuth cookie 名;留空→admin_gate
+    LoginPolicyProvider: loginpolicy.NewDBProvider(..), // 可选:登录限流阈值来源,让阈值运行时可调(如读设置表);
+                                                        // 留空→内置 StaticPolicy(编译期硬锁默认),零回归
 }))
 app.RegisterRoutes(user.Routes(app))
 app.Run()
 ```
 
-- **差异全在 `Config` + chart/values 的 env/secret**,业务代码零行。
+- **差异全在 `Config` + chart/values 的 env/secret**,业务代码零行。`Config` 当前只有上面三项。
+- **登录限流 namespace 不在 Config**:留空自动取 `SERVICE_NAME`(按服务天然解耦);后台「被锁列表」索引从同一前缀取,单一源。
+- **goose 表前缀不在 Config**:走部署期环境变量 `GOOSE_TABLE_PREFIX`(只前缀版本表,业务表名写死在迁移里),与本模块配置无关。
 - 拿到这份代码 = 各项目现有的 `make sync-aurora REF=<含本模块的版本>`(和拿 loginguard/tokenguard 一样,无需新 sync 机制)。
 - 各项目各起一份实例、各自的库,数据隔离;迁移按各自表前缀跑。
 
