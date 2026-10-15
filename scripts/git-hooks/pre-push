@@ -1,16 +1,26 @@
 #!/usr/bin/env bash
 # 分支命名守卫(shyandsy 各仓统一)—— 拒绝 push 不符规范的分支名。
 #
-# 规范:分支名必须以  feature/ | bugfix/ | docs/  开头。
-#       维护 / 依赖升级 / 杂务 一律归 feature/(别用 chore/ fix/ feat/ 等其它前缀)。
-#       main/master 例外(但约定:绝不强推 main,合并一律走 PR)。
+# 允许前缀:**默认 feature/ | bugfix/ | docs/**。各仓可在同目录 `.githooks/branch-prefixes`
+#   覆写(每行一个前缀名、不带斜杠;`#` 开头为注释、空行忽略)。例:某仓要放行 research/ 做 WIP,
+#   就在该文件写 feature / bugfix / docs / research。维护/依赖/杂务无单独前缀,一律归 feature/。
+#   main/master 例外(但约定:绝不强推 main,合并一律走 PR)。
 #
-# 这是**可靠**那层:不依赖 agent 或人记得规范,push 时机械拦截。
-# 单一源在 aurora(scripts/git-hooks/pre-push);各仓把它拷进自己的 .githooks/ 并
-#   `git config core.hooksPath .githooks`(每个 clone 一次)即生效。改规范去 aurora 改后重新分发。
+# 这是**可靠**那层:push 时机械拦截,不依赖记忆。单一源在 aurora(scripts/git-hooks/pre-push);
+#   各仓把它拷进自己的 .githooks/ 并 `git config core.hooksPath .githooks`(每个 clone 一次)即生效。
+#   脚本改动去 aurora 改后重新分发;**允许前缀改 `.githooks/branch-prefixes`,别手改本脚本**。
+#   建议再配一个 CI 分支名检查(读同一份 branch-prefixes),堵 --no-verify / 没跑 dev-setup 的漏。
 set -euo pipefail
 
-ALLOWED='^(feature|bugfix|docs)/'
+hook_dir="$(cd "$(dirname "$0")" && pwd)"
+prefixes="feature bugfix docs"
+cfg="$hook_dir/branch-prefixes"
+if [ -f "$cfg" ]; then
+  fromfile="$(grep -vE '^[[:space:]]*(#|$)' "$cfg" | tr '\n' ' ' || true)"
+  fromfile="$(echo $fromfile)"   # 压掉多余空白
+  [ -n "$fromfile" ] && prefixes="$fromfile"
+fi
+ALLOWED="^($(echo "$prefixes" | tr ' ' '|'))/"
 PROTECTED='^(main|master)$'
 fail=0
 
@@ -22,7 +32,7 @@ while read -r local_ref local_sha remote_ref remote_sha; do
   branch="${remote_ref#refs/heads/}"
   [[ "$branch" =~ $PROTECTED ]] && continue
   if [[ ! "$branch" =~ $ALLOWED ]]; then
-    echo "✗ 分支名 '$branch' 不符规范:必须以 feature/ | bugfix/ | docs/ 开头(维护/依赖类也归 feature/)。" >&2
+    echo "✗ 分支名 '$branch' 不符规范:必须以 $(echo "$prefixes" | sed 's/ / | /g') 之一(加 /)开头。" >&2
     echo "  改名重推:git branch -m '$branch' feature/<name> && git push -u origin feature/<name>" >&2
     fail=1
   fi
