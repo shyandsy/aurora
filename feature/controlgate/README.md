@@ -17,7 +17,7 @@
 
 | 角色 | 职责 |
 |---|---|
-| control(homeserver-deploy) | 策略定义 + 项目私钥签名(随续约裁决下发) |
+| control(控制面,跨仓) | 策略定义 + 项目私钥签名(随续约裁决下发) |
 | `sealkit/guard` | 续约 HTTP 传输(`HTTPRenewer`)+ 公钥解码(`DecodePub`) |
 | 本 feature | ① serving 门:验签裁决 → 随机注入 500 / 过期宽限 / 吊销立即停 + NTS 可信时钟 + 启动宽限 + 持久化恢复;② `SignViaControl`:转发关键数据到 control 现签(key 不落本地) |
 
@@ -35,30 +35,28 @@
 > 标准用法 `AddFeature×N → RegisterRoutes → Run` 天然满足,这条只是防误用护栏。
 
 ```go
-// service providers（在 NewServerFeature 之后）
-var cg controlgate.Config
-_ = config.ResolveConfig(&cg)             // 灌 CONTROL_* 坐标(见下表)
-cg.ServiceName = "customer"               // 日志 / metrics 的 service label
-cg.MetricNamespace = "homeserver"         // homeserver 现网须设(留空=不启用观测、不报错;见「观测」)
-cg.DebugLogs = app.RunLevel() == "eng"    // eng 大声、prd 收敛
+// service providers（在 server feature 之后、RegisterRoutes 之前）
+app.AddFeature(controlgate.NewControlgateFeature(
+    controlgate.WithMetricNamespace("myapp"), // 不设 = 不启观测;其余 options 见下表
+))
+// 坐标走 CONTROL_* env(Setup 内部 ResolveConfig);ServiceName 默认 app.Name();
+// DebugLogs 按 app.RunLevel() 自动——都不用在装配处手设。
 
-app.AddFeature(controlgate.NewControlgateFeature(cg))
-
-// 需要读授权状态的服务(健康页 / 状态页),注入即用:
+// 需要读授权状态的服务（健康页 / 状态页），注入即用：
 type statusHandler struct {
     Gate controlgate.Gate `inject:""`
 }
 ```
 
-`Setup` 会 `ProvideAs` 一个 `Gate` 并把 gin 中间件自动挂到 `*gin.Engine`(等价旧版 `Install(app, name)`)。
+`Setup` 内部用 `config.ResolveConfig` 灌 CONTROL_* 坐标,`ProvideAs` 一个 `Gate` 并把 gin 中间件自动挂到 `*gin.Engine`。
 
 ## 配置(`Config` / `CONTROL_*` env)
 
-坐标一律**注入**(不再 build-time baked——aurora 是库,没有烘焙值)。env 名与现网冻结的一致,勿缩写。
+坐标走 env(`CONTROL_*`,`Setup` 内部 `config.ResolveConfig` 灌;env 名冻结、勿缩写)。非 env 字段(ServiceName/MetricNamespace/RequireGate/Registerer)经 `NewControlgateFeature` 的 options 设。
 
 | 字段 | env | 必填 | 说明 |
 |---|---|---|---|
-| `RenewBaseURL` | `CONTROL_RENEW_BASE_URL` | 坐标组 | 如 `https://control-eng.deploy789.com` |
+| `RenewBaseURL` | `CONTROL_RENEW_BASE_URL` | 坐标组 | 如 `https://control.example.com` |
 | `ProjectUUID` | `CONTROL_PROJECT_UUID` | 坐标组 | 项目标识 |
 | `DeploymentID` | `CONTROL_DEPLOYMENT_ID` | 坐标组 | 部署标识(防跨部署 relay,验签时校) |
 | `ProjectPubKey` | `CONTROL_PROJECT_PUBKEY` | 坐标组 | base64 ed25519 项目公钥(**只验签,非私钥**) |
@@ -66,8 +64,8 @@ type statusHandler struct {
 | `StateDir` | `CONTROL_STATE_DIR` | 否 | 持久化目录(见「持久化」) |
 | `StartupGrace` | `CONTROL_STARTUP_GRACE` | 否 | 启动期时间门窗口,默认 **2min**(见「启动期时间门」);别 < 1min |
 | `ExemptPaths` | `CONTROL_EXEMPT_PATHS` | 否 | 追加放行路径,逗号分隔(见「降级与放行」) |
-| `MetricNamespace` | — | 否 | prometheus 指标前缀;**留空 = 不启用观测(不报错)**;homeserver 现网须设 `"homeserver"`(见「观测」) |
-| `DebugLogs` | — | 否 | 运行时日志开关;消费方直接设 |
+| `MetricNamespace` | option | 否 | 经 `WithMetricNamespace` 设;prometheus 指标前缀(消费方项目名);**留空 = 不启用观测(不报错)**(见「观测」) |
+| `DebugLogs` | — | 否 | **由 `Setup` 按 `RunLevel`==eng 自动设**(不对外;prd 自动收敛) |
 | `RequireGate` | — | 否 | 逃生阀:true = **任何 RunLevel** 下坐标全空都 fail-startup(见下) |
 | `Registerer` | — | 否 | prometheus registerer,空=DefaultRegisterer(测试可注入独立 registry) |
 
@@ -145,9 +143,9 @@ dump);安全仍靠签名不可伪造 + `now` 不可回拨 + deploymentUuid 不�
 
 看 `/metrics` 看不出授权语义,可读性只落在 Grafana 的 value-mapping。
 
-> **`MetricNamespace`:homeserver 现网必设 `"homeserver"`**(留空 = 不启用观测,**不报错**——中立库
-> 不自造项目前缀,其它消费方不要 metrics 时可留空)。homeserver 现网 Grafana 依赖 `homeserver_http_*`
-> 这套指标名,切换时忘设就会**指标名断**(是运维约定,不是代码强制)。
+> **`MetricNamespace`:要观测就经 `WithMetricNamespace` 设自己的项目前缀**(留空 = 不启用观测,**不报错**——
+> 中立库不自造项目前缀)。消费方的 Grafana 依赖 `<ns>_http_*` 这套指标名,切换时忘设就会**指标名断**
+> (是运维约定,不是代码强制)。
 
 ## `Gate` 契约(注入即用)
 
@@ -231,14 +229,14 @@ envelope := map[string]string{
   AES-SIV 认证过的 NTP 响应(时间在认证载荷内);pin-only TLS 只认服务器 pin、绝不回退系统 CA。
 - **天花板**:controlgate 抗回拨/时间门到位,也只控"能否 serve HTTP",**不阻止复制二进制本身**。真正防复制 /
   根治「root-on-box 逆向 / 离线续命」靠后续「**在线材料依赖**」阶段(服务离了 control 现领的节点凭据就跑不了),
-  设计见 homeserver `doc/design/controlgate-aurora.md`。方案「必须拿认证时间才服务」是往那个方向的第一步。
+  设计见消费方项目内的「在线材料依赖」文档。方案「必须拿认证时间才服务」是往那个方向的第一步。
   本 feature 定位:**提高逆向 / 离线续命的成本 + 可远程吊销 + 可发现克隆**,不是绝对防死。
 
 ## 范围 · 后续阶段 · prd 构建卫生
 
 - **本包范围**:wrap `sealkit/guard` + 在其上提供 **serving 门** 和 **`SignViaControl` 代签**(**不只是 wrap**)。
-- verdict 契约本包先**自包含**(与 homeserver 一致);把它下沉 sealkit(与 `guard.RenewVerdict` 合流)、
+- verdict 契约本包先**自包含**;把它下沉 sealkit(与 `guard.RenewVerdict` 合流)、
   信封装运营材料、principal+type 是**后续阶段**,不在此。
 - **prd 的 garble / `-literals` / DCE 特征卫生是消费方 build 时的事**:中立库不带 `controlprod` 之类
-  build tag,debug 日志由 `Config.DebugLogs` 运行时控制。homeserver prd build 需自行对本包路径叠 scoped
+  build tag,debug 日志由 `Setup` 按 `RunLevel` 自动控制。消费方 prd build 需自行对本包路径叠 scoped
   garble(抹字符串 / 函数名 / 包路径),中立库不掺和。

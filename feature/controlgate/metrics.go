@@ -12,7 +12,7 @@ import (
 //	<ns>_http_serving_ttl_seconds  距彻底停服剩余秒数
 //
 // namespace 由消费方配(Config.MetricNamespace):aurora 是中立框架,不硬编任何项目名——
-// homeserver 传 "homeserver" 保持其既有 Grafana 指标契约,其它项目传自己的中立前缀。
+// 消费方传自己的项目前缀保持其 Grafana 指标契约;不要观测时留空。
 // subsystem/name/label 保持不变(即是"伪装成过载指标"的中性契约)。
 type gateMetrics struct {
 	shedRatio  *prometheus.GaugeVec

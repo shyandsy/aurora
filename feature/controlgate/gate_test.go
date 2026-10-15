@@ -288,9 +288,6 @@ func TestConfigDefaults(t *testing.T) {
 	if c.renewEveryOrDefault() != defaultRenewEvery {
 		t.Errorf("续约间隔缺省应为 %s", defaultRenewEvery)
 	}
-	if c.serviceName() != "controlgate" {
-		t.Errorf("门禁名缺省应为 controlgate, got %q", c.serviceName())
-	}
 	if !c.coordsAllEmpty() {
 		t.Error("空 Config 坐标应判定全空")
 	}

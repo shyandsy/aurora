@@ -7,24 +7,21 @@ import (
 	"github.com/shyandsy/aurora/config"
 )
 
-// defaultRenewEvery 续约间隔缺省值(与 homeserver 现网一致)。
+// defaultRenewEvery 续约间隔缺省值(可经 CONTROL_RENEW_EVERY 覆盖)。
 const defaultRenewEvery = 60 * time.Second
 
-// Config 是 controlgate feature 的全部输入。**坐标一律注入**(不再 build-time baked——aurora 是库,
-// 没有 homeserver 的烘焙值):既可由消费方直接构造,也可用 aurora 的 config.ResolveConfig 从 env 灌
-// (env 名与 homeserver 现网冻结的一致,勿缩写、勿改名)。
+// Config 是 controlgate feature 的内部配置载体,**不由消费方直接构造**——经 NewControlgateFeature 的
+// 函数式 options(WithServiceName/WithMetricNamespace/WithRequireGate/WithRegisterer)设置,其余在 Setup 里
+// 自动取:control 坐标(CONTROL_*)经 config.ResolveConfig 从 env 灌(env 名与现网冻结的一致,勿缩写/改名);
+// ServiceName 默认 app.Name();DebugLogs 按 app.RunLevel() 推。消费方装配处因此只需(通常)传 metrics namespace:
 //
-// env 用法(消费方侧):
-//
-//	var cg controlgate.Config
-//	_ = config.ResolveConfig(&cg)          // 灌 CONTROL_* 坐标
-//	cg.ServiceName = "customer"            // 日志/metrics label
-//	cg.MetricNamespace = "homeserver"      // 保持既有 Grafana 指标契约(空=不启用观测)
-//	cg.DebugLogs = app.RunLevel() == "eng" // eng 大声、prd 收敛
-//	app.AddFeature(controlgate.NewControlgateFeature(cg)) // 须在 server feature 之后
+//	app.AddFeature(controlgate.NewControlgateFeature(
+//	    controlgate.WithMetricNamespace("myapp"),
+//	))
 type Config struct {
 	// ServiceName 门禁名(admin/customer/schedule…),仅用于日志与 metrics 的 service label。
-	// 与 aurora env 解析无关,消费方直接设。空 → 回落 "controlgate"。
+	// 非 env 字段;经 WithServiceName 覆盖,不设 → Setup 默认取 app.Name()。二者皆空 → Setup fail-startup
+	//(不静默裸奔一个无名门禁)。
 	ServiceName string
 
 	// ── control 坐标(全空 = 门禁关闭,eng 开发便利;部分缺失 = 误配,Setup 直接 fail-startup)──
@@ -45,19 +42,21 @@ type Config struct {
 	// env CONTROL_EXEMPT_PATHS 逗号分隔(如 "/ping,/api/v1/health");默认恒 exempt,本项只增不减。
 	ExemptPaths []string `env:"CONTROL_EXEMPT_PATHS,omitempty"`
 
-	// MetricNamespace prometheus 指标 namespace(如 "homeserver")。空 → 不启用观测(中立库不自造前缀)。
-	// 与 aurora env 解析无关,消费方直接设。
+	// MetricNamespace prometheus 指标 namespace(项目前缀,如 "myapp")。空 → 不启用观测(中立库不自造前缀)。
+	// 非 env 字段;经 WithMetricNamespace 设。
 	MetricNamespace string
 
-	// DebugLogs 是否输出门禁调试/状态日志(eng=true;prd 应传 false,消费方 build 时再叠 garble/DCE 收敛特征)。
+	// DebugLogs 是否输出门禁调试/状态日志。非 env 字段;**由 Setup 按 app.RunLevel()==eng 自动设**,
+	// 消费方不必管(prd 自动收敛;prd build 时再叠 garble/DCE 收特征)。
 	DebugLogs bool
 
 	// RequireGate 逃生阀:置 true 则**任何 RunLevel** 下坐标全空都 fail-startup(不允许 disabled 放行)。
 	// 默认 false:仅 prd(production)坐标全空才 fail-startup,local/eng/stage 全空 → disabled(开发便利)。
-	// 与 aurora env 解析无关,消费方直接设。
+	// 非 env 字段;经 WithRequireGate 设。
 	RequireGate bool
 
-	// Registerer 观测用的 prometheus registerer(可空 → prometheus.DefaultRegisterer)。测试可注入独立 registry。
+	// Registerer 观测用的 prometheus registerer(可空 → prometheus.DefaultRegisterer)。非 env 字段;
+	// 经 WithRegisterer 设(测试可注入独立 registry)。
 	Registerer prometheus.Registerer
 }
 
@@ -78,14 +77,6 @@ func (c *Config) startupGraceOrDefault() time.Duration {
 		return c.StartupGrace
 	}
 	return defaultStartupGrace
-}
-
-// serviceName 取门禁名,空 → "controlgate"。
-func (c *Config) serviceName() string {
-	if c.ServiceName != "" {
-		return c.ServiceName
-	}
-	return "controlgate"
 }
 
 // coordsAllEmpty 坐标是否全空(→ 门禁关闭)。
