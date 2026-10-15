@@ -1,7 +1,7 @@
-// Package controlgate 是 aurora 的「可信授权门禁」feature:把 homeserver 现有的 common/controlgate
-// 收口成一个 aurora feature,**包住(wrap)sealkit/guard 的续约传输与 crypto,不吞并它**。
+// Package controlgate 是 aurora 的「可信授权门禁」feature:**包住(wrap)sealkit/guard 的续约传输与
+// crypto,不吞并它**——回连 control 做续期授权、按下发策略降级,并提供 SignViaControl 代签。
 //
-// 分工(与 homeserver-deploy control 的 doctrine 一致):
+// 分工(与 control 面的 doctrine 一致):
 //   - control       = 策略定义 + 项目私钥签名(随续约裁决下发)
 //   - sealkit/guard  = 续约 HTTP 传输 + ed25519 公钥解码(中立可移植库:节点 / C 也在用)
 //   - 本 feature     = 执行:验签裁决 → 按策略随机注入 500(errorRate)/ 过期宽限(allowExpiredUse+
@@ -9,14 +9,15 @@
 //
 // 依赖方向**单向**:controlgate → sealkit,永不反过来;绝不把 sealkit/guard 搬进 aurora。
 //
-// 本 PR 只做**第一步:collapse + wrap**。verdict 契约先自包含在本包(与 homeserver 一致);
-// 把契约下沉 sealkit(与 guard.RenewVerdict 合流)、信封装运营材料、principal+type 均为后续阶段。
+// verdict 契约先自包含在本包;把契约下沉 sealkit(与 guard.RenewVerdict 合流)、信封装运营材料、
+// principal+type 均为后续阶段。
 //
-// 与 homeserver 旧版的差异:
-//   - 坐标不再 build-time baked,改为 Config 注入(env 名保持冻结的 CONTROL_*,见 config.go);
-//   - debug 日志由 Config.DebugLogs 运行时控制(旧版靠 controlprod build tag DCE);prd 的
-//     garble/-literals/DCE 特征卫生仍是**消费方 build 时**的事,不进中立库;
-//   - metrics namespace 可配(旧版硬编 "homeserver";中立库不自造项目前缀)。
+// 配置模型:
+//   - 坐标走 env(CONTROL_*,Setup 内 config.ResolveConfig 灌;env 名冻结、勿缩写/改名,见 config.go);
+//   - ServiceName 默认 app.Name()、DebugLogs 按 RunLevel 自动(prd 收敛);其余经 NewControlgateFeature
+//     的 options(WithMetricNamespace/WithServiceName/WithRequireGate/WithRegisterer)设;
+//   - prd 的 garble/-literals/DCE 特征卫生是**消费方 build 时**的事,不进中立库;
+//   - metrics namespace 可配(中立库不自造项目前缀,空 = 不启观测)。
 //
 // 安全语义**一位不丢**:fail-closed(超启动期时间门 / pending / 吊销 / 过期)、NTS 可信时钟
 // (防墙钟回拨 + 认证时间门/air-gap)、启动期时间门(默认 2min 可配;配了 NTS 源时 never-seen/重启/删 state
@@ -32,7 +33,9 @@ import (
 	"path/filepath"
 
 	"github.com/gin-gonic/gin"
+	"github.com/prometheus/client_golang/prometheus"
 
+	"github.com/shyandsy/aurora/config"
 	"github.com/shyandsy/aurora/contracts"
 	"github.com/shyandsy/aurora/logger"
 	"github.com/shyandsy/sealkit/guard"
@@ -69,8 +72,7 @@ func (disabledGate) SignViaControl(context.Context, []byte) ([]byte, error) {
 	return nil, fmt.Errorf("controlgate: 门禁关闭 / 未接入 control,无法代签(SignViaControl)")
 }
 
-// controlgateFeature 把可信授权门禁装进 aurora DI:注册后 ProvideAs 出 Gate + 自动挂 gin 中间件,
-// 等价于 homeserver 旧版的 controlgate.Install(app, name)。
+// controlgateFeature 把可信授权门禁装进 aurora DI:注册后 ProvideAs 出 Gate + 自动挂 gin 中间件。
 //
 // opt-in feature(不在 bootstrap 默认集):只有 prd 要接 control 授权的服务显式 AddFeature。
 // **须在 server feature 之后、且在 RegisterRoutes 之前注册**:要 Resolve 已 Provide 的 *gin.Engine,
@@ -80,17 +82,57 @@ type controlgateFeature struct {
 	cancel context.CancelFunc // 后台续约/观测循环的取消(Close 时触发)
 }
 
-// NewControlgateFeature 构造可信授权门禁 feature。坐标经 Config 注入(见 config.go);
+// Option 配置 controlgate feature 的可选项(函数式 options,与 doorman/geoip 等 feature 一致)。
+// control 坐标(CONTROL_*)**不走 option**:它们是部署配置,Setup 里统一经 config.ResolveConfig 从 env 灌。
+type Option func(*Config)
+
+// WithServiceName 覆盖门禁名(日志 / metrics 的 service label)。不设 → 默认取 app.Name()。
+func WithServiceName(name string) Option { return func(c *Config) { c.ServiceName = name } }
+
+// WithMetricNamespace 设 prometheus 指标 namespace(项目前缀,如 "myapp")。
+// 不设 = 不启用观测(aurora 中立,不自造项目前缀)。
+func WithMetricNamespace(ns string) Option { return func(c *Config) { c.MetricNamespace = ns } }
+
+// WithRequireGate 逃生阀:任何 RunLevel 下坐标全空都 fail-startup(默认仅 production 全空才 fail)。
+func WithRequireGate(require bool) Option { return func(c *Config) { c.RequireGate = require } }
+
+// WithRegisterer 注入自定义 prometheus registerer(默认 DefaultRegisterer;测试可注入独立 registry)。
+func WithRegisterer(r prometheus.Registerer) Option { return func(c *Config) { c.Registerer = r } }
+
+// NewControlgateFeature 构造可信授权门禁 feature。坐标走 CONTROL_* env(Setup 内部 ResolveConfig);
+// ServiceName 默认 app.Name()、DebugLogs 默认按 RunLevel —— 消费方通常只需传 WithMetricNamespace:
+//
+//	app.AddFeature(controlgate.NewControlgateFeature(
+//	    controlgate.WithMetricNamespace("myapp"),
+//	))
+//
 // 坐标全空 → 门禁关闭(eng 便利),部分缺失 → Setup fail-startup(暴露误配)。
-func NewControlgateFeature(cfg Config) contracts.Features {
-	return &controlgateFeature{cfg: cfg}
+func NewControlgateFeature(opts ...Option) contracts.Features {
+	f := &controlgateFeature{}
+	for _, opt := range opts {
+		opt(&f.cfg)
+	}
+	return f
 }
 
 func (f *controlgateFeature) Name() string { return "controlgate" }
 
 func (f *controlgateFeature) Setup(app contracts.App) error {
 	cfg := f.cfg
-	name := cfg.serviceName()
+	// 坐标走 env:CONTROL_* 经 config.ResolveConfig 灌(只填带 env 标签的字段,不覆盖 options 设的 ServiceName/
+	// MetricNamespace/RequireGate/Registerer)。消费方装配处因此不必自己 ResolveConfig。
+	_ = config.ResolveConfig(&cfg)
+	// ServiceName 默认取服务名(app.Name()),DebugLogs 按 RunLevel 推 —— 都不劳消费方在装配处手设。
+	if cfg.ServiceName == "" {
+		cfg.ServiceName = app.Name()
+	}
+	// 覆盖与默认都空 → 门禁没名字(日志/metrics label 空),拒绝静默裸奔:fail-startup,暴露误配
+	//(正常 app.Name() 必非空——aurora SERVICE_NAME 必填 + envDefault;到这说明 App 实现没给名)。
+	if cfg.ServiceName == "" {
+		return fmt.Errorf("controlgate: 无法确定门禁名 —— 未传 WithServiceName 且 app.Name() 为空(服务未配 SERVICE_NAME?)")
+	}
+	cfg.DebugLogs = app.RunLevel() == config.RunLevelEng
+	name := cfg.ServiceName
 
 	// 坐标全空的处置分 level:
 	//   - prd(production)或 RequireGate=true → **fail-startup**:prd 坐标全空 = 误配(secret 挂坏 /

@@ -12,31 +12,36 @@ import (
 type stubApp struct {
 	di.Container
 	runLevel string
+	name     string
 }
 
 func newStubApp(runLevel string) *stubApp {
-	return &stubApp{Container: di.NewContainer(), runLevel: runLevel}
+	return &stubApp{Container: di.NewContainer(), runLevel: runLevel, name: "test"}
 }
 
 func (*stubApp) AddFeature(contracts.Features)    {}
 func (*stubApp) RegisterRoutes([]contracts.Route) {}
 func (*stubApp) Run() error                       { return nil }
 func (*stubApp) Shutdown() error                  { return nil }
-func (*stubApp) Name() string                     { return "test" }
+func (s *stubApp) Name() string                   { return s.name }
 func (s *stubApp) RunLevel() string               { return s.runLevel }
 func (s *stubApp) GetContainer() di.Container      { return s.Container }
 
-// TestSetupPartialCoordsFailsStartup 坐标部分缺失(coordsComplete()==false)→ Setup fail-startup。
+// setEmptyCoords 把 4 个 CONTROL_* 坐标显式置空(hermetic:挡住开发机 / CI 里残留的同名 env 干扰,
+// 保证「坐标全空」判定稳定)。坐标现在走 env(Setup 内部 ResolveConfig),故测试经 env 注入。
+func setEmptyCoords(t *testing.T) {
+	t.Helper()
+	t.Setenv("CONTROL_RENEW_BASE_URL", "")
+	t.Setenv("CONTROL_PROJECT_UUID", "")
+	t.Setenv("CONTROL_DEPLOYMENT_ID", "")
+	t.Setenv("CONTROL_PROJECT_PUBKEY", "")
+}
+
+// TestSetupPartialCoordsFailsStartup 坐标部分缺失(只配 RENEW_BASE_URL)→ Setup fail-startup。
 func TestSetupPartialCoordsFailsStartup(t *testing.T) {
-	// 只给 RenewBaseURL,缺 ProjectUUID/DeploymentID/ProjectPubKey → 非全空、非齐全。
-	cfg := Config{RenewBaseURL: "https://control.example", ServiceName: "svc"}
-	if cfg.coordsAllEmpty() {
-		t.Fatal("前置:部分坐标不应判定全空")
-	}
-	if cfg.coordsComplete() {
-		t.Fatal("前置:部分坐标不应判定齐全")
-	}
-	f := NewControlgateFeature(cfg)
+	setEmptyCoords(t)
+	t.Setenv("CONTROL_RENEW_BASE_URL", "https://control.example") // 只给这一个 → 非全空、非齐全
+	f := NewControlgateFeature(WithServiceName("svc"))
 	if err := f.Setup(newStubApp("eng")); err == nil {
 		t.Error("坐标部分缺失应 Setup fail-startup(暴露误配)")
 	}
@@ -44,7 +49,8 @@ func TestSetupPartialCoordsFailsStartup(t *testing.T) {
 
 // TestSetupEmptyCoordsProductionFailsStartup 坐标全空 + production → Setup fail-startup(prd 全空=误配)。
 func TestSetupEmptyCoordsProductionFailsStartup(t *testing.T) {
-	f := NewControlgateFeature(Config{ServiceName: "svc"})
+	setEmptyCoords(t)
+	f := NewControlgateFeature(WithServiceName("svc"))
 	if err := f.Setup(newStubApp("production")); err == nil {
 		t.Error("production + 坐标全空应 fail-startup(拒绝静默裸奔)")
 	}
@@ -52,8 +58,9 @@ func TestSetupEmptyCoordsProductionFailsStartup(t *testing.T) {
 
 // TestSetupEmptyCoordsEngDisabled 坐标全空 + eng → 门禁关闭(不 fail-startup),ProvideAs 一个 Disabled Gate。
 func TestSetupEmptyCoordsEngDisabled(t *testing.T) {
+	setEmptyCoords(t)
 	app := newStubApp("eng")
-	f := NewControlgateFeature(Config{ServiceName: "svc"})
+	f := NewControlgateFeature(WithServiceName("svc"))
 	if err := f.Setup(app); err != nil {
 		t.Fatalf("eng + 坐标全空应 disabled 放行(不报错), got %v", err)
 	}
@@ -69,5 +76,17 @@ func TestSetupEmptyCoordsEngDisabled(t *testing.T) {
 	}
 	if holder.Gate.ServingState() != Disabled {
 		t.Errorf("门禁关闭时 Gate.ServingState 应为 Disabled, got %s", holder.Gate.ServingState())
+	}
+}
+
+// TestSetupEmptyServiceNameFailsStartup 未传 WithServiceName 且 app.Name() 空 → Setup fail-startup
+//(拒绝无名门禁;正常 aurora app 的 SERVICE_NAME 必填 + envDefault,到不了这,是防非法 App 实现)。
+func TestSetupEmptyServiceNameFailsStartup(t *testing.T) {
+	setEmptyCoords(t)
+	app := newStubApp("eng")
+	app.name = "" // 模拟 App 实现没给名
+	f := NewControlgateFeature()
+	if err := f.Setup(app); err == nil {
+		t.Error("ServiceName 无法确定应 fail-startup")
 	}
 }

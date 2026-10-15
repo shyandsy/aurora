@@ -24,7 +24,7 @@ import (
 // (不再是顶层三标量)。命名空间 = 消费方分型:lease 通用租约 / http 应用专属。
 // 只读认识的命名空间、json.Unmarshal 忽略其余(control 加键/命名空间对本消费方零改动)。
 //
-// 本 feature 先**自包含**这份 verdict 契约(与 homeserver common/controlgate 一致);把契约下沉到
+// 本 feature 先**自包含**这份 verdict 契约;把契约下沉到
 // sealkit(与 guard.RenewVerdict 合流)是后续阶段,不在本 PR。crypto/lease 传输仍 delegate 给 sealkit/guard。
 type verdict struct {
 	Nonce           string          `json:"nonce"`
