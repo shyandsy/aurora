@@ -9,7 +9,35 @@ import (
 	jwt "github.com/golang-jwt/jwt/v5"
 
 	"github.com/shyandsy/aurora/config"
+	"github.com/shyandsy/aurora/contracts"
+	"github.com/shyandsy/di"
 )
+
+// jwtStubApp 是最小 contracts.App:内嵌真 di.Container(Find/Resolve/ProvideAs 真跑),
+// 其余方法空实现。用于测 NewJWTService(app, cfg) 从容器解析 RedisService。
+type jwtStubApp struct {
+	di.Container
+}
+
+func newJWTStubApp() *jwtStubApp { return &jwtStubApp{Container: di.NewContainer()} }
+
+func (*jwtStubApp) AddFeature(contracts.Features)    {}
+func (*jwtStubApp) RegisterRoutes([]contracts.Route) {}
+func (*jwtStubApp) Run() error                       { return nil }
+func (*jwtStubApp) Shutdown() error                  { return nil }
+func (*jwtStubApp) Name() string                     { return "jwt-test" }
+func (*jwtStubApp) RunLevel() string                 { return "test" }
+func (s *jwtStubApp) GetContainer() di.Container     { return s.Container }
+
+// newJWTStubAppWithRedis 返回一个已注册"未拉黑"RedisService 的 stub app。
+func newJWTStubAppWithRedis(t *testing.T) *jwtStubApp {
+	t.Helper()
+	app := newJWTStubApp()
+	if err := app.ProvideAs(&fakeRedis{getVal: ""}, (*RedisService)(nil)); err != nil {
+		t.Fatalf("注册 RedisService 失败: %v", err)
+	}
+	return app
+}
 
 // fakeRedis 是 RedisService 的最小测试替身:内嵌接口自动满足全部方法(接口日后再加方法也不会崩),
 // 只覆盖 Get(返回 getVal / getErr)。仅 Get 被本测试用到;其余方法若被调用会因内嵌接口为 nil 而 panic,
@@ -30,6 +58,57 @@ func testJWT() *jwtFeature {
 			ExpireTime:        30 * time.Minute,
 			RefreshExpireTime: 24 * time.Hour,
 		},
+	}
+}
+
+// NewJWTService 让一个进程用不同密钥构造多个独立实例(多签发来源场景),redis 从容器解析。
+// 校验逻辑与默认实例一致:A 签的令牌 A 验得过、B(不同密钥)验不过。
+func TestNewJWTService_ExplicitSecretIsolatesKeys(t *testing.T) {
+	app := newJWTStubAppWithRedis(t) // 容器里已有未拉黑的 RedisService
+
+	s1, err := NewJWTService(app, &config.JWTConfig{
+		Secret: "secret-A", Issuer: "a", ExpireTime: 30 * time.Minute,
+	})
+	if err != nil {
+		t.Fatalf("NewJWTService(A) 失败: %v", err)
+	}
+	s2, err := NewJWTService(app, &config.JWTConfig{
+		Secret: "secret-B", Issuer: "b", ExpireTime: 30 * time.Minute,
+	})
+	if err != nil {
+		t.Fatalf("NewJWTService(B) 失败: %v", err)
+	}
+
+	tok, err := s1.GenerateToken(7, "u@example.com", []string{"f1"})
+	if err != nil {
+		t.Fatalf("A 签发失败: %v", err)
+	}
+	if _, err := s1.ValidateToken(tok.AccessToken); err != nil {
+		t.Fatalf("A 实例应能校验 A 签的令牌: %v", err)
+	}
+	if _, err := s2.ValidateToken(tok.AccessToken); err == nil {
+		t.Fatalf("B 实例(不同密钥)不应校验通过 A 签的令牌")
+	}
+}
+
+// 构造参数护栏:nil app、nil 配置、非法配置、容器里没 RedisService —— 都必须报错而非返回半成品实例。
+func TestNewJWTService_Guards(t *testing.T) {
+	validCfg := func() *config.JWTConfig {
+		return &config.JWTConfig{Secret: "s", Issuer: "i", ExpireTime: time.Minute}
+	}
+
+	if _, err := NewJWTService(nil, validCfg()); err == nil {
+		t.Fatalf("nil app 应报错")
+	}
+	if _, err := NewJWTService(newJWTStubAppWithRedis(t), nil); err == nil {
+		t.Fatalf("nil config 应报错")
+	}
+	if _, err := NewJWTService(newJWTStubAppWithRedis(t), &config.JWTConfig{Secret: "", Issuer: "i", ExpireTime: time.Minute}); err == nil {
+		t.Fatalf("空 Secret 应被 Validate 拒绝")
+	}
+	// 容器里没注册 RedisService → 解析失败 → 报错(黑名单吊销缺了会被绕过)。
+	if _, err := NewJWTService(newJWTStubApp(), validCfg()); err == nil {
+		t.Fatalf("容器里没有 RedisService 应报错")
 	}
 }
 
