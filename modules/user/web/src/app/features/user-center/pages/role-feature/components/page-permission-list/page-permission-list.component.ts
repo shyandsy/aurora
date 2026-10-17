@@ -28,6 +28,7 @@ const PAGE_LABELS: Array<{ module: string; labelKey: string }> = [
   { module: 'payment_account', labelKey: 'sidebar.paymentAccount' },
   { module: 'announcement', labelKey: 'sidebar.announcement' },
   { module: 'traffic', labelKey: 'sidebar.traffic' },
+  { module: 'sales', labelKey: 'sidebar.sales' },
   { module: 'commission', labelKey: 'sidebar.commission' },
   { module: 'withdrawal', labelKey: 'sidebar.withdrawal' },
   { module: 'release', labelKey: 'sidebar.release' },
