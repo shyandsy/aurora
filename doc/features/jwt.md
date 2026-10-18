@@ -8,6 +8,8 @@
 
 ## 创建 & 用法
 
+**默认实例**(走 feature 生命周期、从 env 读密钥、注册进 DI):
+
 ```go
 app.AddFeature(feature.NewJWTFeature())   // 必须在 NewRedisFeature() 之后
 ```
@@ -19,6 +21,20 @@ type authService struct {
     JWT feature.JWTService `inject:""`
 }
 ```
+
+**额外实例**(同一进程内校验**另一把密钥**,调用方自持、不注册进 DI):
+
+```go
+cfg := &config.JWTConfig{Secret: "...", Issuer: "...", ExpireTime: 30 * time.Minute}
+svc, err := feature.NewJWTService(app, cfg)   // redis 从容器解析,须在 RedisService 已注册后调用
+```
+
+当一个进程需要用多把密钥校验多个签发来源的令牌时,用 `NewJWTService(app, cfg)` 构造默认实例之外的额外引擎:传入显式 `cfg`,调用方自己持有并直接调用,它不走 feature 生命周期、**不 AddFeature、不注册进 DI**。它的校验逻辑(签名 / token_type / 黑名单吊销)与默认实例完全一致,只是密钥不同 —— 无需自造一套平行的校验路径。
+
+依赖解析沿用 house pattern(与其它 `NewXxx(app)` 一致):收 `app`、自己从容器解析依赖。`RedisService` 从容器解析(`app.Find`),而不是显式传入 —— 因此须在 `RedisService` 已注册之后调用(典型是服务自身的 wiring 阶段,DI 已就绪)。
+
+- `app` 为 nil、`cfg` 为 nil 或非法(`Validate()` 不过)→ 返回 error;
+- 容器里解析不到 `RedisService`(未注册)→ 返回 error(黑名单吊销是安全关键,缺了会让「登出 / 踢设备」被绕过)。
 
 ## JWTService 接口
 
@@ -67,7 +83,7 @@ key 前缀([feature/jwt.go:18](../../feature/jwt.go#L18)):
 2. `ttl = 剩余寿命`;`ttl <= 0`(已过期)则跳过不写;
 3. 否则 `Set(黑名单key, "1", ttl)` —— **黑名单条目 TTL 恰好等于 token 剩余寿命**,token 自然过期后条目自动清除,不留垃圾。
 
-> ⚠️ **Redis 故障时放行**:`ValidateToken`/`ValidateRefreshToken` 查黑名单用 `ok, _ :=` **忽略了 Redis 错误**([feature/jwt.go:150](../../feature/jwt.go#L150))→ Redis 挂了时"已登出"的 token 会被放行。这是 fail-open 取舍(不因 Redis 抖动打挂鉴权),需知悉。
+> ⚠️ **Redis 故障时拒绝(fail-closed)**:`ValidateToken`/`ValidateRefreshToken` 查黑名单时若后端报错,**一律拒绝放行**(返回 `revocation check unavailable`)。否则一次瞬时 Redis 抖动就会让"已登出 / 已吊销(但未过期)"的 token 复活 —— 登出 / 吊销是承重安全控制,校验失败必须拒,不能放行。
 
 ## 寿命配置
 
