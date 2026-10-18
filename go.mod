@@ -18,7 +18,7 @@ require (
 	github.com/pquerna/otp v1.5.0
 	github.com/pressly/goose/v3 v3.19.1
 	github.com/prometheus/client_golang v1.19.1
-	github.com/shyandsy/di v0.0.0-20260928170817-b65a1533cfd6
+	github.com/shyandsy/di v0.0.0-20261017012018-7450da1480d4
 	github.com/shyandsy/sealkit v0.0.0-20260722041032-6c514e06abb4
 	golang.org/x/crypto v0.57.0
 	golang.org/x/text v0.42.0

@@ -44,13 +44,8 @@ func (c *container) Find(object interface{}) error {
 		return errors.New("object cannot be set")
 	}
 
-	if targetVal.Kind() == reflect.Func {
-		objs, err := c.Invoke(target)
-		if err != nil {
-			return err
-		}
-		targetVal = objs[0]
-	}
+	// The store only ever holds singleton instances (Provide/ProvideAs reject
+	// functions), so targetVal is always a concrete value — no factory dispatch.
 
 	if elemKind == reflect.Pointer {
 		objectVal.Elem().Set(targetVal)

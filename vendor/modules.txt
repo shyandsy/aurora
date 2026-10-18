@@ -295,7 +295,7 @@ github.com/secure-io/siv-go
 # github.com/sethvargo/go-retry v0.2.4
 ## explicit; go 1.16
 github.com/sethvargo/go-retry
-# github.com/shyandsy/di v0.0.0-20260928170817-b65a1533cfd6
+# github.com/shyandsy/di v0.0.0-20261017012018-7450da1480d4
 ## explicit; go 1.20
 github.com/shyandsy/di
 # github.com/shyandsy/sealkit v0.0.0-20260722041032-6c514e06abb4

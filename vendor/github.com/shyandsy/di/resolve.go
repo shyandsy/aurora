@@ -51,14 +51,9 @@ func (c *container) Resolve(object interface{}) error {
 			}
 		}
 
-		depVal := reflect.ValueOf(dep)
-		if depVal.Kind() == reflect.Func {
-			objs, err := c.Invoke(dep)
-			if err != nil {
-				return err
-			}
-			field.Set(objs[0])
-		} else if field.Type().Kind() == reflect.Pointer && field.Type().Elem().Kind() == reflect.Struct {
+		// The store only ever holds singleton instances (Provide/ProvideAs reject
+		// functions), so dep is always a concrete value — no factory dispatch.
+		if field.Type().Kind() == reflect.Pointer && field.Type().Elem().Kind() == reflect.Struct {
 			depVal := reflect.ValueOf(dep)
 
 			if field.IsNil() {
