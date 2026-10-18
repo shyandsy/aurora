@@ -33,15 +33,9 @@ func (c *container) Invoke(f interface{}) ([]reflect.Value, error) {
 
 			dep, ok := c.singletonStore.Load(s.FullType())
 			if ok {
+				// The store only ever holds singleton instances (Provide/ProvideAs
+				// reject functions), so dep is always a concrete value.
 				arg := reflect.ValueOf(dep)
-
-				if arg.Kind() == reflect.Func {
-					objs, err := c.Invoke(dep)
-					if err != nil {
-						return nil, err
-					}
-					arg = objs[0]
-				}
 
 				if inType.Kind() == reflect.Pointer && inType.Elem().Kind() == reflect.Struct {
 					if arg.Type().AssignableTo(inType) {

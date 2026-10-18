@@ -217,6 +217,8 @@ github.com/shopspring/decimal v1.3.1 h1:2Usl1nmF/WZucqkFZhnfFYxxxu8LG21F6nPQBE5g
 github.com/shopspring/decimal v1.3.1/go.mod h1:DKyhrW/HYNuLGql+MJL6WCR6knT2jwCFRcu2hWCYk4o=
 github.com/shyandsy/di v0.0.0-20260928170817-b65a1533cfd6 h1:6oCHFCeuqnZLIhciCnPgQgzdgvgp9LZKPozFF71i/Jo=
 github.com/shyandsy/di v0.0.0-20260928170817-b65a1533cfd6/go.mod h1:IM0z0pMJZuWu4QY6PrK2NgfH8LdXFIiS6BDAXMPYfLk=
+github.com/shyandsy/di v0.0.0-20261017012018-7450da1480d4 h1:CwbHy1EMYFYEUTgWvZ5i/GoMvWRpyFIgQYVf6Iy+rZQ=
+github.com/shyandsy/di v0.0.0-20261017012018-7450da1480d4/go.mod h1:IM0z0pMJZuWu4QY6PrK2NgfH8LdXFIiS6BDAXMPYfLk=
 github.com/shyandsy/sealkit v0.0.0-20260722041032-6c514e06abb4 h1:K882d98awc9EcJnTHGH18ygD5eUXGOdouG5/KI2Xt2I=
 github.com/shyandsy/sealkit v0.0.0-20260722041032-6c514e06abb4/go.mod h1:II1RTVdtTB1bnnOKTGeYY4jE/y5DPpyA961ovnZPetg=
 github.com/sirupsen/logrus v1.9.3 h1:dueUQJ1C2q9oE3F7wvmSGAaVtTmUizReu6fjN8uqzbQ=

@@ -8,8 +8,8 @@
 A reflection based (DI)Dependency Injector component for golang project.
 
 ## Features
-- [x] Provide: struct pointer or function  
-- [x] ProvideAs: struct pointer or function as interface type
+- [x] Provide: register a singleton instance (struct pointer)
+- [x] ProvideAs: register a singleton instance (struct pointer) under an interface type
 - [x] Find: dependency inject for struct pointer or interface
 - [x] Resolve: dependency inject for struct fields
 - [x] Invoke: use dependencies as parameter on invoke method
