@@ -190,7 +190,7 @@ export class FeatureCheckboxListComponent implements OnInit {
     );
   }
 
-  /** 当前角色已授予的「高级」feature 数(排除 '*' 与页面级 ui.page.*/ui.menu.*,与列表口径一致)。 */
+  /** 当前角色已授予的「高级」feature 数(排除 '*' 与页面级 ui.page.* / ui.menu.* 入口,与列表口径一致)。 */
   get selectedCount(): number {
     return this.features.filter(f =>
       f.name !== '*' && !f.name.startsWith('ui.page.') && !f.name.startsWith('ui.menu.') && this.isFeatureSelected(f)
