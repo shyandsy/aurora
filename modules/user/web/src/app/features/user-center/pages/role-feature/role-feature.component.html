@@ -1,7 +1,8 @@
 <div class="container mx-auto px-4 py-8">
   <h1 class="text-3xl font-bold mb-6">{{ 'roleFeature.title' | translate }}</h1>
 
-  <div class="grid grid-cols-3 gap-6">
+  <!-- 左角色表 2/5、右权限面板 3/5:权限面板要放下「搜索 + 批量 + 三档分段」,比原来的 1/3 加宽。 -->
+  <div class="grid grid-cols-5 gap-6">
     <!-- Left: Role List with Edit/Delete -->
     <div class="col-span-2">
       <h2 class="text-xl font-semibold mb-4">{{ 'role.title' | translate }}</h2>
@@ -16,7 +17,7 @@
     </div>
 
     <!-- Right: Permissions (page-level view/operate  |  advanced per-feature) -->
-    <div>
+    <div class="col-span-3">
       <div class="mb-4">
         <h2 class="text-xl font-semibold mb-2">{{ 'rolePermission.title' | translate }}</h2>
         <!-- 模式切换:页面权限(推荐) / 高级 -->
@@ -30,26 +31,13 @@
             {{ 'rolePermission.modeAdvanced' | translate }}
           </button>
         </div>
-
-        @if (authMode() === 'advanced') {
-          <div class="flex items-center gap-3">
-            <label for="featureFilter" class="text-sm font-medium text-gray-700 whitespace-nowrap">
-              {{ 'roleFeature.filterFeatures' | translate }}
-            </label>
-            <input type="text" id="featureFilter" [value]="featureFilter()"
-              (input)="featureFilter.set($any($event.target).value)"
-              [placeholder]="'roleFeature.searchPlaceholder' | translate"
-              class="flex-1 px-4 py-2 border border-gray-300 rounded-lg shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm" />
-          </div>
-        }
       </div>
 
       @if (authMode() === 'page') {
         <app-page-permission-list [selectedRoleId]="selectedRoleId()" [refreshTrigger]="refreshTrigger()"
           (changed)="onFeatureUpdated()" />
       } @else {
-        <app-feature-checkbox-list [selectedRoleId]="selectedRoleId()" [refreshTrigger]="refreshTrigger()"
-          [filterText]="featureFilter()" />
+        <app-feature-checkbox-list [selectedRoleId]="selectedRoleId()" [refreshTrigger]="refreshTrigger()" />
       }
     </div>
   </div>

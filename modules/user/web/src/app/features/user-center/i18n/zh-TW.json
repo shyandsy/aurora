@@ -64,7 +64,13 @@
       "roleRequired": "角色是必填項",
       "featureRequired": "至少選擇一個功能",
       "createFailed": "創建角色功能失敗"
-    }
+    },
+    "loading": "載入中…",
+    "selectedCount": "已選 {{selected}}/{{total}}",
+    "colSelect": "選",
+    "noFeatures": "暫無功能",
+    "noMatch": "沒有符合的功能",
+    "hint": "「進階」直接授予單個 feature,用於頁面分檔涵蓋不到的高危/服務間能力(如 microservice.* / user.create)。一般授權走「頁面權限」即可。"
   },
   "rolePermission": {
     "title": "權限授權",
@@ -78,7 +84,11 @@
       "view": "唯讀",
       "operate": "可操作"
     },
-    "hint": "「可操作」含「唯讀」。授予某頁後,該頁用到的整組介面權限(含跨頁相依)會在登入簽發 token 時自動展開。高危/服務間功能請到「進階」裡單獨授予。"
+    "hint": "「可操作」含「唯讀」。授予某頁後,該頁用到的整組介面權限(含跨頁相依)會在登入簽發 token 時自動展開。高危/服務間功能請到「進階」裡單獨授予。",
+    "searchPlaceholder": "搜尋頁面…",
+    "grantedCount": "已授權 {{granted}}/{{total}}",
+    "bulkLabel": "全部設為:",
+    "noMatch": "沒有符合的頁面"
   },
   "microservice": {
     "title": "微服務管理",
