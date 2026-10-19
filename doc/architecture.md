@@ -70,7 +70,7 @@ func InitDefaultApp() contracts.App {
 
 ### 2.2 `NewApp` 做了什么
 
-[app/app.go:24](../app/app.go#L24):
+[app/app.go](../app/app.go):
 
 1. `ResolveConfig(&cfg.Server)` —— 解析 `ServerConfig`(端口、名字、超时等),失败直接 `log.Fatalf`。
 2. `di.NewContainer()` —— 建依赖注入容器。
@@ -78,7 +78,7 @@ func InitDefaultApp() contracts.App {
 
 ### 2.3 `AddFeature` 做了什么
 
-[app/app.go:54](../app/app.go#L54):
+[app/app.go](../app/app.go):
 
 ```go
 func (a *app) AddFeature(f contracts.Features) {
@@ -99,7 +99,7 @@ func (a *app) AddFeature(f contracts.Features) {
 
 ### 2.4 运行阶段 —— `Run`
 
-[app/app.go:74](../app/app.go#L74):
+[app/app.go](../app/app.go):
 
 ```go
 func (a *app) Run() error {
@@ -114,7 +114,7 @@ func (a *app) Run() error {
 
 ### 2.5 关停 —— `Shutdown`
 
-[app/app.go:85](../app/app.go#L85) 提供了**反序**关闭所有 feature 的 `Shutdown()`:
+[app/app.go](../app/app.go) 提供了**反序**关闭所有 feature 的 `Shutdown()`:
 
 ```go
 func (a *app) Shutdown() error {
@@ -160,7 +160,7 @@ main
 
 ## 4. 依赖注入(DI)
 
-App 内嵌了 `github.com/shyandsy/di` 的 `Container`([contracts/app.go:17](../contracts/app.go#L17)),所以 **App 本身就是 DI 容器**,可直接调用容器方法。
+App 内嵌了 `github.com/shyandsy/di` 的 `Container`([contracts/app.go](../contracts/app.go)),所以 **App 本身就是 DI 容器**,可直接调用容器方法。
 
 ### 4.1 两种角色
 

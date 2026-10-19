@@ -12,7 +12,7 @@
 app.AddFeature(feature.NewGormFeature())
 ```
 
-`Setup` 后,容器里有两个可注入对象([feature/gorm.go:47](../../feature/gorm.go#L47)):
+`Setup` 后,容器里有两个可注入对象([feature/gorm.go](../../feature/gorm.go)):
 
 ```go
 type customerDatalayer struct {
@@ -24,13 +24,13 @@ var sqlDB *sql.DB
 app.Find(&sqlDB)             // migration 就是拿它跑 goose
 ```
 
-`Close()` 关闭底层 `sql.DB`([feature/gorm.go:53](../../feature/gorm.go#L53))。
+`Close()` 关闭底层 `sql.DB`([feature/gorm.go](../../feature/gorm.go))。
 
 ---
 
 ## 支持的 driver
 
-`DB_DRIVER` 取值([feature/gorm.go:72](../../feature/gorm.go#L72)):
+`DB_DRIVER` 取值([feature/gorm.go](../../feature/gorm.go)):
 
 | 值 | 驱动 |
 |---|---|
@@ -38,13 +38,13 @@ app.Find(&sqlDB)             // migration 就是拿它跑 goose
 | `sqlite` | gorm.io/driver/sqlite |
 | `postgres` / `postgresql` / `pgx` | gorm.io/driver/postgres(三个别名等价) |
 
-其它值 → 启动即 `log.Fatalf`。gorm 日志固定 Info 级([feature/gorm.go:65](../../feature/gorm.go#L65),不可配)。
+其它值 → 启动即 `log.Fatalf`。gorm 日志固定 Info 级([feature/gorm.go](../../feature/gorm.go),不可配)。
 
 ---
 
 ## 连接池
 
-[feature/gorm.go:92](../../feature/gorm.go#L92):
+[feature/gorm.go](../../feature/gorm.go):
 
 ```go
 sqlDB.SetMaxIdleConns(MaxIdleConns)      // 无条件设
@@ -79,4 +79,4 @@ if ConnMaxIdleTime > 0 { sqlDB.SetConnMaxIdleTime(ConnMaxIdleTime) }  // 可选
 | `DB_CONN_MAX_LIFETIME` | ConnMaxLifetime | 否(omitempty) | duration;0/不设=永不回收 |
 | `DB_CONN_MAX_IDLE_TIME` | ConnMaxIdleTime | 否(omitempty) | duration;0/不设=不按空闲时长关 |
 
-校验规则见 [config/database.go:30](../../config/database.go#L30)。迁移用同一份 `DatabaseConfig` 决定 goose 方言,见 [migration.md](./migration.md)。
+校验规则见 [config/database.go](../../config/database.go)。迁移用同一份 `DatabaseConfig` 决定 goose 方言,见 [migration.md](./migration.md)。
