@@ -1,6 +1,5 @@
 import { Component, inject, OnInit, ChangeDetectorRef, input, effect } from '@angular/core';
 import { CommonModule } from '@angular/common';
-import { FormsModule } from '@angular/forms';
 import { TranslateModule } from '@ngx-translate/core';
 import { forkJoin } from 'rxjs';
 import { UserCenterApi } from '../../../../shared/services/user-center-api';
@@ -10,7 +9,7 @@ import { RoleFeature } from '../../../../shared/models/role-feature.dto';
 @Component({
   selector: 'app-feature-checkbox-list',
   standalone: true,
-  imports: [CommonModule, FormsModule, TranslateModule],
+  imports: [CommonModule, TranslateModule],
   templateUrl: './feature-checkbox-list.component.html',
   styleUrl: './feature-checkbox-list.component.css'
 })
@@ -24,8 +23,8 @@ export class FeatureCheckboxListComponent implements OnInit {
   // Input: refresh trigger
   refreshTrigger = input<number>(0);
 
-  // Input: filter text for features
-  filterText = input<string>('');
+  // 本面板内置搜索(与「页面权限」tab 一致,不再依赖父组件传入筛选词)
+  searchTerm = '';
 
   features: Feature[] = [];
   roleFeatures: RoleFeature[] = [];
@@ -181,7 +180,7 @@ export class FeatureCheckboxListComponent implements OnInit {
     const base = this.features.filter(f =>
       f.name !== '*' && !f.name.startsWith('ui.page.') && !f.name.startsWith('ui.menu.')
     );
-    const filter = this.filterText().toLowerCase().trim();
+    const filter = this.searchTerm.toLowerCase().trim();
     if (!filter) {
       return base;
     }
@@ -189,6 +188,20 @@ export class FeatureCheckboxListComponent implements OnInit {
       feature.name.toLowerCase().includes(filter) ||
       feature.id.toString().includes(filter)
     );
+  }
+
+  /** 当前角色已授予的「高级」feature 数(排除 '*' 与页面级 ui.page.*/ui.menu.*,与列表口径一致)。 */
+  get selectedCount(): number {
+    return this.features.filter(f =>
+      f.name !== '*' && !f.name.startsWith('ui.page.') && !f.name.startsWith('ui.menu.') && this.isFeatureSelected(f)
+    ).length;
+  }
+
+  /** 「高级」可直接授予的 feature 总数(同口径)。 */
+  get totalCount(): number {
+    return this.features.filter(f =>
+      f.name !== '*' && !f.name.startsWith('ui.page.') && !f.name.startsWith('ui.menu.')
+    ).length;
   }
 
   /** 是否可批量操作(选了角色、当前没在批量/单勾中)。 */

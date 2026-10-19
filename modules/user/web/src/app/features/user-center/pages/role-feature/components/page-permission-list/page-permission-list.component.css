@@ -1,4 +1,192 @@
-.page-perm {
-  max-height: 60vh;
+/* 工具栏:搜索 + 计数 + 批量 */
+.pp-toolbar {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex-wrap: wrap;
+  margin-bottom: 12px;
+}
+
+.pp-search {
+  position: relative;
+  flex: 1 1 200px;
+  min-width: 150px;
+}
+
+.pp-search-icon {
+  position: absolute;
+  left: 9px;
+  top: 50%;
+  transform: translateY(-50%);
+  width: 15px;
+  height: 15px;
+  color: #9ca3af;
+  pointer-events: none;
+}
+
+.pp-search-input {
+  width: 100%;
+  padding: 6px 10px 6px 30px;
+  border: 1px solid #d1d5db;
+  border-radius: 6px;
+  font-size: 13px;
+  color: #1f2937;
+  outline: none;
+  box-sizing: border-box;
+}
+
+.pp-search-input:focus {
+  border-color: #6366f1;
+  box-shadow: 0 0 0 2px rgba(99, 102, 241, 0.15);
+}
+
+.pp-count {
+  font-size: 12px;
+  color: #6b7280;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+.pp-bulk {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.pp-bulk-label {
+  font-size: 12px;
+  color: #9ca3af;
+}
+
+.pp-bulk-btn {
+  padding: 4px 10px;
+  font-size: 12px;
+  border: 1px solid #d1d5db;
+  border-radius: 6px;
+  background: #fff;
+  color: #4b5563;
+  cursor: pointer;
+  transition: background 0.12s, border-color 0.12s;
+}
+
+.pp-bulk-btn:hover:not(:disabled) {
+  background: #f9fafb;
+  border-color: #9ca3af;
+}
+
+.pp-bulk-btn:disabled {
+  opacity: 0.5;
+  cursor: default;
+}
+
+/* 列表 */
+.pp-list {
+  max-height: 56vh;
   overflow-y: auto;
+  border: 1px solid #f0f0f0;
+  border-radius: 8px;
+}
+
+.pp-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 13px;
+}
+
+.pp-table thead th {
+  position: sticky;
+  top: 0;
+  z-index: 1;
+  background: #fafafa;
+  text-align: left;
+  font-weight: 500;
+  color: #6b7280;
+  padding: 8px 12px;
+  border-bottom: 1px solid #eee;
+}
+
+.pp-th-access {
+  width: 240px;
+}
+
+.pp-table tbody td {
+  padding: 7px 12px;
+  border-bottom: 1px solid #f5f5f5;
+}
+
+.pp-table tbody tr:last-child td {
+  border-bottom: none;
+}
+
+.pp-table tbody tr:hover {
+  background: #fafafc;
+}
+
+.pp-page-name {
+  color: #1f2937;
+}
+
+.pp-empty {
+  text-align: center;
+  color: #9ca3af;
+  padding: 24px 12px !important;
+}
+
+.pp-hint {
+  margin-top: 10px;
+  font-size: 12px;
+  color: #9ca3af;
+  line-height: 1.6;
+}
+
+/* 三档分段按钮:无=灰 / 只读=蓝 / 可操作=绿 */
+.pp-seg {
+  display: inline-flex;
+  border: 1px solid #d1d5db;
+  border-radius: 7px;
+  overflow: hidden;
+  background: #fff;
+}
+
+.pp-seg-btn {
+  padding: 4px 14px;
+  font-size: 13px;
+  line-height: 1.5;
+  border: none;
+  background: transparent;
+  color: #6b7280;
+  cursor: pointer;
+  white-space: nowrap;
+  transition: background 0.12s, color 0.12s;
+}
+
+.pp-seg-btn + .pp-seg-btn {
+  border-left: 1px solid #e5e7eb;
+}
+
+.pp-seg-btn:hover:not(:disabled):not(.pp-active) {
+  background: #f3f4f6;
+}
+
+.pp-seg-none.pp-active {
+  background: #6b7280;
+  color: #fff;
+}
+
+.pp-seg-view.pp-active {
+  background: #3b82f6;
+  color: #fff;
+}
+
+.pp-seg-operate.pp-active {
+  background: #10b981;
+  color: #fff;
+}
+
+.pp-seg-disabled {
+  opacity: 0.55;
+}
+
+.pp-seg-btn:disabled {
+  cursor: default;
 }

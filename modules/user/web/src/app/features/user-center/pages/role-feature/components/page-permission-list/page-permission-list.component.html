@@ -4,38 +4,82 @@
   }
 
   @if (!selectedRoleId()) {
-    <div class="text-sm text-gray-500 py-6 text-center">{{ 'rolePermission.selectRoleFirst' | translate }}</div>
+    <div class="text-sm text-gray-500 py-10 text-center">{{ 'rolePermission.selectRoleFirst' | translate }}</div>
   } @else if (isLoading) {
-    <div class="text-sm text-gray-500 py-6 text-center">{{ 'common.loading' | translate }}</div>
+    <div class="text-sm text-gray-500 py-10 text-center">{{ 'common.loading' | translate }}</div>
   } @else {
-    <table class="w-full text-sm">
-      <thead>
-        <tr class="text-left text-gray-500 border-b border-gray-200">
-          <th class="py-2 font-medium">{{ 'rolePermission.page' | translate }}</th>
-          <th class="py-2 font-medium w-32">{{ 'rolePermission.access' | translate }}</th>
-        </tr>
-      </thead>
-      <tbody>
-        @for (row of rows; track row.module) {
-          <tr class="border-b border-gray-100">
-            <td class="py-2 pr-2 text-gray-800">{{ row.labelKey | translate }}</td>
-            <td class="py-2">
-              <select
-                class="w-full px-2 py-1 border border-gray-300 rounded text-sm focus:outline-none focus:ring-1 focus:ring-indigo-500 disabled:bg-gray-100 disabled:text-gray-400"
-                [disabled]="row.updating || !canEdit()"
-                [value]="row.tier"
-                (change)="onTierChange(row, $any($event.target).value)">
-                <option value="none">{{ 'rolePermission.tier.none' | translate }}</option>
-                <option value="view">{{ 'rolePermission.tier.view' | translate }}</option>
-                @if (row.operateFeatureId != null) {
-                  <option value="operate">{{ 'rolePermission.tier.operate' | translate }}</option>
-                }
-              </select>
-            </td>
+    <!-- 工具栏:搜索 + 已授权计数 + 批量设置 -->
+    <div class="pp-toolbar">
+      <div class="pp-search">
+        <svg class="pp-search-icon" viewBox="0 0 20 20" fill="none" aria-hidden="true">
+          <circle cx="9" cy="9" r="6" stroke="currentColor" stroke-width="1.6"/>
+          <line x1="14" y1="14" x2="18" y2="18" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/>
+        </svg>
+        <input
+          type="text"
+          class="pp-search-input"
+          [value]="searchTerm"
+          (input)="searchTerm = $any($event.target).value"
+          [placeholder]="'rolePermission.searchPlaceholder' | translate" />
+      </div>
+
+      <span class="pp-count">{{ 'rolePermission.grantedCount' | translate:{ granted: grantedCount, total: totalCount } }}</span>
+
+      <div class="pp-bulk">
+        <span class="pp-bulk-label">{{ 'rolePermission.bulkLabel' | translate }}</span>
+        <button type="button" class="pp-bulk-btn" [disabled]="!canEdit()" (click)="setAll('none')">{{ 'rolePermission.tier.none' | translate }}</button>
+        <button type="button" class="pp-bulk-btn" [disabled]="!canEdit()" (click)="setAll('view')">{{ 'rolePermission.tier.view' | translate }}</button>
+        <button type="button" class="pp-bulk-btn" [disabled]="!canEdit()" (click)="setAll('operate')">{{ 'rolePermission.tier.operate' | translate }}</button>
+      </div>
+    </div>
+
+    <!-- 页面权限列表 -->
+    <div class="pp-list">
+      <table class="pp-table">
+        <thead>
+          <tr>
+            <th class="pp-th-page">{{ 'rolePermission.page' | translate }}</th>
+            <th class="pp-th-access">{{ 'rolePermission.access' | translate }}</th>
           </tr>
-        }
-      </tbody>
-    </table>
-    <p class="mt-3 text-xs text-gray-400 leading-relaxed">{{ 'rolePermission.hint' | translate }}</p>
+        </thead>
+        <tbody>
+          @for (row of filteredRows; track row.module) {
+            <tr>
+              <td class="pp-page-name">{{ row.label }}</td>
+              <td class="pp-access-cell">
+                <div class="pp-seg" [class.pp-seg-disabled]="row.updating || !canEdit()">
+                  <button
+                    type="button"
+                    class="pp-seg-btn pp-seg-none"
+                    [class.pp-active]="row.tier === 'none'"
+                    [disabled]="row.updating || !canEdit()"
+                    (click)="onTierChange(row, 'none')">{{ 'rolePermission.tier.none' | translate }}</button>
+                  <button
+                    type="button"
+                    class="pp-seg-btn pp-seg-view"
+                    [class.pp-active]="row.tier === 'view'"
+                    [disabled]="row.updating || !canEdit()"
+                    (click)="onTierChange(row, 'view')">{{ 'rolePermission.tier.view' | translate }}</button>
+                  @if (row.operateFeatureId != null) {
+                    <button
+                      type="button"
+                      class="pp-seg-btn pp-seg-operate"
+                      [class.pp-active]="row.tier === 'operate'"
+                      [disabled]="row.updating || !canEdit()"
+                      (click)="onTierChange(row, 'operate')">{{ 'rolePermission.tier.operate' | translate }}</button>
+                  }
+                </div>
+              </td>
+            </tr>
+          } @empty {
+            <tr>
+              <td colspan="2" class="pp-empty">{{ 'rolePermission.noMatch' | translate }}</td>
+            </tr>
+          }
+        </tbody>
+      </table>
+    </div>
+
+    <p class="pp-hint">{{ 'rolePermission.hint' | translate }}</p>
   }
 </div>

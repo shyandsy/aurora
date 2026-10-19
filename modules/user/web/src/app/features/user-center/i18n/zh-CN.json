@@ -72,7 +72,13 @@
       "roleRequired": "角色是必填项",
       "featureRequired": "至少选择一个功能",
       "createFailed": "创建角色功能失败"
-    }
+    },
+    "loading": "加载中…",
+    "selectedCount": "已选 {{selected}}/{{total}}",
+    "colSelect": "选",
+    "noFeatures": "暂无功能",
+    "noMatch": "没有匹配的功能",
+    "hint": "「高级」直接授予单个 feature,用于页面分档覆盖不到的高危/服务间能力(如 microservice.* / user.create)。一般授权走「页面权限」即可。"
   },
   "rolePermission": {
     "title": "权限授权",
@@ -86,7 +92,11 @@
       "view": "只读",
       "operate": "可操作"
     },
-    "hint": "「可操作」含「只读」。授某页后,该页用到的一整簇接口权限(含跨页依赖)会在登录签发 token 时自动展开。高危/服务间功能请到「高级」里单独授。"
+    "hint": "「可操作」含「只读」。授某页后,该页用到的一整簇接口权限(含跨页依赖)会在登录签发 token 时自动展开。高危/服务间功能请到「高级」里单独授。",
+    "searchPlaceholder": "搜索页面…",
+    "grantedCount": "已授权 {{granted}}/{{total}}",
+    "bulkLabel": "全部设为:",
+    "noMatch": "没有匹配的页面"
   },
   "microservice": {
     "title": "微服务管理",
