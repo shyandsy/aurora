@@ -39,7 +39,22 @@ func main() {
     app.AddFeature(auroraFeature.NewServerFeature())
     app.AddFeature(auroraFeature.NewGormFeature())
     app.AddFeature(auroraFeature.NewRedisFeature())
-    app.AddFeature(auroraFeature.NewJWTFeature())
+    // JWT takes an explicit config; config.JWTConfig has no env tags (env names
+    // are the project's choice). This single-domain sample reads them via its own
+    // tagged struct and maps in; multi-domain apps use their own prefixes.
+    var jwtEnv struct {
+        Secret        string        `env:"JWT_SECRET"`
+        Issuer        string        `env:"JWT_ISSUER"`
+        ExpireTime    time.Duration `env:"JWT_EXPIRE_TIME"`
+        RefreshExpire time.Duration `env:"JWT_REFRESH_EXPIRE_TIME,omitempty"`
+    }
+    if err := config.ResolveConfig(&jwtEnv); err != nil {
+        log.Fatalf("load JWT config: %v", err)
+    }
+    app.AddFeature(auroraFeature.NewJWTFeature(&config.JWTConfig{
+        Secret: jwtEnv.Secret, Issuer: jwtEnv.Issuer,
+        ExpireTime: jwtEnv.ExpireTime, RefreshExpireTime: jwtEnv.RefreshExpire,
+    }))
     app.AddFeature(auroraFeature.NewI18NFeature())
     migration.RunMigrations(app)
     registerProviders(app)
@@ -48,7 +63,7 @@ func main() {
 }
 ```
 
-You can use `bootstrap.InitDefaultApp()` instead; it includes the Mail feature.
+You can use `bootstrap.InitDefaultApp()` instead (server + gorm + redis + i18n + migrations). It does **not** include JWT or Mail — those need project-supplied config, so add them yourself (`feature.NewJWTFeature(cfg)`, `mail.NewSMTP(...)`).
 
 ### Dependency injection
 

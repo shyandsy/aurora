@@ -65,10 +65,18 @@ type jwtFeature struct {
 	RedisService RedisService `inject:""`
 }
 
-func NewJWTFeature() contracts.Features {
-	cfg := &config.JWTConfig{}
-	if err := config.ResolveConfig(cfg); err != nil {
-		log.Fatalf("Failed to load JWT config: %v", err)
+// NewJWTFeature 用**显式传入的配置**构造默认 JWTService,走 feature 生命周期并注册进 DI
+// (Setup 期 field-inject RedisService + ProvideAs 成 JWTService)。
+//
+// 本构造器**不从 env 读密钥**,也不替项目决定 env 怎么命名 —— 这是框架的刻意选择:
+// aurora 只给机制,"用哪把密钥、env 叫什么(JWT_SECRET / ADMIN_JWT_SECRET / …)"是**项目的 policy**,
+// 由调用方自己组 *config.JWTConfig 传进来。这样同一进程里要装多把密钥(如一端校验后台域、
+// 一端校验客户域)也不再有"偷读同一个 JWT_SECRET"的隐式入口。
+//
+// cfg 为 nil 直接 fail-fast(密钥是鉴权根基,缺失不能静默起服务)。
+func NewJWTFeature(cfg *config.JWTConfig) contracts.Features {
+	if cfg == nil {
+		log.Fatalf("jwt: NewJWTFeature requires a non-nil *config.JWTConfig (the project must construct and pass it)")
 	}
 	return &jwtFeature{Config: cfg}
 }
@@ -77,7 +85,7 @@ func NewJWTFeature() contracts.Features {
 // 校验多个签发来源的令牌」的场景使用 —— 即一个进程里同时存在默认实例之外、校验**另一把
 // 密钥**的额外引擎。
 //
-// 与默认实例(NewJWTFeature:从 env 读密钥、走 feature 生命周期并注册进 DI)不同,本引擎
+// 与 feature 实例(NewJWTFeature(cfg):走 feature 生命周期并注册进 DI)不同,本引擎
 // 不走 feature 生命周期、**不 AddFeature、不注册进 DI**,由调用方持有并直接调用。其校验
 // 逻辑(签名 / token_type / 黑名单吊销)与默认实例完全一致,只是密钥不同 —— 调用方因此
 // 无需自造一套平行的校验路径(那会随默认实例的演进而悄悄语义漂移)。
@@ -120,6 +128,13 @@ func (f *jwtFeature) Setup(app contracts.App) error {
 	}
 
 	app.ProvideAs(f, (*JWTService)(nil))
+
+	// 同时把构造用的 *config.JWTConfig 注册进 DI。某些组件需要的是原始配置值而非
+	// JWTService(如 tokenguard 按 refresh 寿命定黑名单 denyTTL、微服务 token 用 Secret/Issuer
+	// 自行签名)—— 让它们从 DI 解析同一份 config,保证与本引擎用的完全一致,且不必各自再读 env。
+	if err := app.Provide(f.Config); err != nil {
+		return fmt.Errorf("failed to register JWT config into container: %w", err)
+	}
 	return nil
 }
 

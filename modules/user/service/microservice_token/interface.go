@@ -30,11 +30,15 @@ type microserviceTokenService struct {
 	TokenDL      datalayer.MicroserviceTokenFeatureTokenDatalayer `inject:""`
 }
 
-// NewMicroserviceTokenService 创建微服务 token 服务
+// NewMicroserviceTokenService 创建微服务 token 服务。
+//
+// JWT 配置从 DI 解析(由宿主 AddFeature(feature.NewJWTFeature(cfg)) 注册进来),而不是自己
+// 从 env 读 —— env 名归宿主(后台域可能叫 ADMIN_JWT_SECRET 等),本模块不假设。它需要原始
+// Secret/Issuer 自行签「服务间调用」长效 token(见 issue_token.go),所以要的是整份 config。
 func NewMicroserviceTokenService(app contracts.App) MicroserviceTokenService {
-	cfg := &config.JWTConfig{}
-	if err := config.ResolveConfig(cfg); err != nil {
-		panic(fmt.Errorf("failed to load JWT config: %w", err))
+	var cfg *config.JWTConfig
+	if err := app.Find(&cfg); err != nil || cfg == nil {
+		panic(fmt.Errorf("microservice token service: JWT config not found in container — host must AddFeature(feature.NewJWTFeature(cfg)) first: %w", err))
 	}
 	s := &microserviceTokenService{Config: cfg}
 	if err := app.Resolve(s); err != nil {

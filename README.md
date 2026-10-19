@@ -174,8 +174,10 @@ package main
 
 import (
     "log"
+    "time"
     
     "github.com/shyandsy/aurora/app"
+    "github.com/shyandsy/aurora/config"
     "github.com/shyandsy/aurora/feature"
     "github.com/shyandsy/aurora/contracts"
     "github.com/shyandsy/aurora/bizerr"
@@ -189,7 +191,23 @@ func main() {
     a.AddFeature(feature.NewServerFeature())
     a.AddFeature(feature.NewGormFeature())
     a.AddFeature(feature.NewRedisFeature())
-    a.AddFeature(feature.NewJWTFeature())
+    // JWT takes an explicit config. config.JWTConfig has NO env tags — the
+    // framework does not read env or decide env names. The project owns that:
+    // define your own tagged struct, resolve it, and map it in. (Multi-domain
+    // apps use their own prefixes, e.g. ADMIN_JWT_SECRET / CUSTOMER_JWT_SECRET.)
+    var jwtEnv struct {
+        Secret        string        `env:"JWT_SECRET"`
+        Issuer        string        `env:"JWT_ISSUER"`
+        ExpireTime    time.Duration `env:"JWT_EXPIRE_TIME"`
+        RefreshExpire time.Duration `env:"JWT_REFRESH_EXPIRE_TIME,omitempty"`
+    }
+    if err := config.ResolveConfig(&jwtEnv); err != nil {
+        log.Fatalf("load JWT config: %v", err)
+    }
+    a.AddFeature(feature.NewJWTFeature(&config.JWTConfig{ // must come after NewRedisFeature()
+        Secret: jwtEnv.Secret, Issuer: jwtEnv.Issuer,
+        ExpireTime: jwtEnv.ExpireTime, RefreshExpireTime: jwtEnv.RefreshExpire,
+    }))
     
     // Register routes
     a.RegisterRoutes([]contracts.Route{

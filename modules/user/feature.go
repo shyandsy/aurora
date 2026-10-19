@@ -2,6 +2,7 @@ package user
 
 import (
 	"context"
+	"fmt"
 	"os"
 
 	"github.com/shyandsy/aurora/config"
@@ -104,8 +105,13 @@ func (f *userFeature) registerProviders(app contracts.App) {
 	// (二者由 bootstrap.InitDefaultApp 已装配)。denyTTL 取 jwt refresh 寿命——它是「只有 jti、拿不到 token
 	// 精确到期」时(Revoke(jti) 兜底路径,会话表撤销走它)黑名单条目的存活上界,须 >= 本服务最长 token 寿命,
 	// 否则被撤 token 会在 TTL 到点后"复活"。被 UserService inject(tokenguard.Guard),须在其 ProvideAs 之前注册。
-	var jc config.JWTConfig
-	_ = config.ResolveConfig(&jc)
+	// JWT 配置从 DI 解析(由宿主 app.AddFeature(feature.NewJWTFeature(cfg)) 时注册进来),
+	// 而不是自己从 env 读 —— env 名归宿主(后台域可能叫 ADMIN_JWT_SECRET 等),本模块不假设。
+	// 因此宿主必须在本模块之前 AddFeature 一个 JWT feature。denyTTL 取 refresh 寿命。
+	var jc *config.JWTConfig
+	if err := app.Find(&jc); err != nil || jc == nil {
+		panic(fmt.Errorf("user module: JWT config not found in container — host must AddFeature(feature.NewJWTFeature(cfg)) before the user module: %w", err))
+	}
 	app.AddFeature(tokenguard.NewTokenGuardFeature(jc.RefreshExpireOrDefault()))
 
 	// 用户中心 Datalayers(user_users / user_roles / user_features / user_role_features)。

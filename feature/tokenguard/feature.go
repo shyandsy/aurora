@@ -24,10 +24,14 @@ type tokenGuardFeature struct {
 // denyTTL = 黑名单兜底 TTL(仅 Revoke(jti) 无到期信息时用;RevokeClaims 永远按 claims.ExpiresAt 精确推),
 // **必须 >= 本服务最长 token(通常 refresh)寿命**,否则不绑 IP 的 token(黑名单是其唯一吊销手段)会在
 // 到点后"复活"。由调用方按自己的 token 策略显式传——不写死从 jwt 读,是因为服务的最长 token 寿命未必
-// 等于 jwt refresh 配置(可能自签更长寿 token)。通常就传 jwt 的 refresh 寿命:
+// 等于 jwt refresh 配置(可能自签更长寿 token)。通常就传 jwt 的 refresh 寿命——从 DI 取
+// JWT feature 注册进来的那份 config(须在 JWT feature 之后),而不是自己读 env。找不到必须
+// fail-fast:denyTTL 缺了是承重安全项(黑名单会提前失效),绝不能吞错误后拿 nil 继续:
 //
-//	var jc config.JWTConfig
-//	_ = config.ResolveConfig(&jc)
+//	var jc *config.JWTConfig
+//	if err := app.Find(&jc); err != nil || jc == nil {
+//		log.Fatalf("tokenguard denyTTL 需要 JWT config,请先 AddFeature 一个 JWT feature: %v", err)
+//	}
 //	app.AddFeature(tokenguard.NewTokenGuardFeature(jc.RefreshExpireOrDefault()))
 func NewTokenGuardFeature(denyTTL time.Duration) contracts.Features {
 	return &tokenGuardFeature{denyTTL: denyTTL}

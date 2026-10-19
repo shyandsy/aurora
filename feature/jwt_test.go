@@ -91,6 +91,52 @@ func TestNewJWTService_ExplicitSecretIsolatesKeys(t *testing.T) {
 	}
 }
 
+// NewJWTFeature(cfg) 走 feature 生命周期:Setup 期 field-inject RedisService + ProvideAs 成 JWTService,
+// 之后容器里 Find 得到的就是它,且能用传入的那把密钥正常签/验。钉住"显式传 config 的 feature 路径"。
+func TestNewJWTFeature_RegistersAndUsesExplicitConfig(t *testing.T) {
+	app := newJWTStubAppWithRedis(t) // 容器里已有未拉黑的 RedisService
+
+	feat := NewJWTFeature(&config.JWTConfig{
+		Secret: "feature-secret", Issuer: "feat", ExpireTime: 30 * time.Minute,
+	})
+	if err := feat.Setup(app); err != nil {
+		t.Fatalf("Setup 失败: %v", err)
+	}
+
+	// Setup 后容器里应能解析出 JWTService(即刚注册的这个 feature)。
+	var svc JWTService
+	if err := app.Find(&svc); err != nil {
+		t.Fatalf("Setup 后应能从容器解析 JWTService: %v", err)
+	}
+
+	// Setup 也应把构造用的 *config.JWTConfig 注册进 DI(供 tokenguard/微服务 token 等按原始配置取同一份)。
+	var gotCfg *config.JWTConfig
+	if err := app.Find(&gotCfg); err != nil || gotCfg == nil {
+		t.Fatalf("Setup 后应能从容器解析 *config.JWTConfig: err=%v cfg=%v", err, gotCfg)
+	}
+	if gotCfg.Secret != "feature-secret" || gotCfg.Issuer != "feat" {
+		t.Fatalf("解析到的 config 与传入不一致: %+v", gotCfg)
+	}
+	tok, err := svc.GenerateToken(7, "u@example.com", []string{"f1"})
+	if err != nil {
+		t.Fatalf("签发失败: %v", err)
+	}
+	if _, err := svc.ValidateToken(tok.AccessToken); err != nil {
+		t.Fatalf("应能校验自己签的令牌: %v", err)
+	}
+
+	// 用别的密钥的独立引擎验不过 —— 证明 feature 确实用的是传入的 config,而非偷读 env。
+	other, err := NewJWTService(app, &config.JWTConfig{
+		Secret: "another-secret", Issuer: "x", ExpireTime: 30 * time.Minute,
+	})
+	if err != nil {
+		t.Fatalf("构造对照引擎失败: %v", err)
+	}
+	if _, err := other.ValidateToken(tok.AccessToken); err == nil {
+		t.Fatalf("不同密钥不应校验通过")
+	}
+}
+
 // 构造参数护栏:nil app、nil 配置、非法配置、容器里没 RedisService —— 都必须报错而非返回半成品实例。
 func TestNewJWTService_Guards(t *testing.T) {
 	validCfg := func() *config.JWTConfig {
