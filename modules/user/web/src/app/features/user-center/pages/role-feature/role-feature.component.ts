@@ -19,6 +19,7 @@ export class RoleFeatureComponent {
   roleListRefreshTrigger = signal(0);
   showCreateEditDialog = signal(false);
   editingRole = signal<Role | null>(null);
+  featureFilter = signal<string>('');
   // 授权视图:'page' = 页面级 view/操作分档(推荐);'advanced' = 直接勾选单个 feature。
   authMode = signal<'page' | 'advanced'>('page');
 

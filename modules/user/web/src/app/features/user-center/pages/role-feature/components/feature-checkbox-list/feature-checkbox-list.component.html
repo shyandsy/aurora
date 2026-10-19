@@ -1,82 +1,76 @@
-<div class="adv-perm">
-  @if (error) {
-    <div class="mb-3 px-3 py-2 text-sm text-red-700 bg-red-50 border border-red-200 rounded">{{ error }}</div>
-  }
-
-  @if (!selectedRoleId()) {
-    <div class="text-sm text-gray-500 py-10 text-center">{{ 'rolePermission.selectRoleFirst' | translate }}</div>
-  } @else if (isLoading) {
-    <div class="text-sm text-gray-500 py-10 text-center">{{ 'roleFeature.loading' | translate }}</div>
-  } @else {
-    <!-- 工具栏:搜索 + 已选计数 + 批量 -->
-    <div class="pp-toolbar">
-      <div class="pp-search">
-        <svg class="pp-search-icon" viewBox="0 0 20 20" fill="none" aria-hidden="true">
-          <circle cx="9" cy="9" r="6" stroke="currentColor" stroke-width="1.6"/>
-          <line x1="14" y1="14" x2="18" y2="18" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/>
-        </svg>
-        <input
-          type="text"
-          class="pp-search-input"
-          [value]="searchTerm"
-          (input)="searchTerm = $any($event.target).value"
-          [placeholder]="'roleFeature.searchPlaceholder' | translate" />
-      </div>
-
-      <span class="pp-count">{{ 'roleFeature.selectedCount' | translate:{ selected: selectedCount, total: totalCount } }}</span>
-
-      <div class="pp-bulk">
-        <button type="button" class="pp-bulk-btn" [disabled]="!canBatch()" (click)="selectAllVisible()">{{ 'roleFeature.selectAllVisible' | translate }}</button>
-        <button type="button" class="pp-bulk-btn" [disabled]="!canBatch()" (click)="deselectAllVisible()">{{ 'roleFeature.deselectAllVisible' | translate }}</button>
-        @if (isBatchUpdating) {
-          <span class="pp-updating">{{ 'roleFeature.batchUpdating' | translate }}</span>
-        }
-      </div>
-    </div>
-
-    <div class="pp-list">
-      <table class="pp-table">
-        <thead>
-          <tr>
-            <th class="pp-th-chk">{{ 'roleFeature.colSelect' | translate }}</th>
-            <th>{{ 'roleFeature.feature' | translate }}</th>
-          </tr>
-        </thead>
-        <tbody>
-          @for (feature of getFilteredFeatures(); track feature.id) {
-            <tr>
-              <td class="pp-chk-cell">
-                <input
-                  type="checkbox"
-                  class="pp-chk"
-                  [checked]="isFeatureSelected(feature)"
-                  [disabled]="isUpdating(feature) || isBatchUpdating"
-                  (change)="onFeatureToggle(feature, $any($event.target).checked)" />
-              </td>
-              <td>
-                <span class="adv-name">{{ feature.name }}</span>
-                @if (feature.kind === 'ui') {
-                  <span class="chip chip-ui">ui</span>
-                } @else {
-                  <span class="chip chip-api">api</span>
-                }
-                @if (feature.module) {
-                  <span class="chip chip-mod">{{ feature.module }}</span>
-                }
-                @if (isUpdating(feature)) {
-                  <span class="pp-updating">{{ 'roleFeature.batchUpdating' | translate }}</span>
-                }
-              </td>
-            </tr>
-          } @empty {
-            <tr>
-              <td colspan="2" class="pp-empty">{{ (searchTerm ? 'roleFeature.noMatch' : 'roleFeature.noFeatures') | translate }}</td>
-            </tr>
-          }
-        </tbody>
-      </table>
-    </div>
-
-    <p class="pp-hint">{{ 'roleFeature.hint' | translate }}</p>
+@if (isLoading) {
+<div class="flex justify-center items-center py-12">
+  <div class="text-gray-500">Loading features...</div>
+</div>
+} @else if (error) {
+<div class="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded mb-4">
+  {{ error }}
+</div>
+} @else if (!selectedRoleId()) {
+<div class="bg-gray-50 border border-gray-200 text-gray-700 px-4 py-3 rounded">
+  Please select a role to view and manage its features.
+</div>
+} @else if (features.length === 0) {
+<div class="bg-gray-50 border border-gray-200 text-gray-700 px-4 py-3 rounded">
+  No features found.
+</div>
+} @else {
+<div class="mb-3 flex items-center gap-2">
+  <button type="button" (click)="selectAllVisible()" [disabled]="!canBatch()"
+    class="px-3 py-1.5 text-sm font-medium text-white bg-indigo-600 rounded-md hover:bg-indigo-700 disabled:opacity-50 disabled:cursor-not-allowed">
+    {{ 'roleFeature.selectAllVisible' | translate }}
+  </button>
+  <button type="button" (click)="deselectAllVisible()" [disabled]="!canBatch()"
+    class="px-3 py-1.5 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-md hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed">
+    {{ 'roleFeature.deselectAllVisible' | translate }}
+  </button>
+  @if (isBatchUpdating) {
+  <span class="text-sm text-gray-500">{{ 'roleFeature.batchUpdating' | translate }}</span>
   }
 </div>
+<div class="bg-white shadow-sm rounded-lg overflow-hidden">
+  <table class="min-w-full divide-y divide-gray-200">
+    <thead class="bg-gray-50">
+      <tr>
+        <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider w-12">
+          Select
+        </th>
+        <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+          ID
+        </th>
+        <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+          Name
+        </th>
+      </tr>
+    </thead>
+    <tbody class="bg-white divide-y divide-gray-200">
+      @if (getFilteredFeatures().length === 0) {
+      <tr>
+        <td colspan="3" class="px-6 py-4 text-center text-sm text-gray-500">
+          No features match the filter "{{ filterText() }}"
+        </td>
+      </tr>
+      } @else {
+      @for (feature of getFilteredFeatures(); track feature.id) {
+      <tr class="hover:bg-gray-50">
+        <td class="px-6 py-4 whitespace-nowrap">
+          <input type="checkbox" [checked]="isFeatureSelected(feature)" [disabled]="isUpdating(feature) || isBatchUpdating"
+            (change)="onFeatureToggle(feature, $any($event.target).checked)"
+            class="h-4 w-4 text-indigo-600 focus:ring-indigo-500 border-gray-300 rounded" />
+          @if (isUpdating(feature)) {
+          <span class="ml-2 text-xs text-gray-500">Updating...</span>
+          }
+        </td>
+        <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+          {{ feature.id }}
+        </td>
+        <td class="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">
+          {{ feature.name }}
+        </td>
+      </tr>
+      }
+      }
+    </tbody>
+  </table>
+</div>
+}

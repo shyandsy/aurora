@@ -63,13 +63,7 @@
       "roleRequired": "Role is required",
       "featureRequired": "At least one feature must be selected",
       "createFailed": "Failed to create role feature"
-    },
-    "loading": "Loading…",
-    "selectedCount": "Selected {{selected}}/{{total}}",
-    "colSelect": "Select",
-    "noFeatures": "No features",
-    "noMatch": "No matching features",
-    "hint": "Advanced grants individual features directly, for high-risk or inter-service capabilities not covered by page tiers (e.g. microservice.* / user.create). Normal grants go through Page Permissions."
+    }
   },
   "rolePermission": {
     "title": "Permissions",
@@ -83,11 +77,7 @@
       "view": "Read",
       "operate": "Operate"
     },
-    "hint": "\"Operate\" includes \"Read\". Granting a page auto-expands to that page's full set of API permissions (incl. cross-page deps) when the token is issued at login. Grant high-risk / service-only features individually under \"Advanced\".",
-    "searchPlaceholder": "Search pages…",
-    "grantedCount": "Granted {{granted}}/{{total}}",
-    "bulkLabel": "Set all:",
-    "noMatch": "No matching pages"
+    "hint": "\"Operate\" includes \"Read\". Granting a page auto-expands to that page's full set of API permissions (incl. cross-page deps) when the token is issued at login. Grant high-risk / service-only features individually under \"Advanced\"."
   },
   "microservice": {
     "title": "Microservice Management",
