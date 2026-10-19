@@ -8,23 +8,23 @@
 
 ## 怎么跑
 
-`InitDefaultApp` 在所有 feature 之后调用一次([bootstrap/default.go:25](../../bootstrap/default.go#L25)):
+`InitDefaultApp` 在所有 feature 之后调用一次([bootstrap/default.go](../../bootstrap/default.go)):
 
 ```go
 migration.RunMigrations(a)
 ```
 
-`RunMigrations`([migration/migration.go:17](../../migration/migration.go#L17))流程:
+`RunMigrations`([migration/migration.go](../../migration/migration.go))流程:
 1. 从 DI 容器取 `*sql.DB`(gorm feature 已 Provide);取不到报错;
 2. 按 `DB_DRIVER` 定 goose 方言(`postgres/postgresql/pgx`→postgres,`sqlite`→sqlite3,`mysql`→mysql);
 3. 读 `GOOSE_TABLE_PREFIX` 定版本表名;
 4. `goose.Up(sqlDB, <cwd>/migrations)`。
 
-**迁移文件目录固定为进程工作目录下的 `migrations/`**([migration/migration.go:68](../../migration/migration.go#L68)),不可配。没有迁移文件不算错误(返回 nil)。
+**迁移文件目录固定为进程工作目录下的 `migrations/`**([migration/migration.go](../../migration/migration.go)),不可配。没有迁移文件不算错误(返回 nil)。
 
 ## 版本表前缀(多服务共库关键)
 
-多个服务共用一个数据库时,各自的 goose 版本表要隔离,否则版本号互相打架。用 `GOOSE_TABLE_PREFIX`([config/migration.go:10](../../config/migration.go#L10)):
+多个服务共用一个数据库时,各自的 goose 版本表要隔离,否则版本号互相打架。用 `GOOSE_TABLE_PREFIX`([config/migration.go](../../config/migration.go)):
 
 | `GOOSE_TABLE_PREFIX` | 版本表名 |
 |---|---|

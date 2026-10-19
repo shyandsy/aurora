@@ -23,7 +23,7 @@ if err := cfg.Validate(); err != nil { log.Fatal(err) }   // Validate 要自己�
 
 ## `omitempty` 语义(必须理解)
 
-[config/resolve.go:41](../../config/resolve.go#L41):环境变量取到**空串**时:
+[config/resolve.go](../../config/resolve.go):环境变量取到**空串**时:
 
 | tag | 行为 |
 |---|---|
@@ -34,9 +34,9 @@ if err := cfg.Validate(); err != nil { log.Fatal(err) }   // Validate 要自己�
 
 ## ⚠️ 致命坑:`envDefault` 完全无效
 
-`ResolveConfig` **只读 `env` tag,从不读 `envDefault`**([config/resolve.go:32](../../config/resolve.go#L32) 只调 `Tag.Get("env")`)。
+`ResolveConfig` **只读 `env` tag,从不读 `envDefault`**([config/resolve.go](../../config/resolve.go) 只调 `Tag.Get("env")`)。
 
-但 [config/server.go:27](../../config/server.go#L27) 的 `ServerConfig` 却写了一堆 `envDefault:"..."`(`HOST` `envDefault:"0.0.0.0"` 等),**这些标签运行时一律不生效**,纯误导。更糟的是这些字段**没有 `omitempty`** → 它们实际上是**必填**,不设对应 env 直接报错。
+但 [config/server.go](../../config/server.go) 的 `ServerConfig` 却写了一堆 `envDefault:"..."`(`HOST` `envDefault:"0.0.0.0"` 等),**这些标签运行时一律不生效**,纯误导。更糟的是这些字段**没有 `omitempty`** → 它们实际上是**必填**,不设对应 env 直接报错。
 
 **要默认值的正确做法**(二选一):
 
@@ -58,7 +58,7 @@ func (c *MyConfig) Validate() error {
 
 ## 支持的字段类型
 
-[config/resolve.go:57](../../config/resolve.go#L57) `setFieldValue`:
+[config/resolve.go](../../config/resolve.go) `setFieldValue`:
 
 | 类型 | 说明 |
 |---|---|
@@ -78,7 +78,7 @@ func (c *MyConfig) Validate() error {
 - `Key() string` —— 稳定标识(`"server"` / `"redis"` / …),供按 key 注册查找。
 - `Validate() error` —— 业务校验,返回 `*ConfigError`([config/error.go](../../config/error.go),`NewConfigError(msg)`)。
 
-> ⚠️ **`ResolveConfig` 不会自动调 `Validate`**。固定模式是:`ResolveConfig(cfg)` → `cfg.Validate()`,两步都要自己写。框架各 feature 的 `Setup` 里就是这么做的(如 [feature/gorm.go:36](../../feature/gorm.go#L36))。
+> ⚠️ **`ResolveConfig` 不会自动调 `Validate`**。固定模式是:`ResolveConfig(cfg)` → `cfg.Validate()`,两步都要自己写。框架各 feature 的 `Setup` 里就是这么做的(如 [feature/gorm.go](../../feature/gorm.go))。
 
 ## 加自定义配置的完整范例
 

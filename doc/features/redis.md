@@ -12,7 +12,7 @@
 app.AddFeature(feature.NewRedisFeature())
 ```
 
-以**接口类型**注入([feature/redis.go:69](../../feature/redis.go#L69)):
+以**接口类型**注入([feature/redis.go](../../feature/redis.go)):
 
 ```go
 type someService struct {
@@ -24,7 +24,7 @@ type someService struct {
 
 ## RedisService 方法表
 
-[feature/redis.go:15](../../feature/redis.go#L15) 接口,逐个:
+[feature/redis.go](../../feature/redis.go) 接口,逐个:
 
 | 方法 | 签名 | 备注 |
 |---|---|---|
@@ -50,7 +50,7 @@ type someService struct {
 
 ## WithLock —— 分布式锁(重点)
 
-[feature/redis.go:180](../../feature/redis.go#L180):
+[feature/redis.go](../../feature/redis.go):
 
 ```go
 err := redis.WithLock(ctx, "lock:daily-settle", instanceID, 30*time.Second, func() error {
@@ -63,8 +63,8 @@ if errors.Is(err, feature.ErrLockNotAcquired) {
 
 **语义 —— 是 "skip-if-running",不是排队等待**:
 
-- **获取**:`SetNX(key, value, ttl)`。抢不到锁 → **立即返回 `ErrLockNotAcquired`,`fn` 不执行**([feature/redis.go:186](../../feature/redis.go#L186))。不阻塞、不重试。
-- **自动续租**:后台 goroutine 每 `ttl/2`(最小 1s)续一次([feature/redis.go:197](../../feature/redis.go#L197))。续租前先 `GET` 校验锁值仍是自己写的 `value` 才 `EXPIRE`,防止续别人的锁。→ **`fn` 跑再久也不会因 ttl 到期被别人抢走**,同时进程崩了锁按 ttl 自动释放。
+- **获取**:`SetNX(key, value, ttl)`。抢不到锁 → **立即返回 `ErrLockNotAcquired`,`fn` 不执行**([feature/redis.go](../../feature/redis.go))。不阻塞、不重试。
+- **自动续租**:后台 goroutine 每 `ttl/2`(最小 1s)续一次([feature/redis.go](../../feature/redis.go))。续租前先 `GET` 校验锁值仍是自己写的 `value` 才 `EXPIRE`,防止续别人的锁。→ **`fn` 跑再久也不会因 ttl 到期被别人抢走**,同时进程崩了锁按 ttl 自动释放。
 - **释放**:`fn` 返回后 `defer` 里停续租 goroutine,再用独立 5s 超时 `DEL key`。释放失败只告警(靠 ttl 兜底)。
 - **返回值**:直接透传 `fn()` 的返回。
 
@@ -72,14 +72,14 @@ if errors.Is(err, feature.ErrLockNotAcquired) {
 
 > ⚠️ 释放时直接 `DEL`,**没做 value 比对(无 Lua CAS)**。理论上若 `fn` 执行超过 ttl 且续租失败、锁被他人抢占,释放会误删他人锁。实践中 ttl 给足 + 续租正常时不触发,但要清楚这个边界。
 
-导出错误:`var ErrLockNotAcquired`([feature/redis.go:172](../../feature/redis.go#L172))。
+导出错误:`var ErrLockNotAcquired`([feature/redis.go](../../feature/redis.go))。
 
 ---
 
 ## 连接池 & 版本
 
 - 用的是 **go-redis v8**(`github.com/go-redis/redis/v8`)。
-- `provideRedis` 只设了 `Addr/Password/DB`,**没设 `PoolSize`**([feature/redis.go:80](../../feature/redis.go#L80))→ 走 go-redis 默认池大小(`10 × GOMAXPROCS`)。高并发 + 无 CPU 限制时每容器 `GOMAXPROCS` 可能偏大,注意评估。
+- `provideRedis` 只设了 `Addr/Password/DB`,**没设 `PoolSize`**([feature/redis.go](../../feature/redis.go))→ 走 go-redis 默认池大小(`10 × GOMAXPROCS`)。高并发 + 无 CPU 限制时每容器 `GOMAXPROCS` 可能偏大,注意评估。
 
 ---
 
@@ -91,4 +91,4 @@ if errors.Is(err, feature.ErrLockNotAcquired) {
 | `REDIS_PASSWORD` | Password | **是(非空)** | 无密码 Redis 也得填非空占位(如 `none`) |
 | `REDIS_DB` | DB | 是(≥0) | DB 编号 |
 
-> ⚠️ `REDIS_PASSWORD` **强制非空**([config/redis.go:18](../../config/redis.go#L18))—— 这是常见的启动失败原因。无密码环境填任意非空串。无 `PoolSize` 等池相关 env。
+> ⚠️ `REDIS_PASSWORD` **强制非空**([config/redis.go](../../config/redis.go))—— 这是常见的启动失败原因。无密码环境填任意非空串。无 `PoolSize` 等池相关 env。

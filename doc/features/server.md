@@ -16,16 +16,16 @@ server := feature.NewServerFeature(                        // 带自定义错误
 app.AddFeature(server)
 ```
 
-- `NewServerFeature(opts ...ServerOption)` — [feature/server.go:45](../../feature/server.go#L45)
-- 目前唯一 option:`WithErrorHandler(contracts.ErrorHandler)` — [feature/server.go:39](../../feature/server.go#L39),替换默认错误响应格式。
+- `NewServerFeature(opts ...ServerOption)` — [feature/server.go](../../feature/server.go)
+- 目前唯一 option:`WithErrorHandler(contracts.ErrorHandler)` — [feature/server.go](../../feature/server.go),替换默认错误响应格式。
 
-`Setup` 里:注入 `ServerConfig` → `Validate` → 构建 gin engine → 把 `*gin.Engine` Provide 进容器([feature/server.go:60](../../feature/server.go#L60))。
+`Setup` 里:注入 `ServerConfig` → `Validate` → 构建 gin engine → 把 `*gin.Engine` Provide 进容器([feature/server.go](../../feature/server.go))。
 
 ---
 
 ## 定义路由
 
-路由是 `contracts.Route` 的列表([contracts/route.go:10](../../contracts/route.go#L10)):
+路由是 `contracts.Route` 的列表([contracts/route.go](../../contracts/route.go)):
 
 ```go
 type Route struct {
@@ -45,13 +45,13 @@ app.RegisterRoutes([]contracts.Route{
 })
 ```
 
-> `RegisterRoutes` 只是**追加缓存**([feature/server.go:79](../../feature/server.go#L79)),真正挂到 gin 是在 `Start()` 时的 `setupRoutes()`。中间件数组会被拼在业务 handler **前面**(`append(r.Middlewares, handler)`),即中间件先跑。
+> `RegisterRoutes` 只是**追加缓存**([feature/server.go](../../feature/server.go)),真正挂到 gin 是在 `Start()` 时的 `setupRoutes()`。中间件数组会被拼在业务 handler **前面**(`append(r.Middlewares, handler)`),即中间件先跑。
 
 ---
 
 ## Handler 约定(重点)
 
-Aurora 不用裸 `gin.HandlerFunc`,而是自定义签名([contracts/route.go:8](../../contracts/route.go#L8)):
+Aurora 不用裸 `gin.HandlerFunc`,而是自定义签名([contracts/route.go](../../contracts/route.go)):
 
 ```go
 type CustomizedHandlerFunc func(*RequestContext) (interface{}, bizerr.BizError)
@@ -70,14 +70,14 @@ func GetCustomer(c *contracts.RequestContext) (interface{}, bizerr.BizError) {
 }
 ```
 
-包装逻辑([feature/server.go:281](../../feature/server.go#L281) `createHandler`):
+包装逻辑([feature/server.go](../../feature/server.go) `createHandler`):
 - `bizErr != nil` → 走错误处理器输出;
 - 否则若 handler **没自己写过响应**(`!c.Writer.Written()`)→ `c.JSON(200, data)`;
 - 若 handler 自己写了(`c.Data` / `c.String` / 流式)→ 框架不再序列化,避免多写一个 `null`。
 
 ### RequestContext
 
-[contracts/request.go:9](../../contracts/request.go#L9) —— 内嵌 `*gin.Context`,额外带 `App` 和 `Translator`:
+[contracts/request.go](../../contracts/request.go) —— 内嵌 `*gin.Context`,额外带 `App` 和 `Translator`:
 
 ```go
 c.Context          // 原始 *gin.Context(取 param/query/body、写响应)
@@ -90,7 +90,7 @@ c.T("error.xxx")   // 按 GetLang() 翻译(见 i18n.md)
 
 ## 错误响应
 
-默认错误格式([feature/server.go:313](../../feature/server.go#L313) `defaultHandleError`):
+默认错误格式([feature/server.go](../../feature/server.go) `defaultHandleError`):
 
 ```json
 { "message": "<bizErr.Message()>" }   // HTTP 状态码 = bizErr.HTTPCode()
@@ -102,7 +102,7 @@ c.T("error.xxx")   // 按 GetLang() 翻译(见 i18n.md)
 
 ## 健康检查
 
-`setupRoutes` 会**先**注册两个端点([feature/server.go:237](../../feature/server.go#L237)),无需自己写:
+`setupRoutes` 会**先**注册两个端点([feature/server.go](../../feature/server.go)),无需自己写:
 
 | 端点 | 返回 |
 |---|---|
@@ -115,9 +115,9 @@ swarm / k8s 的存活探针直接打 `/health` 即可。
 
 ## 优雅停机
 
-启动时起两个 goroutine([feature/server.go:83](../../feature/server.go#L83) `Start`):`startServer()`(`ListenAndServe`)+ `signalListener()`。
+启动时起两个 goroutine([feature/server.go](../../feature/server.go) `Start`):`startServer()`(`ListenAndServe`)+ `signalListener()`。
 
-停机链路([feature/server.go:154](../../feature/server.go#L154)):
+停机链路([feature/server.go](../../feature/server.go)):
 
 ```
 signal.Notify(SIGINT, SIGTERM)  →  收到信号
@@ -126,7 +126,7 @@ signal.Notify(SIGINT, SIGTERM)  →  收到信号
    → Wait() 返回 → app.Run() 返回
 ```
 
-- 超时来自 `SHUTDOWN_TIMEOUT`([config/server.go:33](../../config/server.go#L33),默认 5s)。
+- 超时来自 `SHUTDOWN_TIMEOUT`([config/server.go](../../config/server.go),默认 5s)。
 - ⚠️ **只关 HTTP server**,不会自动关其它 feature、也不排空后台任务(如 asynq)。后台任务的排空要在 `main` 里自己编排 —— 见 [architecture.md §2.5](../architecture.md)。
 - ⚠️ 超过 `SHUTDOWN_TIMEOUT` 的长请求(大文件上传等)会被硬切;部署时需把容器 `stop_grace_period` 设得比它大。
 
@@ -134,7 +134,7 @@ signal.Notify(SIGINT, SIGTERM)  →  收到信号
 
 ## 环境变量
 
-> ⚠️ **重要坑**:`ServerConfig`([config/server.go:27](../../config/server.go#L27))每个字段都写了 `envDefault:"..."`,**但 `ResolveConfig` 根本不读 `envDefault`**(见 [config.md](./config.md)),而且这些字段**没有 `omitempty`** —— 所以它们全是**必填**。下表"envDefault 标注值"那列**运行时不会生效**,不设对应环境变量 = 启动直接报 required 错误。部署时这些 env 必须逐个显式设置。
+> ⚠️ **重要坑**:`ServerConfig`([config/server.go](../../config/server.go))每个字段都写了 `envDefault:"..."`,**但 `ResolveConfig` 根本不读 `envDefault`**(见 [config.md](./config.md)),而且这些字段**没有 `omitempty`** —— 所以它们全是**必填**。下表"envDefault 标注值"那列**运行时不会生效**,不设对应环境变量 = 启动直接报 required 错误。部署时这些 env 必须逐个显式设置。
 
 | Env | 类型 | 必填 | envDefault 标注(不生效) | 说明 |
 |---|---|---|---|---|

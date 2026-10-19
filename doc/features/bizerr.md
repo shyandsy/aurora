@@ -8,7 +8,7 @@ Handler 返回 `(interface{}, bizerr.BizError)`,框架据此写出 HTTP 响应�
 
 ### BizError 接口
 
-[bizerr/bizerr.go:25](../../bizerr/bizerr.go#L25):
+[bizerr/bizerr.go](../../bizerr/bizerr.go):
 
 ```go
 type BizError interface {
@@ -51,7 +51,7 @@ func Handler(c *contracts.RequestContext) (interface{}, bizerr.BizError) {
 
 ### 默认响应格式 & 校验错误的坑
 
-默认 handler([feature/server.go:313](../../feature/server.go#L313)):
+默认 handler([feature/server.go](../../feature/server.go)):
 
 ```json
 { "message": "<Message()>" }    // 状态码 = HTTPCode()
@@ -88,7 +88,7 @@ logger.Error(format, args...) / logger.Errorf(...)
 
 ### 级别怎么定(优先级)
 
-[logger/logger.go:33](../../logger/logger.go#L33) `init()`:
+[logger/logger.go](../../logger/logger.go) `init()`:
 
 1. **`LOG_LEVEL` 最高优先**:设了就用它(`debug`/`info`/`error`,不分大小写),忽略 RUN_LEVEL;
 2. 否则看 **`RUN_LEVEL`**:
