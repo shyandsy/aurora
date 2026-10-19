@@ -73,39 +73,6 @@ func NewJWTFeature() contracts.Features {
 	return &jwtFeature{Config: cfg}
 }
 
-// NewJWTService 从显式配置构造一个独立的 JWTService 引擎,供「同一进程需要用多把密钥
-// 校验多个签发来源的令牌」的场景使用 —— 即一个进程里同时存在默认实例之外、校验**另一把
-// 密钥**的额外引擎。
-//
-// 与默认实例(NewJWTFeature:从 env 读密钥、走 feature 生命周期并注册进 DI)不同,本引擎
-// 不走 feature 生命周期、**不 AddFeature、不注册进 DI**,由调用方持有并直接调用。其校验
-// 逻辑(签名 / token_type / 黑名单吊销)与默认实例完全一致,只是密钥不同 —— 调用方因此
-// 无需自造一套平行的校验路径(那会随默认实例的演进而悄悄语义漂移)。
-//
-// 依赖解析沿用 house pattern(与其它 NewXxx(app) 一致):收 app、自己从容器解析依赖。
-// redis 从容器解析(app.Find),而不是由调用方显式传入 —— 容器里必须已注册 RedisService:
-// 黑名单吊销是安全关键,缺了会让「登出 / 踢设备」被绕过(校验对吊销检查是 fail-closed 的)。
-// 因此须在 RedisService 已注册之后调用,典型是服务自身的 wiring 阶段(此刻 DI 已就绪)。
-func NewJWTService(app contracts.App, cfg *config.JWTConfig) (JWTService, error) {
-	if app == nil {
-		return nil, fmt.Errorf("jwt: NewJWTService requires a non-nil app")
-	}
-	if cfg == nil {
-		return nil, fmt.Errorf("jwt: NewJWTService requires a non-nil config")
-	}
-	if err := cfg.Validate(); err != nil {
-		return nil, fmt.Errorf("jwt: config validation failed: %w", err)
-	}
-	var redis RedisService
-	if err := app.Find(&redis); err != nil {
-		return nil, fmt.Errorf("jwt: resolve RedisService from container failed (blacklist revocation is security-critical, a RedisService must be registered): %w", err)
-	}
-	if redis == nil {
-		return nil, fmt.Errorf("jwt: RedisService resolved from container is nil (blacklist revocation is security-critical, a RedisService must be registered)")
-	}
-	return &jwtFeature{Config: cfg, RedisService: redis}, nil
-}
-
 func (f *jwtFeature) Name() string {
 	return "jwt"
 }
