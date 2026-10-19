@@ -51,9 +51,14 @@ homeserver 接入 user 模块后,给后台加一个新页和一个自定义角�
 
 ## 方案
 
-### 1. 后端:让项目 host 迁移生效
+### 1. 后端:让项目 host 迁移生效(两套分离的迁移)
 
-各项目把自己的 user 域权限迁移放在 host 目录(homeserver 为 `services/user/migrations/`)。镜像构建时既打包 aurora 模块迁移(schema),也打包 host 迁移(数据),两者进同一个迁移目录,共用同一张 goose 版本表,按版本号一起执行。host 目录不保留 aurora 迁移的拷贝,只放项目自己新增的,避免版本号重复。
+aurora 的 `RunMigrations` 改为跑**两套有序迁移**,各用各的版本表(机制详见 [`doc/features/migration.md`](../features/migration.md)):
+
+- **schema 套**:aurora 模块自带的建表 / 改表结构迁移,放模块的 `migrations-schema/`,用版本表 `{prefix}schema_goose_db_version`,**先跑**;
+- **data 套**:项目自己的业务数据迁移,放 host 目录(homeserver 为 `services/user/migrations/`),用版本表 `{prefix}goose_db_version`,**后跑**。
+
+镜像构建时两个目录都打进去(schema → `migrations-schema/`,host → `migrations/`)。**两套分开成两张版本表,不是共用一张**:aurora 模块以后还会调整自己的表结构,两套各自独立编号才能互不干扰——项目的业务迁移号永远不会和模块的 schema 迁移号相撞,模块加新结构迁移也不逼项目改号。host 目录只放项目自己新增的,不保留 aurora 迁移的拷贝。
 
 ### 2. 后端:adopt 迁移搬回 host
 
@@ -85,7 +90,7 @@ homeserver 接入 user 模块后,给后台加一个新页和一个自定义角�
 
 ## 开放问题
 
-- 迁移版本号:给项目迁移约定一个与 aurora 不重叠的编号区间,还是依赖时间戳自然不撞。
+- ~~迁移版本号:给项目迁移约定一个与 aurora 不重叠的编号区间,还是依赖时间戳自然不撞。~~ 已定:schema 套与 data 套分成两张版本表,各自独立编号,从机制上不会相撞,无需约定区间(见方案 ①)。
 - 前端页标签来源:走宿主 i18n(零 schema),还是在 feature 行加标签字段(自带标签、不依赖宿主 i18n)。
 - adopt 从 aurora 物理删除的时机:是否等所有消费项目都确认已执行后再删。
 

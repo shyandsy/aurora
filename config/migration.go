@@ -19,12 +19,14 @@ func (m *MigrationConfig) Validate() error {
 	return nil
 }
 
-// GetTableName returns the full goose table name
-// If TablePrefix is empty, returns default table name "goose_db_version"
-// If TablePrefix is not empty, returns "{prefix}goose_db_version"
+// GetTableName returns the goose version table for the DATA stream (项目业务迁移)。
+// TablePrefix 为空即 "goose_db_version"(空串拼接天然等价,无需分支)。
 func (m *MigrationConfig) GetTableName() string {
-	if m.TablePrefix == "" {
-		return "goose_db_version"
-	}
 	return m.TablePrefix + "goose_db_version"
+}
+
+// GetSchemaTableName returns the goose version table for the SCHEMA stream
+// (共享模块自带的建表/改表结构迁移,先于 data 套执行、独立版本表)。
+func (m *MigrationConfig) GetSchemaTableName() string {
+	return m.TablePrefix + "schema_goose_db_version"
 }
