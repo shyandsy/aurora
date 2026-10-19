@@ -7,6 +7,7 @@ import (
 	"gorm.io/gorm"
 
 	"github.com/shyandsy/aurora/modules/user/model/dto"
+	"github.com/shyandsy/aurora/types"
 )
 
 // Feature 功能实体
@@ -18,11 +19,15 @@ type Feature struct {
 	//   kind:   api(业务接口 feature) / ui(ui.menu.* / ui.page.* / ui.component.*)
 	//   action: read / write(api),view / operate(ui.page.*)
 	//   module: 归属页/资源,如 customer、commission
-	Module   string    `gorm:"column:module;type:varchar(64);not null;default:''" json:"module"`
-	Action   string    `gorm:"column:action;type:varchar(16);not null;default:''" json:"action"`
-	Kind     string    `gorm:"column:kind;type:varchar(16);not null;default:'api'" json:"kind"`
-	Created  time.Time `gorm:"column:created;type:datetime;not null;default:CURRENT_TIMESTAMP" json:"created"`
-	Modified time.Time `gorm:"column:modified;type:datetime;not null;default:CURRENT_TIMESTAMP;autoUpdateTime" json:"modified"`
+	Module string `gorm:"column:module;type:varchar(64);not null;default:''" json:"module"`
+	Action string `gorm:"column:action;type:varchar(16);not null;default:''" json:"action"`
+	Kind   string `gorm:"column:kind;type:varchar(16);not null;default:'api'" json:"kind"`
+	// 展示元数据(仅 ui.page.* 行有意义,其余 NULL/0):属「可授权页目录」数据,由各项目 data 套迁移 seed。
+	// LabelI18n 多语言显示名的 JSON 列(types.LocalizedText 的 Scan/Value 处理 nil↔NULL);SortOrder 页目录顺序。
+	LabelI18n types.LocalizedText `gorm:"column:label_i18n;type:json" json:"-"`
+	SortOrder int                 `gorm:"column:sort_order;type:int;not null;default:0" json:"sortOrder"`
+	Created   time.Time           `gorm:"column:created;type:datetime;not null;default:CURRENT_TIMESTAMP" json:"created"`
+	Modified  time.Time           `gorm:"column:modified;type:datetime;not null;default:CURRENT_TIMESTAMP;autoUpdateTime" json:"modified"`
 }
 
 // TableName 指定表名
