@@ -1,6 +1,6 @@
-<div class="container mx-auto px-4 py-8">
-  <div class="flex items-center justify-between mb-6">
-    <h1 class="text-3xl font-bold">{{ 'lockedLogins.title' | translate }}</h1>
+<!-- 页名由上方 tab 栏标注,本页不再重复巨型 H1;顶部 padding 收紧贴着 tab。 -->
+<div class="container mx-auto px-4 pt-4 pb-8">
+  <div class="flex items-center justify-end mb-4">
     <button (click)="loadLocked()" [disabled]="isLoading()"
       class="px-4 py-2 text-sm font-medium text-white bg-indigo-600 rounded-lg hover:bg-indigo-700 transition-colors disabled:opacity-50">
       {{ 'common.refresh' | translate }}
