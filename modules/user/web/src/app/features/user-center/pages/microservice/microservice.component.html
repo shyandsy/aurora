@@ -1,7 +1,17 @@
 <!-- 页名由上方 tab 栏标注;本页自带子 tab,不再重复巨型 H1;顶部 padding 收紧贴着 tab。 -->
 <div class="w-full px-4 pt-4 pb-8">
   <!-- Tabs -->
-  <app-tab-bar [tabs]="tabs" [activeId]="activeTab()" (tabChange)="switchTab($any($event))" />
+  <!-- 二级切换:胶囊式(对齐角色页「页面权限/高级」) -->
+  <div class="inline-flex rounded-lg border border-gray-300 overflow-hidden text-sm mb-4">
+    <button type="button" (click)="switchTab('microservices')"
+      [class]="activeTab() === 'microservices' ? 'px-3 py-1.5 bg-indigo-600 text-white' : 'px-3 py-1.5 bg-white text-gray-700 hover:bg-gray-50'">
+      {{ 'microservice.microservices' | translate }}
+    </button>
+    <button type="button" (click)="switchTab('tokens')"
+      [class]="activeTab() === 'tokens' ? 'px-3 py-1.5 bg-indigo-600 text-white' : 'px-3 py-1.5 bg-white text-gray-700 hover:bg-gray-50'">
+      {{ 'microservice.tokens' | translate }}
+    </button>
+  </div>
 
   <!-- Microservices Tab -->
   @if (activeTab() === 'microservices') {
