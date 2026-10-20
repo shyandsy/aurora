@@ -164,5 +164,8 @@
       "retryAfter": "解除剩餘",
       "updatedAt": "記錄時刻"
     }
+  },
+  "common": {
+    "close": "關閉"
   }
 }

@@ -172,5 +172,8 @@
       "retryAfter": "解除剩余",
       "updatedAt": "记录时刻"
     }
+  },
+  "common": {
+    "close": "关闭"
   }
 }

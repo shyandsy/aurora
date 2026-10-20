@@ -163,5 +163,8 @@
       "retryAfter": "Time Left",
       "updatedAt": "Recorded At"
     }
+  },
+  "common": {
+    "close": "Close"
   }
 }

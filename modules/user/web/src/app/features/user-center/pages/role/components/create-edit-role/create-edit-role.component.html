@@ -1,16 +1,18 @@
-<div class="fixed inset-0 bg-black/30 overflow-y-auto h-full w-full z-50" (click)="onCancel()">
-  <div class="relative top-10 mx-auto p-5 border w-96 shadow-lg rounded-md bg-white max-h-[90vh] overflow-y-auto"
+<div class="fixed inset-0 bg-gray-900/45 flex items-center justify-center z-50 p-5" (click)="onCancel()">
+  <div class="relative w-96 shadow-xl rounded-xl bg-white max-h-[90vh] overflow-auto"
     (click)="$event.stopPropagation()">
-    <div class="mt-3">
-      <h3 class="text-lg font-medium text-gray-900 mb-4">{{ formTitle }}</h3>
+    <div class="px-5 py-4 border-b border-gray-200">
+      <h3 class="text-base font-semibold text-gray-900">{{ formTitle }}</h3>
+    </div>
 
-      <form [formGroup]="roleForm" (ngSubmit)="onSubmit()">
+    <form [formGroup]="roleForm" (ngSubmit)="onSubmit()">
+      <div class="px-5 py-4">
         <div class="mb-4">
-          <label for="name" class="block text-sm font-medium text-gray-700 mb-1">
+          <label for="name" class="block text-sm font-medium text-gray-700 mb-1.5">
             {{ 'role.name' | translate }}
           </label>
           <input type="text" id="name" formControlName="name"
-            class="w-full px-3 py-2 bg-white text-gray-900 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500"
+            class="w-full px-3 py-2 bg-white text-gray-900 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500/15 focus:border-indigo-500"
             [class.border-red-300]="roleForm.get('name')?.invalid && roleForm.get('name')?.touched" />
           @if (roleForm.get('name')?.invalid && roleForm.get('name')?.touched) {
           <p class="mt-1 text-sm text-red-600">{{ getErrorMessage('name') }}</p>
@@ -22,24 +24,24 @@
           {{ error }}
         </div>
         }
+      </div>
 
-        <div class="flex justify-end gap-3">
-          <button type="button" (click)="onCancel()"
-            class="px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-md hover:bg-gray-50"
-            [disabled]="isSubmitting">
-            {{ 'common.cancel' | translate }}
-          </button>
-          <button type="submit"
-            class="px-4 py-2 text-sm font-medium text-white bg-indigo-600 rounded-md hover:bg-indigo-700"
-            [disabled]="roleForm.invalid || isSubmitting">
-            @if (isSubmitting) {
-            <span>{{ 'common.saving' | translate }}</span>
-            } @else {
-            <span>{{ isEditMode ? ('common.update' | translate) : ('common.create' | translate) }}</span>
-            }
-          </button>
-        </div>
-      </form>
-    </div>
+      <div class="px-5 py-3.5 border-t border-gray-200 flex justify-end gap-2.5">
+        <button type="button" (click)="onCancel()"
+          class="px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50"
+          [disabled]="isSubmitting">
+          {{ 'common.cancel' | translate }}
+        </button>
+        <button type="submit"
+          class="px-4 py-2 text-sm font-medium text-white bg-indigo-600 rounded-lg hover:bg-indigo-700"
+          [disabled]="roleForm.invalid || isSubmitting">
+          @if (isSubmitting) {
+          <span>{{ 'common.saving' | translate }}</span>
+          } @else {
+          <span>{{ isEditMode ? ('common.update' | translate) : ('common.create' | translate) }}</span>
+          }
+        </button>
+      </div>
+    </form>
   </div>
 </div>
