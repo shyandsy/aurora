@@ -5,7 +5,6 @@ import { CreateEditMicroserviceComponent } from './components/create-edit-micros
 import { MicroserviceTokenListComponent } from './components/microservice-token-list.component';
 import { CreateEditMicroserviceTokenComponent } from './components/create-edit-microservice-token.component';
 import { MicroserviceTokenFeature } from '../../shared/models/microservice.dto';
-import { TabBarComponent, TabItem } from '../../../../shared/components/tab-bar/tab-bar.component';
 
 @Component({
   selector: 'app-microservice',
@@ -15,18 +14,13 @@ import { TabBarComponent, TabItem } from '../../../../shared/components/tab-bar/
     MicroserviceListComponent,
     CreateEditMicroserviceComponent,
     MicroserviceTokenListComponent,
-    CreateEditMicroserviceTokenComponent,
-    TabBarComponent
+    CreateEditMicroserviceTokenComponent
   ],
   templateUrl: './microservice.component.html',
   styleUrl: './microservice.component.css'
 })
 export class MicroserviceComponent {
   activeTab = signal<'microservices' | 'tokens'>('microservices');
-  readonly tabs: TabItem[] = [
-    { id: 'microservices', labelKey: 'microservice.microservices' },
-    { id: 'tokens', labelKey: 'microservice.tokens' }
-  ];
 
   // Microservice management
   showCreateEditMicroserviceDialog = signal(false);
