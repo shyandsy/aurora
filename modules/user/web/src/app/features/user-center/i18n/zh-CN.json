@@ -3,7 +3,7 @@
     "userPermission": "用户与权限",
     "users": "用户",
     "roles": "角色",
-    "microservice": "Microservice",
+    "microservice": "微服务",
     "lockedLogins": "被锁登录"
   },
   "user": {
