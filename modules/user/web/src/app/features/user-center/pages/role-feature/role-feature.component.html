@@ -1,16 +1,17 @@
 <!-- 页名由上方 tab 栏(用户/角色/…)标注,本页不再重复巨型 H1;顶部 padding 收紧贴着 tab。 -->
-<div class="container mx-auto px-4 pt-4 pb-8">
+<div class="container mx-auto px-4 pb-8">
+  <!-- 创建按钮传送到用户中心壳的 tab 行右侧(本页是「角色」tab) -->
+  <ng-template tabShellActions>
+    <button (click)="onCreate()"
+      class="px-3.5 py-1.5 text-sm font-medium text-white bg-indigo-600 rounded-lg hover:bg-indigo-700 transition-colors">
+      {{ 'role.create' | translate }}
+    </button>
+  </ng-template>
+
   <!-- 左角色表 2/5、右权限面板 3/5:权限面板要放下「搜索 + 批量 + 三档分段」,比原来的 1/3 加宽。 -->
   <div class="grid grid-cols-5 gap-6">
-    <!-- Left: Role List with Edit/Delete -->
+    <!-- Left: Role List with Edit/Delete(标题由上方 tab 标注,创建按钮已传送到 tab 行) -->
     <div class="col-span-2">
-      <div class="flex items-center justify-between mb-4">
-        <h2 class="text-xl font-semibold">{{ 'role.title' | translate }}</h2>
-        <button (click)="onCreate()"
-          class="px-4 py-2 text-sm font-medium text-white bg-indigo-600 rounded-lg hover:bg-indigo-700 transition-colors">
-          {{ 'role.create' | translate }}
-        </button>
-      </div>
       <app-role-list [selectedRoleId]="selectedRoleId()" [refreshTrigger]="roleListRefreshTrigger()"
         (roleSelected)="onRoleSelect($event)" (editRole)="onEdit($event)" />
     </div>

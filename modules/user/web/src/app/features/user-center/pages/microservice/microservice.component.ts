@@ -5,6 +5,7 @@ import { CreateEditMicroserviceComponent } from './components/create-edit-micros
 import { MicroserviceTokenListComponent } from './components/microservice-token-list.component';
 import { CreateEditMicroserviceTokenComponent } from './components/create-edit-microservice-token.component';
 import { MicroserviceTokenFeature } from '../../shared/models/microservice.dto';
+import { TabShellActionsDirective } from '../../../../shared/components/tab-bar/tab-shell-actions.directive';
 
 @Component({
   selector: 'app-microservice',
@@ -14,7 +15,8 @@ import { MicroserviceTokenFeature } from '../../shared/models/microservice.dto';
     MicroserviceListComponent,
     CreateEditMicroserviceComponent,
     MicroserviceTokenListComponent,
-    CreateEditMicroserviceTokenComponent
+    CreateEditMicroserviceTokenComponent,
+    TabShellActionsDirective
   ],
   templateUrl: './microservice.component.html',
   styleUrl: './microservice.component.css'

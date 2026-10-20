@@ -1,4 +1,8 @@
-<div class="px-4 pt-3">
-  <app-tab-bar [tabs]="visibleTabs()" [activeId]="activeTabId()" (tabChange)="selectTab($any($event))" />
+<div class="px-4 pt-4">
+  <app-tab-bar [tabs]="visibleTabs()" [activeId]="activeTabId()" (tabChange)="selectTab($any($event))">
+    @if (shellActions(); as tpl) {
+    <div tabActions class="flex items-center gap-2.5"><ng-container [ngTemplateOutlet]="tpl" /></div>
+    }
+  </app-tab-bar>
 </div>
 <router-outlet />

@@ -3,11 +3,12 @@ import { TranslateModule } from '@ngx-translate/core';
 import { UserListComponent } from './components/user-list.component';
 import { CreateEditUserComponent } from './components/create-edit-user/create-edit-user.component';
 import { User } from '../../shared/models/user.dto';
+import { TabShellActionsDirective } from '../../../../shared/components/tab-bar/tab-shell-actions.directive';
 
 @Component({
   selector: 'app-user',
   standalone: true,
-  imports: [UserListComponent, CreateEditUserComponent, TranslateModule],
+  imports: [UserListComponent, CreateEditUserComponent, TranslateModule, TabShellActionsDirective],
   templateUrl: './user.component.html',
   styleUrl: './user.component.css'
 })

@@ -2,6 +2,7 @@ import { Component, inject } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { RouterOutlet, Router, ActivatedRoute } from '@angular/router';
 import { TabBarComponent, TabItem } from '../../../../shared/components/tab-bar/tab-bar.component';
+import { TabShellActionsService } from '../../../../shared/components/tab-bar/tab-shell-actions.service';
 import { AuthService } from '../../../../core/services/auth.service';
 
 /** 壳内 tab:可选 feature 门控(缺省=登录即可见)。 */
@@ -32,6 +33,9 @@ export class UserPermissionComponent {
   private readonly router = inject(Router);
   private readonly route = inject(ActivatedRoute);
   private readonly authService = inject(AuthService);
+
+  /** 当前子页(用户/角色/微服务)传送上来的操作按钮,渲染到 tab 行右侧。 */
+  readonly shellActions = inject(TabShellActionsService).template;
 
   /** 全部 tab(含门控声明);实际渲染的以 visibleTabs() 为准。 */
   private readonly allTabs: GatedTab[] = [

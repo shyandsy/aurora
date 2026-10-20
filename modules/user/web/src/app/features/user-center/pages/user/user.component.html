@@ -1,11 +1,12 @@
 <!-- 页名由上方 tab 栏标注,本页不再重复巨型 H1;顶部 padding 收紧贴着 tab。 -->
-<div class="container mx-auto px-4 pt-4 pb-8">
-  <div class="flex items-center justify-end mb-4">
+<div class="container mx-auto px-4 pb-8">
+  <!-- 创建按钮传送到用户中心壳的 tab 行右侧(本页是「用户」tab) -->
+  <ng-template tabShellActions>
     <button (click)="onCreate()"
-      class="px-4 py-2 text-sm font-medium text-white bg-indigo-600 rounded-lg hover:bg-indigo-700 transition-colors">
+      class="px-3.5 py-1.5 text-sm font-medium text-white bg-indigo-600 rounded-lg hover:bg-indigo-700 transition-colors">
       {{ 'user.create' | translate }}
     </button>
-  </div>
+  </ng-template>
 
   <app-user-list [refreshTrigger]="refreshTrigger()" (editUser)="onEdit($event)" />
 
