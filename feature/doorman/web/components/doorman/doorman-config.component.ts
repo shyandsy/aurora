@@ -18,11 +18,10 @@ import {
   SaveDoormanRuleRequest,
   PolicyKindsResponse,
   ActionPolicy,
-  StatsResponse,
-  DecisionRow,
 } from './shared/models/doorman.dto';
 import { DOORMAN_I18N } from './i18n';
 import { ConfirmDialogComponent } from './shared/components/confirm-dialog/confirm-dialog.component';
+import { DoormanDecisionsModalComponent } from './decisions-modal/doorman-decisions-modal.component';
 import { formatDate } from '@common/utils/date.util';
 
 /** 编辑器里的一条可编辑条件(type + params;params 随所选类型的 schema 动态渲染)。 */
@@ -48,7 +47,13 @@ const RISK_LEVELS: DoormanRiskLevel[] = ['none', 'low', 'medium', 'high', 'criti
 @Component({
   selector: 'app-doorman-config',
   standalone: true,
-  imports: [CommonModule, FormsModule, TranslateModule, ConfirmDialogComponent],
+  imports: [
+    CommonModule,
+    FormsModule,
+    TranslateModule,
+    ConfirmDialogComponent,
+    DoormanDecisionsModalComponent,
+  ],
   providers: [DoormanApi],
   templateUrl: './doorman-config.component.html',
   styleUrl: './doorman-config.component.css',
@@ -64,6 +69,10 @@ export class DoormanConfigComponent {
   scopes = input<string[]>([]);
   /** 后端 doorman 管理 API 的基路径,如 `/api/admin/v1/doorman`。 */
   apiBase = input<string>('');
+  /** 透传给决策明细弹窗的 action→配色键(宿主按业务语义传;空=弹窗 KPI 中性白底)。 */
+  actionColors = input<Record<string, string>>({});
+  /** 透传给决策明细弹窗的遮罩左起点(宿主有侧栏时传其宽度,如 '16rem';默认 '0'=全屏)。 */
+  insetLeft = input<string>('0');
 
   // ---- 作用域 tab ---------------------------------------------------------
   /** 当前选中的作用域(tab)。 */
@@ -81,8 +90,7 @@ export class DoormanConfigComponent {
   /** 切换作用域 tab。 */
   selectScope(s: string): void {
     if (s !== this.activeScope()) {
-      this.view.set('rules');  // 切场景回规则视图(新场景可能未接入,停在空明细页没意义)
-      this.activeScope.set(s); // 触发 effect 重载该 scope 的规则 + 策略 + 统计
+      this.activeScope.set(s); // 触发 effect 重载该 scope 的规则 + 策略
     }
   }
 
@@ -125,15 +133,9 @@ export class DoormanConfigComponent {
   /** 打开弹窗时的快照;取消时回滚,避免未保存的改动残留在页面态。 */
   private policyBackup: ActionPolicy = {};
 
-  // ---- 决策统计 + 明细态 -------------------------------------------------
-  stats = signal<StatsResponse | null>(null);
-  decisions = signal<DecisionRow[]>([]);
-  /** 视图切换:规则配置 ↔ 决策明细(同一联邦组件内两个视图,明细入口是配置页工具栏上的按钮)。 */
-  view = signal<'rules' | 'decisions'>('rules');
-  /** 明细翻页态:加载中 / 是否还有下一页(游标 = 当前最后一条 id)。 */
-  decisionsLoading = signal(false);
-  decisionsHasMore = signal(false);
-  private readonly decisionsPage = 20;
+  // ---- 决策明细弹窗 ------------------------------------------------------
+  /** 决策明细弹窗开关:页头按钮打开,弹窗自取数(统计 + 台账),scope 传当前 activeScope。 */
+  showDecisions = signal(false);
 
   readonly conditions = computed<DoormanKind[]>(() => this.kinds()?.conditions ?? []);
   readonly riskLevels = computed<DoormanRiskLevel[]>(() => {
@@ -201,101 +203,28 @@ export class DoormanConfigComponent {
   private loadPolicy(): void {
     const scope = this.activeScope();
     this.policyError.set(null);
-    // ⚠️ 切场景先清空上一个场景的动作目录 + 统计:否则新场景(未接入 / 请求失败)时会残留旧值,
-    // hasPolicyActions() 仍为 true → 决策统计/明细入口会错误地漏在「未接入」的 tab(如登录)下。
+    // ⚠️ 切场景先清空上一个场景的动作目录:否则新场景(未接入 / 请求失败)时会残留旧值,
+    // hasPolicyActions() 仍为 true → 策略区 / 决策明细入口会错误地漏在「未接入」的 tab(如登录)下。
     this.policyKinds.set(null);
-    this.stats.set(null);
     this.api.getPolicyKinds(scope).subscribe({
       next: (pk) => this.policyKinds.set(pk),
-      error: () => this.policyKinds.set(null), // 拿不到=按未接入处理,不显示策略/统计
+      error: () => this.policyKinds.set(null), // 拿不到=按未接入处理,不显示策略
     });
     this.api.getPolicy(scope).subscribe({
       next: (p) => this.policy.set({ ...(p || {}) }),
       error: () => this.policy.set({}),
     });
-    // 决策统计(近 7 天):配置页 + 明细页顶部各展示一份,故任何视图下都拉。best-effort(已在上方清空)。
-    this.api.getStats(scope, 7).subscribe({
-      next: (s) => this.stats.set(s),
-      error: () => this.stats.set(null),
-    });
-    // ⚠️ 这里**绝不能读 this.view()**:loadPolicy 由构造函数的 effect 同步调用,一旦读了 view() 就把 view
-    // 变成 effect 的响应依赖 —— 点「决策明细」切 view 会触发整页 reload,来回闪。
-    // 明细完全独立于 effect:只由用户操作驱动(openDecisions 进入 / loadMoreDecisions 翻页 / selectScope 切场景)。
   }
 
-  // ---- 统计读数 ----------------------------------------------------------
-  riskCount(level: DoormanRiskLevel): number {
-    return this.stats()?.byRisk?.[level] ?? 0;
-  }
-  actionCount(action: string): number {
-    return this.stats()?.byAction?.[action] ?? 0;
-  }
-
-  // ---- 明细读数 ----------------------------------------------------------
-  /** 决策明细的 UA/IP/ASN 摘要(一列展示)。 */
-  decisionNet(d: DecisionRow): string {
-    const parts: string[] = [];
-    if (d.ua) parts.push(d.ua);
-    if (d.ip) parts.push(d.ip);
-    if (d.country) parts.push(d.country);
-    if (d.isp) parts.push(d.isp);
-    if (d.asn) parts.push('AS' + d.asn + (d.asnOrg ? ' ' + d.asnOrg : ''));
-    return parts.join(' · ') || '—';
-  }
-  /** 风险等级(字符串)→ pill class,复用 riskPillClass(它按等级取色)。 */
-  decisionTime(iso: string): string {
-    return formatDate(iso, '');
-  }
-
-  // ---- 视图切换 + 明细翻页 ----------------------------------------------
-  /** 进入决策明细视图:切视图并拉第一页。 */
+  // ---- 决策明细弹窗 open/close ------------------------------------------
+  /** 打开决策明细弹窗(弹窗自取数:统计 + 台账)。 */
   openDecisions(): void {
-    this.view.set('decisions');
-    this.loadDecisions(true);
+    this.showDecisions.set(true);
   }
 
-  /** 返回规则配置视图。 */
-  backToRules(): void {
-    this.view.set('rules');
-  }
-
-  /**
-   * 拉明细。reset=true:从头(游标 before=0、清空列表);否则以当前最后一条 id 作游标追加下一页。
-   * 一页返回条数 = decisionsPage → 认为还有下一页(hasMore),不足 → 到底。
-   */
-  loadDecisions(reset: boolean): void {
-    if (this.decisionsLoading()) {
-      return;
-    }
-    const scope = this.activeScope();
-    if (!scope) {
-      return;
-    }
-    const before = reset ? 0 : (this.decisions().at(-1)?.id ?? 0);
-    if (reset) {
-      this.decisions.set([]);
-      this.decisionsHasMore.set(false);
-    }
-    this.decisionsLoading.set(true);
-    this.api.getDecisions(scope, this.decisionsPage, before).subscribe({
-      next: (rows) => {
-        const list = Array.isArray(rows) ? rows : [];
-        this.decisions.set(reset ? list : [...this.decisions(), ...list]);
-        this.decisionsHasMore.set(list.length >= this.decisionsPage);
-        this.decisionsLoading.set(false);
-      },
-      error: () => {
-        this.decisionsLoading.set(false);
-        if (reset) {
-          this.decisions.set([]);
-        }
-      },
-    });
-  }
-
-  /** 加载下一页(接在末尾)。 */
-  loadMoreDecisions(): void {
-    this.loadDecisions(false);
+  /** 关闭决策明细弹窗。 */
+  closeDecisions(): void {
+    this.showDecisions.set(false);
   }
 
   // ---- 「风险等级 → 动作」策略编辑 --------------------------------------

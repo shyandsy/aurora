@@ -139,7 +139,18 @@ export interface StatsResponse {
   funnel: FunnelResponse;
 }
 
-/** 一条决策明细(GET {apiBase}/decisions 返回的数组元素)。 */
+/**
+ * GET {apiBase}/decisions?scope=&page=&pageSize= 的**页码分页**响应(page 从 1 起)。
+ * 决策明细弹窗按窗口高度算 pageSize、用 page 翻页,故用页码分页形状(不同于游标式的 DecisionRow[])。
+ */
+export interface DecisionsPageResponse {
+  items: DecisionRow[];
+  total: number;
+  page: number;
+  pageSize: number;
+}
+
+/** 一条决策明细(decisions 列表元素)。 */
 export interface DecisionRow {
   id: number;
   riskLevel: string;

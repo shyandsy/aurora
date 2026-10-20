@@ -10,7 +10,7 @@ import {
   PolicyKindsResponse,
   ActionPolicy,
   StatsResponse,
-  DecisionRow,
+  DecisionsPageResponse,
 } from '../models/doorman.dto';
 
 // ⚠️ 接入方按自己 app 改这两处(原是框架无关的默认值,不再依赖某个 app 的 environment):
@@ -134,11 +134,15 @@ export class DoormanApi {
       .pipe(timeout(API_TIMEOUT_MS));
   }
 
-  /** 决策明细(id 倒序;before=上一页最后一条 id 做游标翻页,0=首页)。 */
-  getDecisions(scope: string, limit: number, before: number): Observable<DecisionRow[]> {
-    const q = new URLSearchParams({ scope, limit: String(limit), before: String(before) }).toString();
+  /** 决策明细(页码分页;id 倒序,page 从 1 起)。返回 { items, total, page, pageSize }。 */
+  getDecisionsPage(scope: string, page: number, pageSize: number): Observable<DecisionsPageResponse> {
+    const q = new URLSearchParams({
+      scope,
+      page: String(page),
+      pageSize: String(pageSize),
+    }).toString();
     return this.http
-      .get<DecisionRow[]>(this.buildUrl(`/decisions?${q}`), { headers: this.getHeaders() })
+      .get<DecisionsPageResponse>(this.buildUrl(`/decisions?${q}`), { headers: this.getHeaders() })
       .pipe(timeout(API_TIMEOUT_MS));
   }
 }

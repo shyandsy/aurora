@@ -3,7 +3,8 @@
 这个 `web/` 目录放的是 doorman 的**可复用前端组件**——不是某个项目的页面,是**任何用 doorman 后端的项目都能拷走直接用**的东西。
 约定:一个组件一个目录,收在 `components/<组件名>/` 下。目前有:
 
-- [`components/doorman/`](components/doorman/) —— **doorman 配置台**(`DoormanConfigComponent`):规则 CRUD / 风险→动作策略 / 统计漏斗 / 决策明细,一个 Angular 独立组件。
+- [`components/doorman/`](components/doorman/) —— **doorman 配置台**(`DoormanConfigComponent`):规则 CRUD / 风险→动作策略 / schema 驱动表单。配置页用。
+- [`components/doorman/decisions-modal/`](components/doorman/) —— **决策明细弹窗**(`DoormanDecisionsModalComponent`):决策统计(合计 / 各动作 / 风险分布 / 挑战→解决漏斗)+ 全量台账(页码翻页),一个自包含的居中弹窗组件。**可被任意宿主页面打开**(不只配置页),如客户管理页加一个「决策明细」按钮弹出它。
 
 ## 为什么能复用 / 复用的关键
 
@@ -37,6 +38,31 @@ doorman 后端 `controller` 暴露的管理 API 是 **schema 驱动**的:`GET /k
    - `scopes`:顶部 tab 的场景 id(如 `register`/`login`/`reset_password`),标签走 i18n key `doorman.scope.<id>`;必须和后端 `WithScope(id,…)` 注册的一致(后端权威,配了没注册的 scope 保存会被拒)。
    - `scope`:只配一个场景时用它替代 `scopes`。
 
+### 决策明细弹窗(`DoormanDecisionsModalComponent`)
+
+同一个 `components/doorman/` 目录已带这个弹窗(`decisions-modal/`),用来**在任意宿主页面**弹出决策统计 + 全量台账——不只配置页,比如客户管理页加个「决策明细」按钮。宿主渲染它(标准居中弹窗:遮罩点击 / ✕ 关闭),绑:
+
+```ts
+import { DoormanDecisionsModalComponent } from './features/doorman'; // index.ts 已导出
+```
+
+```html
+<app-doorman-decisions-modal
+  [apiBase]="'/api/admin/v1/doorman'"
+  [scope]="''"
+  (close)="showDecisions = false">
+</app-doorman-decisions-modal>
+```
+
+输入项:
+- `apiBase`(必填):同上,后端 doorman API 基路径。
+- `scope`:要看哪个场景的决策;**空串 `''` = 全量台账**(跨所有场景)。
+- `title` / `subtitle`(可选):自定义弹窗标题/副标;不传走 i18n `doorman.decisions.*`。
+- `days`(可选,默认 30):统计窗口天数。
+- `(close)`:遮罩/✕ 触发,宿主据此收起。
+
+它只调后端 **observe 档**端点(`/stats` + `/decisions`),不碰配置。
+
 ## 依赖(你的 Angular app 要有)
 
 - Angular 17+(用了 `input()`/`signal()`/`effect()` 的 standalone 组件)
@@ -45,8 +71,20 @@ doorman 后端 `controller` 暴露的管理 API 是 **schema 驱动**的:`GET /k
 
 ## 权限边界(重要)
 
-这是**管理 API**,只该挂在**后台**、且套你后台的鉴权(后端 `doormanctl.Routes(prefix, 你的鉴权中间件...)`)。
-**customer / 对外端只调后端 `Assess`,绝不要暴露这套配置 API 或本组件。**
+这是**管理/观测 API**,只该挂在**后台**、且套你后台的鉴权。
+**customer / 对外端只调后端 `Assess`,绝不要暴露这套 API 或本组件。**
+
+doorman 把端点分成**两档权限**(doorman 本身中立,不认业务权限名,具体权限由你的 RBAC 中间件决定):
+
+- **manage** —— 配置类(`kinds` / `scopes` / `rules` / `policy`):改规则/策略。给能配风控的角色。配置页组件 `./Config` 用这档。
+- **observe** —— 观测类(`stats` / `decisions`):只看决策统计与台账,不碰配置。决策弹窗组件 `./Decisions` 只用这档。
+
+两档同权就用 `Routes(prefix, 鉴权...)`;想分权(如只让运营**看决策**、不让改规则),用:
+
+```go
+doormanctl.RoutesWithObserve(prefix, manageMW, observeMW)
+// manageMW = 你的"管风控"鉴权;observeMW = 你的"看决策"鉴权(可放宽到更多角色)
+```
 
 ## 后端契约
 

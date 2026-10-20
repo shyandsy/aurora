@@ -18,90 +18,19 @@
       }
     </nav>
     <div class="flex gap-2 pb-2">
-      @if (view() === 'rules') {
-        <button type="button" (click)="reload()"
-          class="px-3 py-1.5 text-sm font-medium text-gray-700 bg-gray-100 rounded-md hover:bg-gray-200 transition-colors">
-          {{ 'doorman.refresh' | translate }}
-        </button>
-      } @else {
-        <button type="button" (click)="backToRules()"
-          class="inline-flex items-center gap-1.5 px-3 py-1.5 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-md hover:bg-gray-50 transition-colors">
-          <span aria-hidden="true">←</span>{{ 'doorman.log.back' | translate }}
-        </button>
-        <button type="button" (click)="reload()"
-          class="px-3 py-1.5 text-sm font-medium text-gray-700 bg-gray-100 rounded-md hover:bg-gray-200 transition-colors">
-          {{ 'doorman.refresh' | translate }}
-        </button>
-      }
-    </div>
-  </div>
-
-  <!-- ===== 决策统计(近 N 天)===== 顶端常驻一份:规则视图 + 明细视图都展示(同一份数据)。 -->
-  @if (hasPolicyActions() && stats()) {
-  <div class="mb-4 bg-white shadow-sm rounded-lg overflow-hidden w-full">
-    <div class="px-4 py-3 border-b border-gray-200 flex items-center justify-between gap-2 flex-wrap">
-      <div class="flex items-center gap-2 flex-wrap">
-        <h3 class="text-sm font-semibold text-gray-900">{{ 'doorman.stats.title' | translate }}</h3>
-        <span class="text-xs text-gray-400">
-          {{ 'doorman.stats.window' | translate: { days: stats()!.sinceDays } }} · {{ 'doorman.stats.total' | translate }} {{ stats()!.total }}
-        </span>
-      </div>
-      @if (view() === 'rules') {
-      <button type="button" (click)="openDecisions()"
-        class="inline-flex items-center gap-1.5 px-3 py-1.5 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-md hover:bg-gray-50 transition-colors">
-        <span aria-hidden="true">📋</span>{{ 'doorman.log.entry' | translate }}
+      <button type="button" (click)="openDecisions()" [disabled]="!apiBase() || !activeScope()"
+        class="inline-flex items-center gap-1.5 px-3 py-1.5 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-md hover:bg-gray-50 disabled:text-gray-400 disabled:cursor-not-allowed transition-colors">
+        <svg class="w-4 h-4 text-gray-500" viewBox="0 0 20 20" fill="currentColor" aria-hidden="true"><path fill-rule="evenodd" d="M10 1.6l6 2.1v4.3c0 3.8-2.6 7.3-6 8.4-3.4-1.1-6-4.6-6-8.4V3.7l6-2.1zM9 12.6l4.3-4.3-1.1-1.1L9 10.4 7.3 8.7 6.2 9.8 9 12.6z" clip-rule="evenodd"/></svg>
+        {{ 'doorman.decisions.entry' | translate }}
       </button>
-      }
+      <button type="button" (click)="reload()"
+        class="px-3 py-1.5 text-sm font-medium text-gray-700 bg-gray-100 rounded-md hover:bg-gray-200 transition-colors">
+        {{ 'doorman.refresh' | translate }}
+      </button>
     </div>
-    <div class="px-4 py-3 border-b border-gray-100">
-      <div class="text-xs text-gray-500 mb-2">{{ 'doorman.stats.byRisk' | translate }}</div>
-      <div class="flex flex-wrap gap-x-5 gap-y-2 text-sm tabular-nums">
-        @for (lv of riskLevels(); track lv) {
-        <span class="inline-flex items-center gap-1.5">
-          <span class="inline-flex px-2 py-0.5 rounded-full text-xs font-medium" [class]="riskPillClass(lv)">{{ riskLabel(lv) }}</span>
-          <b>{{ riskCount(lv) }}</b>
-        </span>
-        }
-      </div>
-    </div>
-    <div class="px-4 py-3">
-      <div class="text-xs text-gray-500 mb-2">{{ 'doorman.stats.byAction' | translate }}</div>
-      <div class="flex flex-wrap gap-x-5 gap-y-2 text-sm tabular-nums">
-        @for (act of policyKinds()!.actions; track act) {
-        <span class="inline-flex items-center gap-1.5">
-          <span class="text-gray-600">{{ actionLabel(act) }}</span>
-          <b>{{ actionCount(act) }}</b>
-        </span>
-        }
-      </div>
-    </div>
-    <!-- 判定→结果漏斗:判「要激活」→ 已激活 / 放弃 / 进行中(只在有判要激活的决策时显示) -->
-    @if (stats()!.funnel.challenged > 0) {
-    <div class="px-4 py-3 border-t border-gray-100">
-      <div class="text-xs text-gray-500 mb-2">{{ 'doorman.stats.funnel' | translate }}</div>
-      <div class="flex flex-wrap items-center gap-x-4 gap-y-2 text-sm tabular-nums">
-        <span class="inline-flex items-center gap-1.5">
-          <span class="text-gray-600">{{ 'doorman.funnel.challenged' | translate }}</span>
-          <b>{{ stats()!.funnel.challenged }}</b>
-        </span>
-        <span class="text-gray-300">→</span>
-        <span class="inline-flex items-center gap-1.5">
-          <span class="inline-flex px-2 py-0.5 rounded-full text-xs font-medium bg-green-100 text-green-800">{{ 'doorman.funnel.resolved' | translate }}</span>
-          <b>{{ stats()!.funnel.resolved }}</b>
-        </span>
-        <span class="inline-flex items-center gap-1.5">
-          <span class="inline-flex px-2 py-0.5 rounded-full text-xs font-medium bg-amber-100 text-amber-800">{{ 'doorman.funnel.notActivated' | translate }}</span>
-          <b>{{ stats()!.funnel.challenged - stats()!.funnel.resolved }}</b>
-        </span>
-      </div>
-    </div>
-    }
   </div>
-  }
 
-  <!-- ===================== 视图:规则配置 ===================== -->
-  @if (view() === 'rules') {
-
+  <!-- ===================== 规则配置 ===================== -->
   <!-- 说明:已接入的场景显示架构说明(indigo);未接入的场景(没登记动作)显示「尚未接入」提示(琥珀) -->
   @if (hasPolicyActions()) {
   <div class="bg-indigo-50 border border-indigo-100 rounded-md px-4 py-2.5 mb-4 text-xs text-indigo-900">
@@ -213,71 +142,12 @@
     </div>
   </div>
   }
-
-  } @else {
-  <!-- ===================== 视图:决策明细(可翻页)===================== 顶部统计已常驻上方;此处为逐条明细 + 加载更多。 -->
-  <div class="bg-white shadow-sm rounded-lg overflow-hidden w-full">
-    <div class="px-4 py-3 border-b border-gray-200">
-      <h3 class="text-sm font-semibold text-gray-900">{{ 'doorman.log.title' | translate }}</h3>
-    </div>
-    @if (decisions().length === 0 && !decisionsLoading()) {
-    <div class="px-4 py-10 text-center text-sm text-gray-500">{{ 'doorman.log.empty' | translate }}</div>
-    } @else {
-    <div class="overflow-x-auto">
-      <table class="w-full text-[13px]" style="min-width:820px">
-        <thead class="bg-gray-50">
-          <tr>
-            <th class="px-4 py-2.5 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">{{ 'doorman.log.time' | translate }}</th>
-            <th class="px-4 py-2.5 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">{{ 'doorman.log.subject' | translate }}</th>
-            <th class="px-4 py-2.5 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">{{ 'doorman.log.matched' | translate }}</th>
-            <th class="px-4 py-2.5 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">{{ 'doorman.log.risk' | translate }}</th>
-            <th class="px-4 py-2.5 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">{{ 'doorman.log.action' | translate }}</th>
-            <th class="px-4 py-2.5 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">{{ 'doorman.log.net' | translate }}</th>
-          </tr>
-        </thead>
-        <tbody class="divide-y divide-gray-100">
-          @for (d of decisions(); track d.id) {
-          <tr class="hover:bg-gray-50 align-top">
-            <td class="px-4 py-2.5 whitespace-nowrap text-gray-500 tabular-nums">{{ decisionTime(d.created) }}</td>
-            <td class="px-4 py-2.5 text-gray-700 break-all">{{ d.subject || '—' }}</td>
-            <td class="px-4 py-2.5 text-gray-700">{{ d.matched || '—' }}</td>
-            <td class="px-4 py-2.5 whitespace-nowrap">
-              <span class="inline-flex px-2 py-0.5 rounded-full text-xs font-medium" [class]="riskPillClass($any(d.riskLevel))">{{ d.riskLevel }}</span>
-            </td>
-            <td class="px-4 py-2.5 whitespace-nowrap text-gray-700">
-              {{ actionLabel(d.action) }}
-              @if (d.outcome) {
-              <span class="ml-1 inline-flex px-1.5 py-0.5 rounded-full text-[11px] font-medium bg-green-100 text-green-800">{{ 'doorman.funnel.resolved' | translate }}</span>
-              }
-            </td>
-            <td class="px-4 py-2.5 text-xs text-gray-500 font-mono break-all">
-              {{ decisionNet(d) }}
-              @if (d.isHosting) {
-              <span class="ml-1 text-red-600 font-sans">{{ 'doorman.log.hosting' | translate }}</span>
-              }
-            </td>
-          </tr>
-          }
-        </tbody>
-      </table>
-    </div>
-    <!-- 翻页:游标式「加载更多」(before = 当前最后一条 id)。 -->
-    <div class="px-4 py-3 border-t border-gray-100 flex justify-center">
-      @if (decisionsLoading()) {
-      <span class="text-sm text-gray-400">{{ 'doorman.common.loading' | translate }}</span>
-      } @else if (decisionsHasMore()) {
-      <button type="button" (click)="loadMoreDecisions()"
-        class="px-4 py-1.5 text-sm font-medium text-indigo-700 bg-indigo-50 border border-indigo-200 rounded-md hover:bg-indigo-100 transition-colors">
-        {{ 'doorman.log.loadMore' | translate }}
-      </button>
-      } @else {
-      <span class="text-xs text-gray-400">{{ 'doorman.log.noMore' | translate }}</span>
-      }
-    </div>
-    }
-  </div>
-  }
 </div>
+
+<!-- 决策明细弹窗(共享联邦组件 DoormanDecisionsModalComponent):页头按钮打开,scope 传当前 activeScope。 -->
+@if (showDecisions()) {
+<app-doorman-decisions-modal [apiBase]="apiBase()" [scope]="activeScope()" [actionColors]="actionColors()" [insetLeft]="insetLeft()" (close)="closeDecisions()" />
+}
 
 <!-- Editor modal -->
 @if (showEditor()) {
