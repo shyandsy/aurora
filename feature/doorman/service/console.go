@@ -25,6 +25,7 @@ type Console interface {
 	// ── 统计 + 明细 ──
 	Stats(scope string, days int) (dto.StatsDTO, error)                               // 近 days 天(<=0 默认 7)的决策汇总
 	ListDecisions(scope string, limit int, beforeID int64) ([]dto.DecisionDTO, error) // 决策明细(id 倒序,游标翻页)
+	ListDecisionsPage(scope string, page, pageSize int) (dto.DecisionPageDTO, error)  // 决策明细(id 倒序,页码翻页,带 total)
 }
 
 type console struct {

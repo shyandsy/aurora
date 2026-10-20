@@ -191,6 +191,46 @@ func TestDBStore_DecisionsPaging(t *testing.T) {
 	}
 }
 
+// ── 决策明细页码翻页(count + offset/limit,id 倒序,scope 空=全量) ──
+func TestDBStore_DecisionsOffsetPaging(t *testing.T) {
+	s := newDBStore(openTestDB(t))
+	for i := 0; i < 5; i++ {
+		_ = s.Record(core.Decision{Scope: "register", RiskLevel: "low", Action: "allow"})
+	}
+	_ = s.Record(core.Decision{Scope: "login", RiskLevel: "low", Action: "allow"}) // 别的 scope
+
+	// count:scope 过滤 vs 全量
+	if n, err := s.countDecisions("register"); err != nil || n != 5 {
+		t.Fatalf("register 应 5 条,got n=%d err=%v", n, err)
+	}
+	if all, _ := s.countDecisions(""); all != 6 {
+		t.Fatalf("全量应 6 条,got %d", all)
+	}
+
+	// 第一页(offset=0,limit=2,id 倒序)
+	p1, err := s.decisionsPage("register", 0, 2)
+	if err != nil || len(p1) != 2 || p1[0].ID < p1[1].ID {
+		t.Fatalf("第一页应 2 条倒序: %v %+v", err, p1)
+	}
+	// 第二页接着往后(offset=2)
+	p2, _ := s.decisionsPage("register", 2, 2)
+	if len(p2) != 2 || p2[0].ID >= p1[1].ID {
+		t.Fatalf("第二页应接上一页往后,got %+v", p2)
+	}
+	// 末页不足一页(offset=4 → 剩 1 条)
+	if p3, _ := s.decisionsPage("register", 4, 2); len(p3) != 1 {
+		t.Fatalf("末页应 1 条,got %+v", p3)
+	}
+	// 越界 offset → 空
+	if pe, _ := s.decisionsPage("register", 100, 2); len(pe) != 0 {
+		t.Fatalf("越界 offset 应空,got %d 条", len(pe))
+	}
+	// scope 空 → 全量翻页(6 条,一页取回)
+	if pall, _ := s.decisionsPage("", 0, 50); len(pall) != 6 {
+		t.Fatalf("全量翻页应 6 条,got %d", len(pall))
+	}
+}
+
 // ── 分批清理:删早于 before 的,分批循环删干净;不误删新数据 ──
 func TestDBStore_PruneDecisions(t *testing.T) {
 	db := openTestDB(t)

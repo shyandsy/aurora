@@ -27,6 +27,10 @@ type consoleStore interface {
 	funnel(scope string, since time.Time) (funnelCounts, error)
 	// decisions 取某 scope 的决策明细(按 id 倒序,新→旧);beforeID>0 时只取 id<beforeID(游标翻页)。
 	decisions(scope string, limit int, beforeID int64) ([]entity.DecisionRow, error)
+	// countDecisions 决策总数(scope 空=全量,非空=按 scope 过滤);页码翻页的 total。
+	countDecisions(scope string) (int64, error)
+	// decisionsPage 按 offset/limit 取决策明细(按 id 倒序,新→旧;scope 空=全量);页码翻页。
+	decisionsPage(scope string, offset, limit int) ([]entity.DecisionRow, error)
 }
 
 // dbStore 是基于 gorm 的默认存储:实现 core 的 RuleSource/PolicyStore/DecisionRecorder(运行时)
@@ -181,10 +185,13 @@ func (s *dbStore) stats(scope string, since time.Time) (map[string]int64, map[st
 	}
 	agg := func(col string) (map[string]int64, error) {
 		var rows []countRow
-		err := s.db.Model(&entity.DecisionRow{}).
-			Select(col+" AS k, COUNT(*) AS n").
-			Where("scope = ? AND created >= ?", scope, since).
-			Group(col).Scan(&rows).Error
+		q := s.db.Model(&entity.DecisionRow{}).
+			Select(col + " AS k, COUNT(*) AS n").
+			Where("created >= ?", since)
+		if scope != "" { // scope 空 = 全量(不按 scope 过滤),与 countDecisions/decisionsPage 一致
+			q = q.Where("scope = ?", scope)
+		}
+		err := q.Group(col).Scan(&rows).Error
 		if err != nil {
 			return nil, err
 		}
@@ -208,11 +215,14 @@ func (s *dbStore) stats(scope string, since time.Time) (map[string]int64, map[st
 // funnel 见 consoleStore.funnel:一次聚合出分母(有 subject)与已完成(outcome 非空)。
 func (s *dbStore) funnel(scope string, since time.Time) (funnelCounts, error) {
 	var fc funnelCounts
-	err := s.db.Model(&entity.DecisionRow{}).
+	q := s.db.Model(&entity.DecisionRow{}).
 		Select("COUNT(*) AS challenged, "+
 			"COALESCE(SUM(CASE WHEN outcome <> '' THEN 1 ELSE 0 END), 0) AS resolved").
-		Where("scope = ? AND created >= ? AND challenged = ?", scope, since, true).
-		Scan(&fc).Error
+		Where("created >= ? AND challenged = ?", since, true)
+	if scope != "" { // scope 空 = 全量,与 countDecisions/decisionsPage 一致
+		q = q.Where("scope = ?", scope)
+	}
+	err := q.Scan(&fc).Error
 	return fc, err
 }
 
@@ -227,6 +237,38 @@ func (s *dbStore) decisions(scope string, limit int, beforeID int64) ([]entity.D
 	}
 	var rows []entity.DecisionRow
 	if err := q.Order("id DESC").Limit(limit).Find(&rows).Error; err != nil {
+		return nil, err
+	}
+	return rows, nil
+}
+
+// countDecisions 统计决策总数(scope 空=全量,非空=按 scope 过滤)。页码翻页的分母。
+func (s *dbStore) countDecisions(scope string) (int64, error) {
+	var n int64
+	q := s.db.Model(&entity.DecisionRow{})
+	if scope != "" {
+		q = q.Where("scope = ?", scope)
+	}
+	if err := q.Count(&n).Error; err != nil {
+		return 0, err
+	}
+	return n, nil
+}
+
+// decisionsPage 按 offset/limit 取决策明细(id 倒序,新→旧;scope 空=全量)。页码翻页:offset=(page-1)*pageSize。
+func (s *dbStore) decisionsPage(scope string, offset, limit int) ([]entity.DecisionRow, error) {
+	if limit <= 0 || limit > 200 {
+		limit = 50
+	}
+	if offset < 0 {
+		offset = 0
+	}
+	q := s.db.Model(&entity.DecisionRow{})
+	if scope != "" {
+		q = q.Where("scope = ?", scope)
+	}
+	var rows []entity.DecisionRow
+	if err := q.Order("id DESC").Offset(offset).Limit(limit).Find(&rows).Error; err != nil {
 		return nil, err
 	}
 	return rows, nil
