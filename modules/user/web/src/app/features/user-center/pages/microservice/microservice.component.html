@@ -6,7 +6,7 @@
   <!-- Microservices Tab -->
   @if (activeTab() === 'microservices') {
   <div class="flex items-center justify-between mb-4">
-    <h2 class="text-xl font-semibold">{{ 'microservice.microservices' | translate }}</h2>
+    <h2 class="text-base font-semibold">{{ 'microservice.microservices' | translate }}</h2>
     <button (click)="onCreateMicroservice()"
       class="px-4 py-2 text-sm font-medium text-white bg-indigo-600 rounded-lg hover:bg-indigo-700 transition-colors">
       {{ 'microservice.create' | translate }}
@@ -23,7 +23,7 @@
   <!-- Tokens Tab -->
   @if (activeTab() === 'tokens') {
   <div class="flex items-center justify-between mb-4">
-    <h2 class="text-xl font-semibold">{{ 'microservice.tokens' | translate }}</h2>
+    <h2 class="text-base font-semibold">{{ 'microservice.tokens' | translate }}</h2>
     <button (click)="onCreateToken()"
       class="px-4 py-2 text-sm font-medium text-white bg-indigo-600 rounded-lg hover:bg-indigo-700 transition-colors">
       {{ 'microservice.token.create' | translate }}

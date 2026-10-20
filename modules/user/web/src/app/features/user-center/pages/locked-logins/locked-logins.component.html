@@ -2,7 +2,7 @@
 <div class="container mx-auto px-4 pt-4 pb-8">
   <div class="flex items-center justify-end mb-4">
     <button (click)="loadLocked()" [disabled]="isLoading()"
-      class="px-4 py-2 text-sm font-medium text-white bg-indigo-600 rounded-lg hover:bg-indigo-700 transition-colors disabled:opacity-50">
+      class="px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50 transition-colors disabled:opacity-50">
       {{ 'common.refresh' | translate }}
     </button>
   </div>
@@ -20,70 +20,70 @@
     <div class="text-gray-500">{{ 'common.loading' | translate }}</div>
   </div>
   } @else if (items().length === 0) {
-  <div class="bg-gray-50 border border-gray-200 text-gray-700 px-4 py-3 rounded">
+  <div class="text-sm text-gray-500 text-center py-10">
     {{ 'lockedLogins.empty' | translate }}
   </div>
   } @else {
-  <div class="bg-white shadow-sm rounded-lg overflow-hidden w-full">
+  <div class="bg-white border border-gray-200 rounded-xl overflow-hidden w-full">
     <div class="overflow-x-auto">
-      <table class="w-full divide-y divide-gray-200">
+      <table class="w-full">
         <thead class="bg-gray-50">
           <tr>
-            <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+            <th class="px-4 py-2.5 text-left text-sm font-medium text-gray-500 bg-gray-50 border-b border-gray-200">
               {{ 'lockedLogins.col.scope' | translate }}
             </th>
-            <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+            <th class="px-4 py-2.5 text-left text-sm font-medium text-gray-500 bg-gray-50 border-b border-gray-200">
               {{ 'lockedLogins.col.key' | translate }}
             </th>
-            <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+            <th class="px-4 py-2.5 text-left text-sm font-medium text-gray-500 bg-gray-50 border-b border-gray-200">
               {{ 'lockedLogins.col.email' | translate }}
             </th>
-            <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+            <th class="px-4 py-2.5 text-left text-sm font-medium text-gray-500 bg-gray-50 border-b border-gray-200">
               {{ 'lockedLogins.col.reason' | translate }}
             </th>
-            <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+            <th class="px-4 py-2.5 text-left text-sm font-medium text-gray-500 bg-gray-50 border-b border-gray-200">
               {{ 'lockedLogins.col.retryAfter' | translate }}
             </th>
-            <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+            <th class="px-4 py-2.5 text-left text-sm font-medium text-gray-500 bg-gray-50 border-b border-gray-200">
               {{ 'lockedLogins.col.updatedAt' | translate }}
             </th>
-            <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+            <th class="px-4 py-2.5 text-left text-sm font-medium text-gray-500 bg-gray-50 border-b border-gray-200">
               {{ 'common.actions' | translate }}
             </th>
           </tr>
         </thead>
-        <tbody class="bg-white divide-y divide-gray-200">
+        <tbody class="bg-white">
           @for (item of items(); track item.scope + ':' + item.key) {
           <tr class="hover:bg-gray-50">
-            <td class="px-6 py-4 whitespace-nowrap text-sm">
+            <td class="px-4 py-2.5 whitespace-nowrap text-sm border-b border-gray-100">
               @if (item.scope === 'ip') {
-              <span class="px-2 py-1 text-xs font-semibold rounded bg-amber-100 text-amber-800">
+              <span class="inline-block px-2.5 py-0.5 rounded-full text-xs font-medium bg-amber-100 text-amber-800">
                 {{ scopeLabel(item.scope) }}
               </span>
               } @else {
-              <span class="px-2 py-1 text-xs font-semibold rounded bg-sky-100 text-sky-800">
+              <span class="inline-block px-2.5 py-0.5 rounded-full text-xs font-medium bg-sky-100 text-sky-800">
                 {{ scopeLabel(item.scope) }}
               </span>
               }
             </td>
-            <td class="px-6 py-4 whitespace-nowrap text-sm font-mono text-gray-900">
+            <td class="px-4 py-2.5 whitespace-nowrap text-sm font-mono text-gray-800 border-b border-gray-100">
               {{ item.key }}
             </td>
-            <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+            <td class="px-4 py-2.5 whitespace-nowrap text-sm text-gray-800 border-b border-gray-100">
               {{ item.email || '-' }}
             </td>
-            <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+            <td class="px-4 py-2.5 whitespace-nowrap text-sm text-gray-800 border-b border-gray-100">
               {{ reasonLabel(item.reason) }}
             </td>
-            <td class="px-6 py-4 whitespace-nowrap text-sm font-mono text-gray-500">
+            <td class="px-4 py-2.5 whitespace-nowrap text-sm font-mono text-gray-800 border-b border-gray-100">
               {{ formatRemaining(item.retryAfterSeconds) }}
             </td>
-            <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+            <td class="px-4 py-2.5 whitespace-nowrap text-sm text-gray-800 border-b border-gray-100">
               {{ formatUpdatedAt(item.updatedAt) }}
             </td>
-            <td class="px-6 py-4 whitespace-nowrap text-sm">
+            <td class="px-4 py-2.5 whitespace-nowrap text-sm border-b border-gray-100">
               <button (click)="onUnlock(item)" [disabled]="unlocking()"
-                class="px-3 py-1 text-xs font-medium text-green-700 bg-green-100 rounded hover:bg-green-200 transition-colors disabled:opacity-50">
+                class="px-2.5 py-1 rounded text-xs font-medium text-green-700 bg-green-100 hover:bg-green-200 transition-colors disabled:opacity-50">
                 {{ 'lockedLogins.unlock' | translate }}
               </button>
             </td>
