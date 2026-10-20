@@ -1,0 +1,320 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>用户中心设计稿</title>
+<style>
+  :root{--bg:#f3f4f6;--panel:#fff;--border:#e5e7eb;--text:#1f2937;--muted:#6b7280;--faint:#9ca3af;
+    --indigo:#4f46e5;--gray:#6b7280;--blue:#3b82f6;--green:#10b981;--red:#dc2626;}
+  *{box-sizing:border-box;}
+  body{margin:0;background:var(--panel);color:var(--text);font-family:-apple-system,BlinkMacSystemFont,"Segoe UI","PingFang SC","Microsoft YaHei",sans-serif;font-size:14px;}
+  .caption{font-size:12px;color:var(--faint);padding:10px 20px 0;margin:0;}
+  .caption b{color:var(--indigo);}
+  .topnav{display:flex;gap:4px;border-bottom:1px solid var(--border);padding:12px 20px 0;position:sticky;top:0;background:#fff;z-index:5;}
+  .topnav button{border:none;background:transparent;font-size:14px;color:var(--muted);padding:6px 12px 10px;cursor:pointer;border-bottom:2px solid transparent;margin-bottom:-1px;}
+  .topnav button.active{color:var(--indigo);border-bottom-color:var(--indigo);font-weight:600;}
+  .page{padding:16px 20px 40px;}
+  .sec-head{display:flex;align-items:center;justify-content:space-between;margin-bottom:14px;gap:12px;}
+  .sec-head h2{font-size:18px;font-weight:600;margin:0;}
+  .btn{padding:7px 16px;font-size:13px;font-weight:500;border-radius:8px;cursor:pointer;border:none;}
+  .btn-primary{background:var(--indigo);color:#fff;}.btn-primary:hover{background:#4338ca;}
+  .btn-ghost{background:#fff;color:#374151;border:1px solid #d1d5db;}
+  .subtitle{font-size:13px;color:var(--faint);margin:0 0 12px;}
+  .card{background:var(--panel);border:1px solid var(--border);border-radius:12px;overflow:hidden;}
+  table{width:100%;border-collapse:collapse;font-size:13px;}
+  thead th{text-align:left;font-weight:500;color:var(--muted);padding:10px 14px;background:#fafafa;border-bottom:1px solid #eee;white-space:nowrap;}
+  tbody td{padding:11px 14px;border-bottom:1px solid #f3f4f6;vertical-align:middle;}
+  tbody tr:last-child td{border-bottom:none;}
+  tbody tr:hover{background:#fafafc;}
+  .mono{font-family:ui-monospace,Menlo,monospace;font-size:12.5px;}
+  .link{cursor:pointer;margin-right:12px;}.link.edit{color:var(--indigo);}.link.del{color:var(--red);}.link.copy{color:var(--indigo);font-size:12px;}
+  .badge{display:inline-block;padding:2px 9px;font-size:11.5px;font-weight:600;border-radius:999px;}
+  .b-green{background:#dcfce7;color:#166534;}.b-red{background:#fee2e2;color:#991b1b;}
+  .b-amber{background:#fef3c7;color:#92400e;}.b-sky{background:#e0f2fe;color:#075985;}
+  .chip{display:inline-block;padding:1px 8px;font-size:11px;border-radius:6px;background:#dbeafe;color:#1e40af;margin:2px 4px 2px 0;}
+  .sbtn{padding:3px 10px;font-size:12px;border:none;border-radius:6px;cursor:pointer;}
+  .sbtn-red{background:#fee2e2;color:#b91c1c;}.sbtn-green{background:#dcfce7;color:#15803d;}
+  .pager{display:flex;justify-content:flex-end;align-items:center;gap:10px;padding:10px 14px;font-size:12px;color:var(--muted);border-top:1px solid #f3f4f6;}
+  .pager button{border:1px solid #d1d5db;background:#fff;border-radius:6px;padding:3px 9px;cursor:pointer;}
+  .hide{display:none !important;}
+
+  /* 角色页 */
+  .role-layout{display:grid;grid-template-columns:40fr 60fr;gap:24px;align-items:start;}
+  .role-table tbody tr{cursor:pointer;}
+  .role-table tbody tr.sel{background:#eef2ff;}
+  .role-table tbody tr.sel td:first-child{box-shadow:inset 3px 0 0 var(--indigo);}
+  .ptabs,.perm-tabs{display:inline-flex;border:1px solid #d1d5db;border-radius:8px;overflow:hidden;margin-bottom:14px;}
+  .ptabs button,.perm-tabs button{font-size:13px;padding:6px 14px;color:var(--muted);cursor:pointer;border:none;background:#fff;}
+  .ptabs button.active,.perm-tabs button.active{background:var(--indigo);color:#fff;}
+  .toolbar{display:flex;align-items:center;gap:12px;flex-wrap:wrap;margin-bottom:12px;}
+  .search{position:relative;flex:1 1 180px;min-width:130px;}
+  .search input{width:100%;padding:6px 10px 6px 30px;border:1px solid #d1d5db;border-radius:6px;font-size:13px;outline:none;}
+  .search svg{position:absolute;left:9px;top:50%;transform:translateY(-50%);width:15px;height:15px;color:var(--faint);}
+  .count{font-size:12px;color:var(--muted);white-space:nowrap;}.count b{color:var(--text);}
+  .bulk{display:flex;align-items:center;gap:6px;}.bulk>span{font-size:12px;color:var(--faint);}
+  .bulk button{padding:4px 10px;font-size:12px;border:1px solid #d1d5db;border-radius:6px;background:#fff;color:#4b5563;cursor:pointer;}
+  .list{max-height:56vh;overflow-y:auto;}
+  .list thead th{position:sticky;top:0;z-index:1;}
+  .seg{display:inline-flex;border:1px solid #d1d5db;border-radius:7px;overflow:hidden;background:#fff;}
+  .seg button{padding:4px 14px;font-size:13px;border:none;background:transparent;color:var(--muted);cursor:pointer;}
+  .seg button+button{border-left:1px solid var(--border);}
+  .seg .none.on{background:var(--gray);color:#fff;}.seg .view.on{background:var(--blue);color:#fff;}.seg .op.on{background:var(--green);color:#fff;}
+  .chkcell{text-align:center;width:44px;}.chk{width:16px;height:16px;accent-color:var(--indigo);}
+
+  /* 弹窗 */
+  .overlay{position:fixed;inset:0;background:rgba(17,24,39,.45);display:flex;align-items:center;justify-content:center;z-index:50;padding:20px;}
+  .modal{background:#fff;border-radius:12px;box-shadow:0 20px 50px rgba(0,0,0,.25);width:384px;max-width:100%;max-height:90vh;overflow:auto;}
+  .modal.wide{width:800px;}
+  .modal-head{padding:16px 20px;border-bottom:1px solid var(--border);font-size:16px;font-weight:600;}
+  .modal-body{padding:18px 20px;}
+  .modal-foot{padding:14px 20px;border-top:1px solid var(--border);display:flex;justify-content:flex-end;gap:10px;}
+  .field{margin-bottom:16px;}
+  .field label{display:block;font-size:13px;font-weight:500;margin-bottom:6px;}
+  .field label .req{color:var(--red);}
+  .field .hintgray{color:var(--faint);font-weight:400;font-size:12px;}
+  .inp{width:100%;padding:8px 10px;border:1px solid #d1d5db;border-radius:8px;font-size:13px;outline:none;}
+  .inp:focus{border-color:var(--indigo);box-shadow:0 0 0 2px rgba(99,102,241,.15);}
+  .err{color:var(--red);font-size:12px;margin-top:4px;}
+  .row-inline{display:flex;gap:8px;}
+  .chkbox-wrap{border:1px solid #d1d5db;border-radius:8px;max-height:240px;overflow:auto;padding:10px;}
+  .chk-grid{display:grid;grid-template-columns:1fr 1fr;gap:8px;}
+  .chk-item{display:flex;align-items:center;gap:8px;font-size:13px;}
+  .ms-card{display:flex;gap:10px;padding:10px;border:1px solid #eee;border-radius:8px;margin-bottom:8px;}
+  .ms-card .name{font-weight:600;}
+  .ms-card .desc{color:var(--faint);font-size:12px;margin:2px 0 4px;}
+  .ok-box{background:#ecfdf5;border:1px solid #a7f3d0;border-radius:10px;padding:16px;}
+  .ok-box .ok-title{color:#047857;font-weight:600;margin-bottom:10px;}
+  .code{font-family:ui-monospace,Menlo,monospace;font-size:12px;background:#fff;border:1px solid #d1d5db;border-radius:6px;padding:8px;word-break:break-all;}
+</style>
+</head>
+<body>
+<p class="caption">用户中心 · 忠实完整设计稿(按真实组件 1:1)—— <b>点 tab / 子 tab / 创建·编辑·生成按钮试试,弹窗都能开</b></p>
+
+<div class="topnav">
+  <button data-tab="user">用户</button>
+  <button data-tab="role" class="active">角色</button>
+  <button data-tab="ms">微服务</button>
+  <button data-tab="locked">被锁登录</button>
+</div>
+
+<!-- ============ 用户 ============ -->
+<div class="page hide" id="p-user">
+  <div class="sec-head"><span></span><button class="btn btn-primary" data-open="dlg-user-create">创建用户</button></div>
+  <div class="card">
+    <table>
+      <thead><tr><th>ID</th><th>邮箱</th><th>角色</th><th>状态</th><th>操作</th></tr></thead>
+      <tbody>
+        <tr><td>1</td><td style="font-weight:600">admin@example.com</td><td>admin</td><td><span class="badge b-green">启用</span></td><td><span class="link edit" data-open="dlg-user-edit">编辑</span><span class="link del">删除</span></td></tr>
+        <tr><td>2</td><td style="font-weight:600">ops01@example.com</td><td>operation</td><td><span class="badge b-green">启用</span></td><td><span class="link edit" data-open="dlg-user-edit">编辑</span><span class="link del">删除</span></td></tr>
+        <tr><td>3</td><td style="font-weight:600">viewer@example.com</td><td>user</td><td><span class="badge b-red">禁用</span></td><td><span class="link edit" data-open="dlg-user-edit">编辑</span><span class="link del">删除</span></td></tr>
+        <tr><td>4</td><td style="font-weight:600">temp@example.com</td><td>N/A</td><td><span class="badge b-green">启用</span></td><td><span class="link edit" data-open="dlg-user-edit">编辑</span><span class="link del">删除</span></td></tr>
+      </tbody>
+    </table>
+    <div class="pager">共 4 条 · 每页 20 <button>上一页</button> 1/1 <button>下一页</button></div>
+  </div>
+</div>
+
+<!-- ============ 角色 ============ -->
+<div class="page" id="p-role">
+  <div class="role-layout">
+    <div>
+      <div class="sec-head"><h2>角色</h2><button class="btn btn-primary" data-open="dlg-role-create">创建角色</button></div>
+      <div class="card"><table class="role-table" id="roleRows"></table></div>
+    </div>
+    <div>
+      <div class="sec-head"><h2>权限授权</h2></div>
+      <div class="perm-tabs"><button class="active" data-ptab="page">页面权限</button><button data-ptab="adv">高级(单个功能)</button></div>
+      <!-- 页面权限 -->
+      <div id="pt-page">
+        <div class="toolbar">
+          <div class="search"><svg viewBox="0 0 20 20" fill="none"><circle cx="9" cy="9" r="6" stroke="currentColor" stroke-width="1.6"/><line x1="14" y1="14" x2="18" y2="18" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/></svg><input placeholder="搜索页面…" disabled></div>
+          <span class="count">已授权 <b id="gcount">11</b>/24</span>
+          <div class="bulk"><span>全部设为:</span><button>无</button><button>只读</button><button>可操作</button></div>
+        </div>
+        <div class="card list"><table><thead><tr><th>页面</th><th style="width:230px">权限</th></tr></thead><tbody id="permRows"></tbody></table></div>
+      </div>
+      <!-- 高级 -->
+      <div id="pt-adv" class="hide">
+        <div class="toolbar">
+          <div class="search"><svg viewBox="0 0 20 20" fill="none"><circle cx="9" cy="9" r="6" stroke="currentColor" stroke-width="1.6"/><line x1="14" y1="14" x2="18" y2="18" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/></svg><input placeholder="搜索功能名…" disabled></div>
+          <span class="count">已选 <b>6</b>/15</span>
+          <div class="bulk"><button>全选可见</button><button>取消可见</button></div>
+        </div>
+        <div class="card list"><table><thead><tr><th class="chkcell">选</th><th>功能</th></tr></thead><tbody id="advRows"></tbody></table></div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ============ 微服务 ============ -->
+<div class="page hide" id="p-ms">
+  <div class="perm-tabs"><button class="active" data-mtab="svc">微服务配置</button><button data-mtab="tok">Token 列表</button></div>
+  <!-- 微服务配置 -->
+  <div id="mt-svc">
+    <div class="sec-head"><h2 style="font-size:16px">微服务配置</h2><button class="btn btn-primary" data-open="dlg-ms-create">创建微服务配置</button></div>
+    <div class="card"><table>
+      <thead><tr><th>ID</th><th>名称</th><th>描述</th><th>功能列表</th><th>创建时间</th><th>操作</th></tr></thead>
+      <tbody>
+        <tr><td>1</td><td style="font-weight:600">xray-sync</td><td style="color:#6b7280">xray 流量核对同步</td><td><span class="chip">xray.sync</span><span class="chip">traffic.read</span></td><td>2026-10-10 14:02</td><td><span class="link edit" data-open="dlg-ms-edit">编辑</span><span class="link del">删除</span></td></tr>
+        <tr><td>2</td><td style="font-weight:600">deploy-agent</td><td style="color:#6b7280">部署平台回调</td><td><span class="chip">deploy.callback</span><span class="chip">server.read</span><span class="chip">release.read</span></td><td>2026-10-12 09:30</td><td><span class="link edit" data-open="dlg-ms-edit">编辑</span><span class="link del">删除</span></td></tr>
+      </tbody>
+    </table></div>
+  </div>
+  <!-- Token 列表 -->
+  <div id="mt-tok" class="hide">
+    <div class="sec-head"><h2 style="font-size:16px">Token 列表</h2><button class="btn btn-primary" data-open="dlg-token">生成 Token</button></div>
+    <div class="card"><table>
+      <thead><tr><th>ID</th><th>描述</th><th>功能列表</th><th>Token</th><th>过期时间</th><th>状态</th><th>创建时间</th><th>操作</th></tr></thead>
+      <tbody>
+        <tr><td>1</td><td style="color:#6b7280">xray-sync 凭证</td><td><span class="chip">xray.sync</span></td><td class="mono">eyJhbGci…9f2a <span class="link copy">复制</span></td><td>2027-10-10</td><td><span class="badge b-green">已启用</span></td><td>2026-10-10 14:05</td><td><button class="sbtn sbtn-red">禁用</button></td></tr>
+        <tr><td>2</td><td style="color:#6b7280">deploy 回调凭证</td><td><span class="chip">deploy.callback</span><span class="chip">server.read</span></td><td class="mono">eyJhbGci…1c7b <span class="link copy">复制</span></td><td>2027-10-12</td><td><span class="badge b-red">已禁用</span></td><td>2026-10-12 09:33</td><td><button class="sbtn sbtn-green">启用</button></td></tr>
+      </tbody>
+    </table>
+    <div class="pager">共 2 条 · 每页 20 <button>上一页</button> 1/1 <button>下一页</button></div>
+    </div>
+  </div>
+</div>
+
+<!-- ============ 被锁登录 ============ -->
+<div class="page hide" id="p-locked">
+  <div class="sec-head"><span></span><button class="btn btn-ghost">刷新</button></div>
+  <p class="subtitle">当前被登录限流锁住的 IP / 账号。可查看命中原因与自动解除剩余时间,或手动立即解锁。</p>
+  <div class="card"><table>
+    <thead><tr><th>维度</th><th>IP / 账号</th><th>最近邮箱</th><th>原因</th><th>解除剩余</th><th>记录时刻</th><th>操作</th></tr></thead>
+    <tbody>
+      <tr><td><span class="badge b-amber">IP</span></td><td class="mono">203.0.113.9</td><td style="color:#6b7280">guest@example.com</td><td style="color:#6b7280">IP 已锁定</td><td class="mono" style="color:#6b7280">14:32</td><td style="color:#6b7280">2026-10-19 23:10</td><td><button class="sbtn sbtn-green" data-open="dlg-unlock">解锁</button></td></tr>
+      <tr><td><span class="badge b-amber">IP</span></td><td class="mono">198.51.100.4</td><td style="color:#6b7280">-</td><td style="color:#6b7280">IP 每小时上限</td><td class="mono" style="color:#6b7280">即将自动解除</td><td style="color:#6b7280">2026-10-19 23:21</td><td><button class="sbtn sbtn-green" data-open="dlg-unlock">解锁</button></td></tr>
+      <tr><td><span class="badge b-sky">账号</span></td><td class="mono">test02</td><td style="color:#6b7280">test02@example.com</td><td style="color:#6b7280">账号已锁定</td><td class="mono" style="color:#6b7280">09:58</td><td style="color:#6b7280">2026-10-19 23:25</td><td><button class="sbtn sbtn-green" data-open="dlg-unlock">解锁</button></td></tr>
+    </tbody>
+  </table></div>
+</div>
+
+<!-- ============ 弹窗们 ============ -->
+<div class="overlay hide" id="dlg-user-create" data-dlg><div class="modal">
+  <div class="modal-head">创建用户</div>
+  <div class="modal-body">
+    <div class="field"><label>邮箱 <span class="req">*</span></label><input class="inp" type="email" placeholder="name@example.com"></div>
+    <div class="field"><label>密码 <span class="req">*</span></label><div class="row-inline"><input class="inp" type="text" value="Ab3xK9mq"><button class="btn btn-ghost" style="white-space:nowrap">隐藏</button><button class="btn btn-ghost" style="white-space:nowrap">随机</button></div></div>
+    <div class="field"><label>角色 <span class="req">*</span></label><select class="inp"><option>选择角色</option><option>admin</option><option>user</option><option>operation</option></select></div>
+  </div>
+  <div class="modal-foot"><button class="btn btn-ghost" data-close>取消</button><button class="btn btn-primary">创建</button></div>
+</div></div>
+
+<div class="overlay hide" id="dlg-user-edit" data-dlg><div class="modal">
+  <div class="modal-head">编辑用户</div>
+  <div class="modal-body">
+    <div class="field"><label>邮箱 <span class="req">*</span></label><input class="inp" type="email" value="ops01@example.com"></div>
+    <div class="field"><label>密码 <span class="hintgray">(留空以保持当前密码)</span></label><div class="row-inline"><input class="inp" type="text" placeholder=""><button class="btn btn-ghost" style="white-space:nowrap">显示</button><button class="btn btn-ghost" style="white-space:nowrap">随机</button></div></div>
+    <div class="field"><label>角色 <span class="req">*</span></label><select class="inp"><option>admin</option><option selected>operation</option><option>user</option></select></div>
+  </div>
+  <div class="modal-foot"><button class="btn btn-ghost" data-close>取消</button><button class="btn btn-primary">更新</button></div>
+</div></div>
+
+<div class="overlay hide" id="dlg-role-create" data-dlg><div class="modal">
+  <div class="modal-head">创建角色</div>
+  <div class="modal-body"><div class="field"><label>名称 <span class="req">*</span></label><input class="inp" type="text" placeholder="例如 operation"></div></div>
+  <div class="modal-foot"><button class="btn btn-ghost" data-close>取消</button><button class="btn btn-primary">创建</button></div>
+</div></div>
+
+<div class="overlay hide" id="dlg-ms-create" data-dlg><div class="modal wide">
+  <div class="modal-head">创建微服务配置</div>
+  <div class="modal-body">
+    <div class="field"><label>名称 <span class="req">*</span></label><input class="inp" type="text" placeholder="最多 255 字符"></div>
+    <div class="field"><label>描述 <span class="req">*</span></label><textarea class="inp" rows="3" placeholder="最多 500 字符"></textarea></div>
+    <div class="field"><label>功能列表 <span class="req">*</span></label>
+      <div class="chkbox-wrap"><div class="chk-grid" id="ms-feats"></div></div>
+    </div>
+  </div>
+  <div class="modal-foot"><button class="btn btn-ghost" data-close>取消</button><button class="btn btn-primary">创建</button></div>
+</div></div>
+
+<div class="overlay hide" id="dlg-ms-edit" data-dlg><div class="modal wide">
+  <div class="modal-head">编辑微服务配置</div>
+  <div class="modal-body">
+    <div class="field"><label>名称 <span class="req">*</span></label><input class="inp" type="text" value="xray-sync"></div>
+    <div class="field"><label>描述 <span class="req">*</span></label><textarea class="inp" rows="3">xray 流量核对同步</textarea></div>
+    <div class="field"><label>功能列表 <span class="req">*</span></label><div class="chkbox-wrap"><div class="chk-grid" id="ms-feats-edit"></div></div></div>
+  </div>
+  <div class="modal-foot"><button class="btn btn-ghost" data-close>取消</button><button class="btn btn-primary">更新</button></div>
+</div></div>
+
+<div class="overlay hide" id="dlg-token" data-dlg><div class="modal wide">
+  <div class="modal-head">生成 Token</div>
+  <div class="modal-body">
+    <div id="tok-form">
+      <div class="field"><label>选择微服务配置 <span class="req">*</span></label>
+        <div class="chkbox-wrap">
+          <label class="ms-card"><input type="checkbox" class="chk"><div><div class="name">xray-sync</div><div class="desc">xray 流量核对同步</div><span class="chip">xray.sync</span><span class="chip">traffic.read</span></div></label>
+          <label class="ms-card"><input type="checkbox" class="chk"><div><div class="name">deploy-agent</div><div class="desc">部署平台回调</div><span class="chip">deploy.callback</span><span class="chip">server.read</span><span class="chip">release.read</span></div></label>
+        </div>
+      </div>
+    </div>
+    <div id="tok-ok" class="hide"><div class="ok-box">
+      <div class="ok-title">✓ Token 生成成功</div>
+      <div class="row-inline"><div class="code" style="flex:1">eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiJzdmNfeHJheSIsImV4cCI6MTc5…</div><button class="btn btn-ghost">复制</button></div>
+      <p class="subtitle" style="margin:10px 0 0">请妥善保存此 Token,它只会显示一次。</p>
+    </div></div>
+  </div>
+  <div class="modal-foot" id="tok-foot"><button class="btn btn-ghost" data-close>取消</button><button class="btn btn-primary" id="tok-submit">创建</button></div>
+  <div class="modal-foot hide" id="tok-foot-ok"><button class="btn btn-primary" data-close>关闭</button></div>
+</div></div>
+
+<div class="overlay hide" id="dlg-unlock" data-dlg><div class="modal">
+  <div class="modal-head">确认解锁</div>
+  <div class="modal-body"><p style="margin:0">确定要立即解锁吗?解锁后该项将恢复正常登录。目标:<b class="mono">203.0.113.9</b></p></div>
+  <div class="modal-foot"><button class="btn btn-ghost" data-close>取消</button><button class="btn" style="background:#16a34a;color:#fff" data-close>解锁</button></div>
+</div></div>
+
+<script>
+  // 顶部 tab
+  document.querySelectorAll('.topnav button').forEach(b=>b.addEventListener('click',()=>{
+    document.querySelectorAll('.topnav button').forEach(x=>x.classList.toggle('active',x===b));
+    for(const id of ['user','role','ms','locked'])document.getElementById('p-'+id).classList.toggle('hide',id!==b.dataset.tab);
+  }));
+  // 角色权限 页面/高级 子tab
+  document.querySelectorAll('[data-ptab]').forEach(b=>b.addEventListener('click',()=>{
+    document.querySelectorAll('[data-ptab]').forEach(x=>x.classList.toggle('active',x===b));
+    document.getElementById('pt-page').classList.toggle('hide',b.dataset.ptab!=='page');
+    document.getElementById('pt-adv').classList.toggle('hide',b.dataset.ptab!=='adv');
+  }));
+  // 微服务 子tab
+  document.querySelectorAll('[data-mtab]').forEach(b=>b.addEventListener('click',()=>{
+    document.querySelectorAll('[data-mtab]').forEach(x=>x.classList.toggle('active',x===b));
+    document.getElementById('mt-svc').classList.toggle('hide',b.dataset.mtab!=='svc');
+    document.getElementById('mt-tok').classList.toggle('hide',b.dataset.mtab!=='tok');
+  }));
+  // 弹窗开关
+  document.addEventListener('click',e=>{const b=e.target.closest('[data-open]');if(!b)return;
+    document.querySelectorAll('.overlay').forEach(o=>o.classList.add('hide')); // 先关掉已开的,避免堆叠
+    const d=document.getElementById(b.dataset.open);if(d)d.classList.remove('hide');
+    if(b.dataset.open==='dlg-token'){document.getElementById('tok-form').classList.remove('hide');document.getElementById('tok-ok').classList.add('hide');document.getElementById('tok-foot').classList.remove('hide');document.getElementById('tok-foot-ok').classList.add('hide');}
+  });
+  document.querySelectorAll('[data-dlg]').forEach(o=>o.addEventListener('click',e=>{if(e.target===o||e.target.hasAttribute('data-close'))o.classList.add('hide');}));
+  document.getElementById('tok-submit').addEventListener('click',()=>{document.getElementById('tok-form').classList.add('hide');document.getElementById('tok-ok').classList.remove('hide');document.getElementById('tok-foot').classList.add('hide');document.getElementById('tok-foot-ok').classList.remove('hide');});
+
+  // 角色页数据
+  const ROLES=[{id:1,n:'admin',c:'2026-07-26 15:43:08',m:'2026-07-26 15:43:08'},{id:2,n:'user',c:'2026-07-26 15:43:08',m:'2026-07-26 15:43:08'},{id:4,n:'operation',c:'2026-10-17 10:25:19',m:'2026-10-17 10:25:19'}];
+  const PAGES=[["客户","op"],["获客归因","none"],["标签管理","none"],["用户等级","none"],["产品","op"],["订单","op"],["收款账户","none"],["公告","op"],["流量统计","op"],["经营统计","none"],["佣金","op"],["提现管理","op"],["软件发布","none"],["App 配置","none"],["服务器管理","op"],["存储源","none"],["微服务管理","none"],["XRay 核对","none"],["任务","none"],["工单","op"],["文档","op"],["文档分类","op"],["系统设置","none"],["用户与权限","none"]];
+  const FEATS=[["analytics.sales","api","analytics"],["analytics.acquisition","api","analytics"],["customer.list","api","customer"],["customer.export","api","customer"],["order.create","api","order"],["order.refund","api","order"],["commission.settle","api","commission"],["user.create","api",""],["user.delete","api",""],["microservice.token.issue","api","microservice"],["microservice.token.revoke","api","microservice"],["ui.component.export.operate","ui",""],["server.read","api","server"],["release.read","api","release"],["xray.sync","api","xray"]];
+  const ADVSEL=new Set([0,1,2,4,6,11]);
+  let sel=4;
+  function rr(){const e=document.getElementById('roleRows');e.innerHTML='<thead><tr><th>ID</th><th>名称</th><th>创建时间</th><th>修改时间</th><th>操作</th></tr></thead>';const tb=document.createElement('tbody');
+    ROLES.forEach(r=>{const tr=document.createElement('tr');if(r.id===sel)tr.className='sel';tr.innerHTML=`<td>${r.id}</td><td style="font-weight:600">${r.n}</td><td>${r.c}</td><td>${r.m}</td><td><span class="link edit" data-open="dlg-role-edit">编辑</span><span class="link del">删除</span></td>`;
+      tr.onclick=ev=>{if(ev.target.classList.contains('link'))return;sel=r.id;rr();pr();};tb.appendChild(tr);});e.appendChild(tb);}
+  function pr(){const e=document.getElementById('permRows');e.innerHTML='';let g=0;PAGES.forEach(([n,t0])=>{const t=sel===1?'op':(sel===4?t0:(['客户','产品','订单'].includes(n)?'view':'none'));if(t!=='none')g++;
+    const seg=[['none','无'],['view','只读'],['op','可操作']].map(([k,l])=>`<button class="${k} ${t===k?'on':''}">${l}</button>`).join('');
+    const tr=document.createElement('tr');tr.innerHTML=`<td>${n}</td><td><div class="seg">${seg}</div></td>`;e.appendChild(tr);});document.getElementById('gcount').textContent=g;}
+  function ar(){const e=document.getElementById('advRows');e.innerHTML='';FEATS.forEach(([n,k,m],i)=>{const chip=k==='ui'?'<span class="chip" style="background:#ecfeff;color:#0e7490">ui</span>':'<span class="chip" style="background:#eef2ff;color:#4338ca">api</span>';const mc=m?`<span class="chip" style="background:#f3f4f6;color:#6b7280">${m}</span>`:'';
+    const tr=document.createElement('tr');tr.innerHTML=`<td class="chkcell"><input type="checkbox" class="chk" ${ADVSEL.has(i)?'checked':''}></td><td><span class="mono">${n}</span>${chip}${mc}</td>`;e.appendChild(tr);});}
+  // 微服务弹窗 feature 复选
+  function msFeats(id,checked){const e=document.getElementById(id);if(!e)return;e.innerHTML='';FEATS.forEach(([n],i)=>{const l=document.createElement('label');l.className='chk-item';l.innerHTML=`<input type="checkbox" class="chk" ${checked&&i<2?'checked':''}><span class="mono">${n}</span>`;e.appendChild(l);});}
+  rr();pr();ar();msFeats('ms-feats',false);msFeats('ms-feats-edit',true);
+  // 角色编辑弹窗(复用 create 结构的简版)
+  const re=document.createElement('div');re.className='overlay hide';re.id='dlg-role-edit';re.setAttribute('data-dlg','');
+  re.innerHTML='<div class="modal"><div class="modal-head">编辑角色</div><div class="modal-body"><div class="field"><label>名称 <span class="req">*</span></label><input class="inp" type="text" value="operation"></div></div><div class="modal-foot"><button class="btn btn-ghost" data-close>取消</button><button class="btn btn-primary">更新</button></div></div>';
+  document.body.appendChild(re);
+  re.addEventListener('click',e=>{if(e.target===re||e.target.hasAttribute('data-close'))re.classList.add('hide');});
+</script>
+</body>
+</html>
