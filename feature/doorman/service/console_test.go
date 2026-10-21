@@ -15,9 +15,12 @@ func newReg() *core.Registry { r := core.NewRegistry(); core.RegisterBuiltins(r)
 
 // fakeStore 是 consoleStore 的内存替身,测 Console 不必起真 DB。
 type fakeStore struct {
-	rows   map[int64]entity.RuleRow
-	next   int64
-	policy map[string]map[string]string // scope → {level: action}
+	rows         map[int64]entity.RuleRow
+	next         int64
+	policy       map[string]map[string]string // scope → {level: action}
+	decisionRows []entity.DecisionRow         // 页码翻页用的决策样本
+	lastOffset   int                          // 最近一次 decisionsPage 收到的 offset(断言归一)
+	lastLimit    int                          // 最近一次 decisionsPage 收到的 limit(断言归一)
 }
 
 func newFakeStore() *fakeStore {
@@ -47,6 +50,33 @@ func (f *fakeStore) funnel(scope string, since time.Time) (funnelCounts, error) 
 }
 func (f *fakeStore) decisions(scope string, limit int, beforeID int64) ([]entity.DecisionRow, error) {
 	return nil, nil
+}
+func (f *fakeStore) countDecisions(scope string) (int64, error) {
+	var n int64
+	for _, r := range f.decisionRows {
+		if scope == "" || r.Scope == scope {
+			n++
+		}
+	}
+	return n, nil
+}
+func (f *fakeStore) decisionsPage(scope string, offset, limit int) ([]entity.DecisionRow, error) {
+	f.lastOffset, f.lastLimit = offset, limit
+	var all []entity.DecisionRow
+	for _, r := range f.decisionRows {
+		if scope == "" || r.Scope == scope {
+			all = append(all, r)
+		}
+	}
+	sort.Slice(all, func(i, j int) bool { return all[i].ID > all[j].ID }) // id 倒序
+	if offset >= len(all) {
+		return nil, nil
+	}
+	end := offset + limit
+	if end > len(all) {
+		end = len(all)
+	}
+	return all[offset:end], nil
 }
 func (f *fakeStore) listRows(scope string) ([]entity.RuleRow, error) {
 	var out []entity.RuleRow
@@ -180,6 +210,50 @@ func TestConsole_CRUD(t *testing.T) {
 	}
 	if err := svc.DeleteRule(created.ID); !errors.Is(err, ErrRuleNotFound) {
 		t.Fatalf("删除不存在应回 ErrRuleNotFound,got %v", err)
+	}
+}
+
+// ── 决策明细页码翻页:page/pageSize 归一 + offset 换算 + total + scope 过滤 + 倒序 ──
+func TestConsole_ListDecisionsPage(t *testing.T) {
+	st, svc := newTestConsole()
+	for i := int64(1); i <= 5; i++ {
+		st.decisionRows = append(st.decisionRows, entity.DecisionRow{ID: i, Scope: "register", RiskLevel: "low", Action: "allow"})
+	}
+	st.decisionRows = append(st.decisionRows, entity.DecisionRow{ID: 6, Scope: "login", RiskLevel: "low", Action: "allow"})
+
+	// page<1 → 1;pageSize<=0 → 默认 20;scope 空 → 全量(6 条);offset=0
+	pg, err := svc.ListDecisionsPage("", 0, 0)
+	if err != nil {
+		t.Fatalf("翻页失败: %v", err)
+	}
+	if pg.Page != 1 || pg.PageSize != 20 || pg.Total != 6 || len(pg.Items) != 6 {
+		t.Fatalf("归一/全量总数不对: %+v", pg)
+	}
+	if st.lastOffset != 0 || st.lastLimit != 20 {
+		t.Fatalf("offset/limit 应 0/20,got %d/%d", st.lastOffset, st.lastLimit)
+	}
+
+	// pageSize 过大 → 截到 200
+	if _, err := svc.ListDecisionsPage("", 1, 10000); err != nil {
+		t.Fatalf("翻页失败: %v", err)
+	}
+	if st.lastLimit != 200 {
+		t.Fatalf("pageSize 过大应截到 200,got %d", st.lastLimit)
+	}
+
+	// scope=register:total=5;第 2 页 pageSize=2 → offset=(2-1)*2=2,回 2 条且 id 倒序
+	pg, err = svc.ListDecisionsPage("register", 2, 2)
+	if err != nil {
+		t.Fatalf("翻页失败: %v", err)
+	}
+	if pg.Total != 5 || pg.Page != 2 || pg.PageSize != 2 || len(pg.Items) != 2 {
+		t.Fatalf("scope 过滤/第二页不对: %+v", pg)
+	}
+	if st.lastOffset != 2 || st.lastLimit != 2 {
+		t.Fatalf("第二页 offset/limit 应 2/2,got %d/%d", st.lastOffset, st.lastLimit)
+	}
+	if pg.Items[0].ID < pg.Items[1].ID {
+		t.Fatalf("应按 id 倒序,got %+v", pg.Items)
 	}
 }
 

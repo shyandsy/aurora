@@ -1,0 +1,35 @@
+:host {
+  display: block;
+}
+
+/* 入场:遮罩淡入 + 面板缩放淡入(对标参考级 dialog)。自定义 dm- 前缀,不撞 Tailwind/DaisyUI。 */
+@keyframes dmOverlayEnter {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+@keyframes dmPanelEnter {
+  from {
+    opacity: 0;
+    transform: scale(0.97);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+.dm-overlay-enter {
+  animation: dmOverlayEnter 0.15s ease-out;
+}
+.dm-panel-enter {
+  animation: dmPanelEnter 0.18s ease-out;
+}
+@media (prefers-reduced-motion: reduce) {
+  .dm-overlay-enter,
+  .dm-panel-enter {
+    animation: none;
+  }
+}

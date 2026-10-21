@@ -79,6 +79,14 @@ type FunnelDTO struct {
 	Resolved   int64 `json:"resolved"`
 }
 
+// DecisionPageDTO 决策明细的页码翻页响应:当前页数据 + 总数 + 已归一的页码信息。
+type DecisionPageDTO struct {
+	Items    []DecisionDTO `json:"items"`
+	Total    int64         `json:"total"`
+	Page     int           `json:"page"`
+	PageSize int           `json:"pageSize"`
+}
+
 // DecisionDTO 一条决策明细。完成回填后 subject 及各网络事实会被清空,只剩计数所需字段。
 type DecisionDTO struct {
 	ID        int64     `json:"id"`

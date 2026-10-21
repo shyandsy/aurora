@@ -23,18 +23,19 @@ func handleStats(c *contracts.RequestContext) (interface{}, bizerr.BizError) {
 	return st, nil
 }
 
-// GET /decisions?scope=&limit=&before= —— 决策明细(id 倒序;before=上一页最后一条 id,游标翻页)。
+// GET /decisions?scope=&page=&pageSize= —— 决策明细(id 倒序,新→旧;页码翻页)。
+// 返回 {items, total, page, pageSize};scope 空=全量,非空=只看该 scope;page 从 1 起,pageSize 服务层归一。
 func handleDecisions(c *contracts.RequestContext) (interface{}, bizerr.BizError) {
 	svc, e := resolveConsole(c)
 	if e != nil {
 		return nil, e
 	}
-	limit, _ := strconv.Atoi(c.Query("limit"))
-	before, _ := strconv.ParseInt(c.Query("before"), 10, 64)
-	rows, err := svc.ListDecisions(c.Query("scope"), limit, before)
+	page, _ := strconv.Atoi(c.Query("page"))
+	pageSize, _ := strconv.Atoi(c.Query("pageSize"))
+	res, err := svc.ListDecisionsPage(c.Query("scope"), page, pageSize)
 	if err != nil {
 		logger.Errorf("doorman: list decisions failed: %+v", err)
 		return nil, bizerr.ErrInternalServerError(err)
 	}
-	return rows, nil
+	return res, nil
 }

@@ -104,33 +104,46 @@
       "reset_password": "找回密码"
     },
     "notWired": "该场景尚未接入后端(还没登记动作)——这里可以先预配规则,但暂不生效,接入后自动生效。",
-    "stats": {
-      "title": "决策统计",
-      "window": "近 {{days}} 天",
-      "total": "总计",
-      "byRisk": "各风险等级命中数",
-      "byAction": "各动作数",
-      "funnel": "判定 → 激活漏斗"
-    },
-    "funnel": {
-      "challenged": "判要激活",
-      "resolved": "已激活",
-      "notActivated": "未激活"
-    },
-    "log": {
-      "title": "决策明细",
-      "time": "时间",
-      "matched": "命中规则",
-      "risk": "风险",
-      "action": "动作",
-      "subject": "标识",
-      "net": "UA / IP / 网络",
-      "hosting": "机房/云",
+    "decisions": {
       "entry": "决策明细",
-      "back": "返回规则",
+      "title": "决策明细",
+      "subtitle": "全部风控决策记录 · 最新在前",
+      "close": "关闭",
+      "loading": "加载中…",
+      "loadFailed": "决策记录加载失败",
       "empty": "暂无决策记录",
-      "loadMore": "加载更多",
-      "noMore": "没有更多了"
+      "hosting": "机房/云",
+      "dataNote": "部分决策解决后已清除标识(显示「—」);完整上下文多见于已挑战 / 待处理的记录。",
+      "stats": {
+        "total": "合计决策",
+        "riskDist": "风险分布"
+      },
+      "funnel": {
+        "title": "挑战→解决",
+        "rate": "解决率",
+        "challenged": "已挑战",
+        "resolved": "已解决",
+        "resolvedWord": "解决",
+        "unresolved": "未解决",
+        "none": "暂无挑战记录"
+      },
+      "col": {
+        "time": "时间",
+        "subject": "标识",
+        "matched": "命中规则",
+        "risk": "风险",
+        "action": "动作",
+        "network": "UA / IP / 网络"
+      },
+      "action": {
+        "default": "—"
+      },
+      "pager": {
+        "prev": "上一页",
+        "next": "下一页",
+        "totalPrefix": "共",
+        "totalSuffix": "条"
+      }
     }
   }
 }

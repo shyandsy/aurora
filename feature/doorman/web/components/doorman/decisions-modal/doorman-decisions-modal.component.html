@@ -1,0 +1,193 @@
+<!-- 决策明细弹窗(参考级 dialog,对标 shadcn / Tailwind UI):深色毛玻璃遮罩 + 居中定高面板。点遮罩 / ✕ 关闭。
+     面板定高 720px(inline style、不满屏、不随翻页跳),头/统计/脚固定,中间表格区填满剩余;
+     表格区按高度显示「正好放得下」的行数 → 翻页而非滚动,横纵均无滚动条。 -->
+<div
+  class="fixed top-0 right-0 bottom-0 z-50 bg-black/40 flex items-center justify-center p-4 sm:p-6 dm-overlay-enter"
+  [style.left]="insetLeft()"
+  (click)="onClose()">
+  <!-- 面板:flex 列 —— 头/统计/脚 shrink-0 固定,表格区恒渲染 10 行槽(不足补空行)→ 高度恒定、不坍缩、无空白。
+       ⚠️ 尺寸(宽/高)一律走 inline style,不用 Tailwind 任意类(max-w-5xl 等):联邦 remote 构建里这些任意类
+       可能不生成/不被加载 → 面板塌成又宽又矮(客户页就是改 inline 后才正常)。高度由内容撑(恒 10 行槽即恒定),
+       不写死像素;窗口过矮时 max-height 内部滚动兜底。 -->
+  <div
+    class="dm-panel-enter w-full bg-white rounded-xl border border-gray-200 shadow-2xl overflow-hidden flex flex-col"
+    style="max-width: 1024px; max-height: calc(100vh - 3rem)"
+    (click)="$event.stopPropagation()">
+
+    <!-- 头(固定 px-6 py-5 border-b) -->
+    <div class="shrink-0 flex items-start justify-between gap-4 px-6 py-5 border-b border-gray-200">
+      <div class="min-w-0">
+        <h2 class="text-lg font-semibold text-gray-900 leading-none">{{ titleText() }}</h2>
+        @if (subtitleText()) {
+        <div class="text-gray-500 text-sm mt-1.5">{{ subtitleText() }}</div>
+        }
+      </div>
+      <button type="button" (click)="onClose()"
+        [attr.aria-label]="'doorman.decisions.close' | translate"
+        class="shrink-0 -mr-1.5 -mt-1 w-9 h-9 grid place-items-center text-gray-400 hover:text-gray-600 hover:bg-gray-100 rounded-lg transition-colors">
+        <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
+        </svg>
+      </button>
+    </div>
+
+    <!-- 统计(固定、紧凑):KPI tiles 一排(合计 + 各动作,通用)+ 风险分布 / 挑战→解决 两条细进度。始终渲染以稳定布局测量 -->
+    <div class="shrink-0 px-6 pt-4 pb-3 border-b border-gray-100">
+      <!-- KPI:合计 + 各动作计数(动作名走 doorman.action.*,无硬编码动作) -->
+      <div class="grid grid-cols-2 sm:grid-cols-4 gap-2.5">
+        <div class="rounded-lg border border-gray-200 bg-white px-3 py-2">
+          <div class="text-xs text-gray-500 truncate">{{ 'doorman.decisions.stats.total' | translate }}</div>
+          <div class="text-xl font-semibold text-gray-900 tabular-nums mt-0.5 leading-none">{{ kpiTotal() }}</div>
+        </div>
+        @for (k of actionKpis(); track k.action) {
+        <div class="rounded-lg border px-3 py-2" [class]="k.card">
+          <div class="text-xs truncate" [class]="k.label" [title]="actionLabel(k.action)">{{ actionLabel(k.action) }}</div>
+          <div class="text-xl font-semibold tabular-nums mt-0.5 leading-none" [class]="k.num">{{ k.count }}</div>
+        </div>
+        }
+      </div>
+
+      <!-- 风险分布 | 挑战→解决 两条细进度 -->
+      <div class="grid grid-cols-1 md:grid-cols-2 gap-x-8 gap-y-2.5 mt-3">
+        <!-- 风险等级分布:标签 + 细彩条 + 右侧图例(前 2 高 + 「+N」溢出,title 列出其余) -->
+        <div class="flex items-center gap-2.5">
+          <span class="text-xs text-gray-500 shrink-0 whitespace-nowrap">{{ 'doorman.decisions.stats.riskDist' | translate }}</span>
+          <div class="flex-1 flex h-2 rounded-full overflow-hidden bg-gray-200">
+            @for (seg of riskSegments(); track seg.level) {
+            @if (seg.pct > 0) {
+            <div [class]="seg.barClass" [style.width.%]="seg.pct" [title]="riskLabel(seg.level) + ' ' + seg.count"></div>
+            }
+            }
+          </div>
+          <span class="shrink-0 flex items-center gap-2 text-xs text-gray-600 tabular-nums">
+            @for (seg of riskLegendPrimary(); track seg.level) {
+            <span class="inline-flex items-center gap-1">
+              <i class="w-2 h-2 rounded-full inline-block" [class]="seg.dotClass"></i>{{ riskLabel(seg.level) }} <b class="text-gray-900">{{ seg.count }}</b>
+            </span>
+            }
+            @if (riskLegendOverflow().length) {
+            <span class="text-gray-400 cursor-help" [title]="riskOverflowTitle()">+{{ riskLegendOverflow().length }}</span>
+            }
+          </span>
+        </div>
+
+        <!-- 挑战 → 解决:标签 + 细绿条 + 右侧读数「53 → 38 解决 · 72%」;无挑战记录则留白稳定布局 -->
+        <div class="flex items-center gap-2.5">
+          <span class="text-xs text-gray-500 shrink-0 whitespace-nowrap">{{ 'doorman.decisions.funnel.title' | translate }}</span>
+          <div class="flex-1 h-2 rounded-full bg-gray-200 overflow-hidden">
+            <div class="h-full rounded-full bg-green-500" [style.width.%]="funnelRate() || 0"></div>
+          </div>
+          <span class="shrink-0 text-xs text-gray-600 tabular-nums">
+            @if (hasFunnel()) {
+            {{ funnelChallenged() }} → <b class="text-green-700">{{ funnelResolved() }}</b> {{ 'doorman.decisions.funnel.resolvedWord' | translate }} · {{ funnelRate() === null ? '—' : (funnelRate() | number: '1.0-0') + '%' }}
+            } @else {
+            <span class="text-gray-400">{{ 'doorman.decisions.funnel.none' | translate }}</span>
+            }
+          </span>
+        </div>
+      </div>
+    </div>
+
+    <!-- 表格区:恒渲染 10 行槽,正常不滚动;窗口过矮(panel 触顶 max-height)时 flex-1+min-h-0 收缩、竖向滚动兜底 -->
+    <div class="flex-1 min-h-0 overflow-x-auto overflow-y-auto">
+      @if (loading()) {
+      <div class="h-full flex items-center justify-center py-12 text-gray-500 text-sm">{{ 'doorman.decisions.loading' | translate }}</div>
+      } @else if (error()) {
+      <div class="p-5">
+        <div class="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded text-sm">
+          {{ 'doorman.decisions.loadFailed' | translate }}
+        </div>
+      </div>
+      } @else if (isEmpty()) {
+      <div class="h-full flex flex-col items-center justify-center py-12 px-4 text-gray-400">
+        <svg class="w-10 h-10 mb-3 text-gray-300" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5"
+            d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+        </svg>
+        <p class="text-sm leading-relaxed">{{ 'doorman.decisions.empty' | translate }}</p>
+      </div>
+      } @else if (decisions(); as list) {
+      <!-- 台账表(6 列中立:时间 / 标识 / 命中规则 / 风险 / 动作 / 网络)。table-fixed + 各列定宽、不设 min-width → 不横滚;单行高度恒定供测量 -->
+      <table class="w-full table-fixed text-[13px]">
+        <thead class="bg-gray-50 sticky top-0 z-10">
+          <tr>
+            <th class="w-[190px] px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">{{ 'doorman.decisions.col.time' | translate }}</th>
+            <th class="w-[170px] px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">{{ 'doorman.decisions.col.subject' | translate }}</th>
+            <th class="w-[160px] px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">{{ 'doorman.decisions.col.matched' | translate }}</th>
+            <th class="w-[92px] px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">{{ 'doorman.decisions.col.risk' | translate }}</th>
+            <th class="w-[150px] px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">{{ 'doorman.decisions.col.action' | translate }}</th>
+            <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">{{ 'doorman.decisions.col.network' | translate }}</th>
+          </tr>
+        </thead>
+        <tbody class="divide-y divide-gray-100">
+          @for (d of list; track d.id) {
+          <tr class="hover:bg-gray-50">
+            <td class="px-4 py-2.5 whitespace-nowrap text-gray-500 tabular-nums">{{ fmtTime(d.created) }}</td>
+            <td class="px-4 py-2.5 truncate text-gray-700" [title]="d.subject || '—'">{{ d.subject || '—' }}</td>
+            <td class="px-4 py-2.5 truncate text-gray-700" [title]="d.matched || '—'">{{ d.matched || '—' }}</td>
+            <td class="px-4 py-2.5 whitespace-nowrap">
+              <span class="inline-flex px-2 py-0.5 rounded-full text-xs font-medium" [class]="riskLevelClass(d.riskLevel)">{{ riskLabel(d.riskLevel) }}</span>
+            </td>
+            <td class="px-4 py-2.5 whitespace-nowrap text-gray-700">
+              {{ actionLabel(d.action) }}
+              @if (d.outcome) {
+              <span class="ml-1 inline-flex px-1.5 py-0.5 rounded-full text-[11px] font-medium bg-green-100 text-green-800">{{ 'doorman.decisions.funnel.resolved' | translate }}</span>
+              }
+            </td>
+            <td class="px-4 py-2.5 truncate text-xs text-gray-500 font-mono"
+              [title]="networkText(d) + (d.isHosting ? (' · ' + ('doorman.decisions.hosting' | translate)) : '')">
+              {{ networkText(d) }}
+              @if (d.isHosting) {
+              <span class="ml-1 text-red-600 font-sans">{{ 'doorman.decisions.hosting' | translate }}</span>
+              }
+            </td>
+          </tr>
+          }
+          <!-- 空行补齐:本页不足 10 条时补到 10 个行槽,面板高度恒定 → 最后一页不坍缩、表格下方不留空白 -->
+          @for (i of fillerRows(); track i) {
+          <tr aria-hidden="true">
+            <td class="px-4 py-2.5 text-[13px]" colspan="6">&nbsp;</td>
+          </tr>
+          }
+        </tbody>
+      </table>
+      }
+    </div>
+
+    <!-- 脚(固定 px-6 py-3 border-t,一行):左「共 N 条」+ PII 说明收进 ⓘ;右 页码分页(doorman.decisions.pager.*,自包含、窗口化) -->
+    <div class="shrink-0 px-6 py-3 border-t border-gray-200 flex items-center justify-between gap-4 text-sm text-gray-500">
+      <span class="inline-flex items-center gap-1.5">
+        {{ 'doorman.decisions.pager.totalPrefix' | translate }}
+        <b class="text-gray-700 tabular-nums">{{ total() }}</b>
+        {{ 'doorman.decisions.pager.totalSuffix' | translate }}
+        <span class="text-gray-300 cursor-help" [title]="'doorman.decisions.dataNote' | translate">ⓘ</span>
+      </span>
+      @if (totalPages() > 1) {
+      <div class="flex items-center gap-1">
+        <button type="button" (click)="prevPage()" [disabled]="!hasPrev()"
+          class="px-3 py-1 rounded border border-gray-200 transition-colors"
+          [class]="hasPrev() ? 'text-gray-600 hover:bg-gray-50' : 'text-gray-400 cursor-not-allowed'">
+          {{ 'doorman.decisions.pager.prev' | translate }}
+        </button>
+        @for (p of pageWindow(); track $index) {
+          @if (isPageNumber(p)) {
+          <button type="button" (click)="onPageChange(p)"
+            [class]="p === currentPage()
+              ? 'px-3 py-1 rounded bg-indigo-600 text-white'
+              : 'px-3 py-1 rounded border border-gray-200 text-gray-600 hover:bg-gray-50'">
+            {{ p }}
+          </button>
+          } @else {
+          <span class="px-2 text-gray-400">{{ p }}</span>
+          }
+        }
+        <button type="button" (click)="nextPage()" [disabled]="!hasNext()"
+          class="px-3 py-1 rounded border border-gray-200 transition-colors"
+          [class]="hasNext() ? 'text-gray-600 hover:bg-gray-50' : 'text-gray-400 cursor-not-allowed'">
+          {{ 'doorman.decisions.pager.next' | translate }}
+        </button>
+      </div>
+      }
+    </div>
+  </div>
+</div>

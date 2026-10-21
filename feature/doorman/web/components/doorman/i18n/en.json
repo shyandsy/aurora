@@ -104,33 +104,46 @@
       "reset_password": "Password reset"
     },
     "notWired": "This scope isn't wired to the backend yet (no actions registered). You can pre-configure rules here, but they won't take effect until it's integrated.",
-    "stats": {
-      "title": "Decision stats",
-      "window": "Last {{days}} days",
-      "total": "Total",
-      "byRisk": "Hits by risk level",
-      "byAction": "Count by action",
-      "funnel": "Decision → activation funnel"
-    },
-    "funnel": {
-      "challenged": "Asked to activate",
-      "resolved": "Activated",
-      "notActivated": "Not activated"
-    },
-    "log": {
-      "title": "Decision log",
-      "time": "Time",
-      "matched": "Matched rules",
-      "risk": "Risk",
-      "action": "Action",
-      "subject": "Subject",
-      "net": "UA / IP / Network",
-      "hosting": "hosting",
+    "decisions": {
       "entry": "Decision log",
-      "back": "Back to rules",
+      "title": "Decisions",
+      "subtitle": "All risk decisions · newest first",
+      "close": "Close",
+      "loading": "Loading…",
+      "loadFailed": "Failed to load decisions",
       "empty": "No decisions yet",
-      "loadMore": "Load more",
-      "noMore": "No more"
+      "hosting": "hosting",
+      "dataNote": "Some decisions have their identifier cleared after resolution (shown as “—”); full context is mostly on challenged / pending records.",
+      "stats": {
+        "total": "Total",
+        "riskDist": "Risk"
+      },
+      "funnel": {
+        "title": "Challenge → Resolve",
+        "rate": "Resolution rate",
+        "challenged": "Challenged",
+        "resolved": "Resolved",
+        "resolvedWord": "resolved",
+        "unresolved": "Unresolved",
+        "none": "No challenge records"
+      },
+      "col": {
+        "time": "Time",
+        "subject": "Subject",
+        "matched": "Matched rules",
+        "risk": "Risk",
+        "action": "Action",
+        "network": "UA / IP / Network"
+      },
+      "action": {
+        "default": "—"
+      },
+      "pager": {
+        "prev": "Prev",
+        "next": "Next",
+        "totalPrefix": "",
+        "totalSuffix": "total"
+      }
     }
   }
 }
