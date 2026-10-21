@@ -5,11 +5,12 @@ import { CreateEditRoleComponent } from '../role/components/create-edit-role/cre
 import { FeatureCheckboxListComponent } from './components/feature-checkbox-list/feature-checkbox-list.component';
 import { PagePermissionListComponent } from './components/page-permission-list/page-permission-list.component';
 import { Role } from '../../shared/models/role.dto';
+import { TabShellActionsDirective } from '../../../../shared/components/tab-bar/tab-shell-actions.directive';
 
 @Component({
   selector: 'app-role-feature',
   standalone: true,
-  imports: [RoleListComponent, CreateEditRoleComponent, FeatureCheckboxListComponent, PagePermissionListComponent, TranslateModule],
+  imports: [RoleListComponent, CreateEditRoleComponent, FeatureCheckboxListComponent, PagePermissionListComponent, TranslateModule, TabShellActionsDirective],
   templateUrl: './role-feature.component.html',
   styleUrl: './role-feature.component.css'
 })

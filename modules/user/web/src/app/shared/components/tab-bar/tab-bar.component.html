@@ -1,5 +1,6 @@
-<!-- 下划线 tab 条:底部通栏细线,选中项 indigo 下划线 + 文字高亮 -->
-<div class="border-b border-gray-200 mb-6">
+<!-- 下划线 tab 条:底部通栏细线,选中项 indigo 下划线 + 文字高亮。
+     右侧可投影页面级操作(<... tabActions>),和 tab 同一行、靠右,下划线仍通栏。 -->
+<div class="border-b border-gray-200 mb-4 flex items-center justify-between gap-3">
   <nav class="-mb-px flex flex-wrap gap-6" role="tablist">
     @for (tab of tabs(); track tab.id) {
     <button type="button" role="tab" [attr.aria-selected]="activeId() === tab.id" [disabled]="tab.disabled"
@@ -26,4 +27,5 @@
     </button>
     }
   </nav>
+  <div class="shrink-0 pb-2"><ng-content select="[tabActions]"></ng-content></div>
 </div>

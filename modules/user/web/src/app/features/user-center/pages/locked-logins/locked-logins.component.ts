@@ -7,6 +7,7 @@ import { LockedLoginItem } from '../../shared/models/rate-limit.dto';
 import { extractErrorMessage } from '../../../../shared/utils/error.util';
 import { environment } from '../../../../../environments/environment';
 import { ConfirmDialogComponent } from '../../../../shared/components/confirm-dialog/confirm-dialog.component';
+import { TabShellActionsDirective } from '../../../../shared/components/tab-bar/tab-shell-actions.directive';
 import { formatDateToBeijing } from '@common/utils/date.util';
 
 /**
@@ -19,7 +20,7 @@ import { formatDateToBeijing } from '@common/utils/date.util';
 @Component({
   selector: 'app-locked-logins',
   standalone: true,
-  imports: [CommonModule, TranslateModule, ConfirmDialogComponent],
+  imports: [CommonModule, TranslateModule, ConfirmDialogComponent, TabShellActionsDirective],
   templateUrl: './locked-logins.component.html',
   styleUrl: './locked-logins.component.css'
 })
