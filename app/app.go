@@ -3,6 +3,7 @@ package app
 import (
 	"fmt"
 	"log"
+	"sync"
 
 	"github.com/shyandsy/aurora/config"
 	"github.com/shyandsy/aurora/contracts"
@@ -18,6 +19,7 @@ type app struct {
 	config        *appConfig
 	features      []contracts.Features
 	serverFeature contracts.ServerFeature
+	shutdownOnce  sync.Once
 	di.Container
 }
 
@@ -74,6 +76,12 @@ func (a *app) registerBaseDependencies() {
 func (a *app) Run() error {
 	a.printStartupInfo()
 
+	// 进程退出时(收到 SIGINT/SIGTERM → serverFeature.Wait 返回;或将来 Start 返错)统一关闭所有
+	// feature —— 否则持有后台协程/长连接的 feature 的 Close 永远不会被调用。Shutdown 幂等(sync.Once),
+	// 业务 main 若再显式调一次也无害。
+	// ⚠️ 框架不设整体关停超时:各 feature 的 Close() 必须自带有界超时,否则一个无界阻塞的 Close 会拖住整个退出。
+	defer a.Shutdown()
+
 	if err := a.serverFeature.Start(); err != nil {
 		return fmt.Errorf("server start failed: %w", err)
 	}
@@ -83,11 +91,13 @@ func (a *app) Run() error {
 }
 
 func (a *app) Shutdown() error {
-	for i := len(a.features) - 1; i >= 0; i-- {
-		if err := a.features[i].Close(); err != nil {
-			log.Printf("Error closing feature %s: %v", a.features[i].Name(), err)
+	a.shutdownOnce.Do(func() {
+		for i := len(a.features) - 1; i >= 0; i-- {
+			if err := a.features[i].Close(); err != nil {
+				log.Printf("Error closing feature %s: %v", a.features[i].Name(), err)
+			}
 		}
-	}
+	})
 	return nil
 }
 
